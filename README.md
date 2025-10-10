@@ -1,0 +1,240 @@
+# Toolscore
+
+> A Python package for evaluating LLM tool usage against gold standard specifications
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+Toolscore helps developers evaluate the tool-using behavior of LLM-based agents by comparing recorded tool usage traces against gold-standard specifications, producing detailed metrics and reports.
+
+## Features
+
+- **Trace vs. Spec Comparison**: Load agent tool-use traces (OpenAI, Anthropic, or custom) and compare against gold standard specifications
+- **Comprehensive Metrics Suite**:
+  - Tool Invocation Accuracy
+  - Tool Selection Accuracy
+  - Tool Call Sequence Edit Distance
+  - Argument Match F1 Score
+  - Redundant Call Rate
+  - Side-Effect Success Rate
+  - Latency/Cost Attribution
+- **Multiple Trace Adapters**: Built-in support for OpenAI, Anthropic Claude, and custom JSON formats
+- **CLI and API**: Command-line interface and Python API for programmatic use
+- **Rich Output Reports**: Interactive HTML and machine-readable JSON reports
+- **Extensible Checks**: Validate side-effects like HTTP calls, file creation, database queries
+
+## Installation
+
+```bash
+# Install from PyPI (when published)
+pip install toolscore
+
+# Or install from source
+git clone https://github.com/yourusername/toolscore.git
+cd toolscore
+pip install -e .
+```
+
+### Development Installation
+
+```bash
+# Install with development dependencies
+pip install -e ".[dev]"
+
+# Or using uv (faster)
+uv pip install -e ".[dev]"
+```
+
+## Quick Start
+
+### Command Line Usage
+
+```bash
+# Evaluate a trace against gold standard
+toolscore eval gold_calls.json trace.json
+
+# Generate both JSON and HTML reports
+toolscore eval gold_calls.json trace.json --html report.html
+
+# Specify trace format explicitly
+toolscore eval gold_calls.json trace.json --format openai
+
+# Validate trace file format
+toolscore validate trace.json
+```
+
+### Python API
+
+```python
+from toolscore import evaluate_trace
+
+# Run evaluation
+result = evaluate_trace(
+    gold_file="gold_calls.json",
+    trace_file="trace.json",
+    format="auto"  # auto-detect format
+)
+
+# Access metrics
+print(f"Invocation Accuracy: {result.metrics['invocation_accuracy']:.2%}")
+print(f"Selection Accuracy: {result.metrics['selection_accuracy']:.2%}")
+
+sequence = result.metrics['sequence_metrics']
+print(f"Sequence Accuracy: {sequence['sequence_accuracy']:.2%}")
+
+arguments = result.metrics['argument_metrics']
+print(f"Argument F1: {arguments['f1']:.2%}")
+```
+
+## Gold Standard Format
+
+Create a `gold_calls.json` file defining the expected tool calls:
+
+```json
+[
+  {
+    "tool": "make_file",
+    "args": {
+      "filename": "poem.txt",
+      "lines_of_text": ["Roses are red,", "Violets are blue."]
+    },
+    "side_effects": {
+      "file_exists": "poem.txt"
+    },
+    "description": "Create a file with a poem"
+  }
+]
+```
+
+## Trace Formats
+
+Toolscore supports multiple trace formats:
+
+### OpenAI Format
+
+```json
+[
+  {
+    "role": "assistant",
+    "function_call": {
+      "name": "get_weather",
+      "arguments": "{\"location\": \"Boston\"}"
+    }
+  }
+]
+```
+
+### Anthropic Format
+
+```json
+[
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_123",
+        "name": "search",
+        "input": {"query": "Python"}
+      }
+    ]
+  }
+]
+```
+
+### Custom Format
+
+```json
+{
+  "calls": [
+    {
+      "tool": "read_file",
+      "args": {"path": "data.txt"},
+      "result": "file contents"
+    }
+  ]
+}
+```
+
+## Metrics Explained
+
+### Tool Invocation Accuracy
+Measures whether the agent invoked tools when needed and refrained when not needed.
+
+### Tool Selection Accuracy
+Proportion of tool calls that match expected tool names.
+
+### Sequence Edit Distance
+Levenshtein distance between expected and actual tool call sequences.
+
+### Argument Match F1
+Precision and recall of argument correctness across all tool calls.
+
+### Redundant Call Rate
+Percentage of unnecessary or duplicate tool calls.
+
+### Side-Effect Success Rate
+Proportion of validated side-effects (HTTP, filesystem, database) that succeeded.
+
+## Project Structure
+
+```
+toolscore/
+├── adapters/          # Trace format adapters
+│   ├── openai.py
+│   ├── anthropic.py
+│   └── custom.py
+├── metrics/           # Metric calculators
+│   ├── accuracy.py
+│   ├── sequence.py
+│   ├── arguments.py
+│   └── ...
+├── validators/        # Side-effect validators
+│   ├── http.py
+│   ├── filesystem.py
+│   └── database.py
+├── reports/           # Report generators
+├── cli.py            # CLI interface
+└── core.py           # Core evaluation logic
+```
+
+## Development
+
+```bash
+# Install dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run tests with coverage
+pytest --cov=toolscore
+
+# Type checking
+mypy toolscore
+
+# Linting and formatting
+ruff check toolscore
+ruff format toolscore
+```
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
+
+## Citation
+
+If you use Toolscore in your research, please cite:
+
+```bibtex
+@software{toolscore,
+  title = {Toolscore: LLM Tool Usage Evaluation Package},
+  author = {Toolscore Contributors},
+  year = {2025},
+  url = {https://github.com/yourusername/toolscore}
+}
+```
