@@ -146,4 +146,4 @@ with open(output_file, "w") as f:
 
 print(f"\n✓ Trace saved to: {output_file}")
 print(f"\nTo evaluate this trace, run:")
-print(f"  toolscore eval examples/gold_calls.json {output_file} --format openai")
+print(f"  tool-scorer eval examples/gold_calls.json {output_file} --format openai")

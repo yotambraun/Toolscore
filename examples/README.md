@@ -21,17 +21,17 @@ This directory contains example files and scripts demonstrating the usage of Too
 
 Evaluate an OpenAI trace:
 ```bash
-toolscore eval gold_calls.json trace_openai.json --format openai --html report.html
+tool-scorer eval gold_calls.json trace_openai.json --format openai --html report.html
 ```
 
 Evaluate an Anthropic trace:
 ```bash
-toolscore eval gold_calls.json trace_anthropic.json --format anthropic
+tool-scorer eval gold_calls.json trace_anthropic.json --format anthropic
 ```
 
 Evaluate a custom trace (auto-detect format):
 ```bash
-toolscore eval gold_calls.json trace_custom.json
+tool-scorer eval gold_calls.json trace_custom.json
 ```
 
 ### Option 2: Capture Your Own Traces
@@ -58,7 +58,7 @@ toolscore eval gold_calls.json trace_custom.json
 
 4. **Evaluate your trace:**
    ```bash
-   toolscore eval gold_calls.json my_trace_openai.json --format openai
+   tool-scorer eval gold_calls.json my_trace_openai.json --format openai
    ```
 
 ## Python API

@@ -2,10 +2,10 @@
 
 > A Python package for evaluating LLM tool usage against gold standard specifications
 
-[![PyPI version](https://badge.fury.io/py/toolscore.svg)](https://badge.fury.io/py/toolscore)
+[![PyPI version](https://badge.fury.io/py/tool-scorer.svg)](https://badge.fury.io/py/tool-scorer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Downloads](https://static.pepy.tech/badge/toolscore)](https://pepy.tech/project/toolscore)
-[![Python Versions](https://img.shields.io/pypi/pyversions/toolscore.svg)](https://pypi.org/project/toolscore/)
+[![Downloads](https://static.pepy.tech/badge/tool-scorer)](https://pepy.tech/project/tool-scorer)
+[![Python Versions](https://img.shields.io/pypi/pyversions/tool-scorer.svg)](https://pypi.org/project/tool-scorer/)
 [![CI](https://github.com/yotambraun/toolscore/workflows/CI/badge.svg)](https://github.com/yotambraun/toolscore/actions)
 [![codecov](https://codecov.io/gh/yotambraun/toolscore/branch/main/graph/badge.svg)](https://codecov.io/gh/yotambraun/toolscore)
 
@@ -46,7 +46,7 @@ Toolscore helps developers evaluate the tool-using behavior of LLM-based agents 
 
 ```bash
 # Install from PyPI
-pip install toolscore
+pip install tool-scorer
 
 # Or install from source
 git clone https://github.com/yotambraun/toolscore.git
@@ -70,12 +70,12 @@ uv pip install -e ".[dev]"
 
 1. **Install Toolscore:**
    ```bash
-   pip install toolscore
+   pip install tool-scorer
    ```
 
 2. **Run your first evaluation** (using included examples):
    ```bash
-   toolscore eval examples/gold_calls.json examples/trace_openai.json --html report.html
+   tool-scorer eval examples/gold_calls.json examples/trace_openai.json --html report.html
    ```
 
 3. **View results:**
@@ -94,16 +94,16 @@ uv pip install -e ".[dev]"
 
 ```bash
 # Evaluate a trace against gold standard
-toolscore eval gold_calls.json trace.json
+tool-scorer eval gold_calls.json trace.json
 
 # Generate both JSON and HTML reports
-toolscore eval gold_calls.json trace.json --html report.html
+tool-scorer eval gold_calls.json trace.json --html report.html
 
 # Specify trace format explicitly
-toolscore eval gold_calls.json trace.json --format openai
+tool-scorer eval gold_calls.json trace.json --format openai
 
 # Validate trace file format
-toolscore validate trace.json
+tool-scorer validate trace.json
 ```
 
 ### Python API

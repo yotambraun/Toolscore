@@ -267,13 +267,13 @@ Now evaluate your trace against the gold standard!
 
 ```bash
 # Basic evaluation
-toolscore eval my_gold_standard.json my_trace_openai.json
+tool-scorer eval my_gold_standard.json my_trace_openai.json
 
 # With HTML report
-toolscore eval my_gold_standard.json my_trace_openai.json --html report.html
+tool-scorer eval my_gold_standard.json my_trace_openai.json --html report.html
 
 # Specify format explicitly
-toolscore eval my_gold_standard.json my_trace_openai.json --format openai
+tool-scorer eval my_gold_standard.json my_trace_openai.json --format openai
 ```
 
 ### Python API Usage
@@ -436,15 +436,15 @@ python capture_openai_trace.py   # GPT-4
 python capture_anthropic_trace.py # Claude
 
 # 3. Evaluate both
-toolscore eval gold_standard.json trace_gpt4.json --html gpt4_report.html
-toolscore eval gold_standard.json trace_claude.json --html claude_report.html
+tool-scorer eval gold_standard.json trace_gpt4.json --html gpt4_report.html
+tool-scorer eval gold_standard.json trace_claude.json --html claude_report.html
 
 # 4. Compare results
 echo "GPT-4 Results:"
-toolscore eval gold_standard.json trace_gpt4.json
+tool-scorer eval gold_standard.json trace_gpt4.json
 
 echo "\nClaude Results:"
-toolscore eval gold_standard.json trace_claude.json
+tool-scorer eval gold_standard.json trace_claude.json
 ```
 
 ## Next Steps
