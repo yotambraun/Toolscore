@@ -1,0 +1,64 @@
+[
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_01ABC123",
+        "name": "make_file",
+        "input": {
+          "filename": "poem.txt",
+          "lines_of_text": [
+            "Roses are red,",
+            "Violets are blue."
+          ]
+        }
+      }
+    ],
+    "stop_reason": "tool_use"
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01ABC123",
+        "content": "{\"success\": true, \"path\": \"poem.txt\"}"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "tool_use",
+        "id": "toolu_01ABC124",
+        "name": "read_file",
+        "input": {
+          "filename": "poem.txt"
+        }
+      }
+    ],
+    "stop_reason": "tool_use"
+  },
+  {
+    "role": "user",
+    "content": [
+      {
+        "type": "tool_result",
+        "tool_use_id": "toolu_01ABC124",
+        "content": "Roses are red,\\nViolets are blue."
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "I've created a file called poem.txt with your poem!"
+      }
+    ],
+    "stop_reason": "end_turn"
+  }
+]

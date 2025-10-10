@@ -1,0 +1,29 @@
+{
+  "calls": [
+    {
+      "tool": "make_file",
+      "args": {
+        "filename": "poem.txt",
+        "lines_of_text": [
+          "Roses are red,",
+          "Violets are blue."
+        ]
+      },
+      "result": {
+        "success": true,
+        "path": "poem.txt"
+      },
+      "timestamp": 1704067200.0,
+      "duration": 0.05
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "filename": "poem.txt"
+      },
+      "result": "Roses are red,\nViolets are blue.",
+      "timestamp": 1704067200.1,
+      "duration": 0.02
+    }
+  ]
+}

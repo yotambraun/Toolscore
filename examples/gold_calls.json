@@ -1,0 +1,23 @@
+[
+  {
+    "tool": "make_file",
+    "args": {
+      "filename": "poem.txt",
+      "lines_of_text": [
+        "Roses are red,",
+        "Violets are blue."
+      ]
+    },
+    "side_effects": {
+      "file_exists": "poem.txt"
+    },
+    "description": "Create a file with a short poem"
+  },
+  {
+    "tool": "read_file",
+    "args": {
+      "filename": "poem.txt"
+    },
+    "description": "Read back the created file to verify content"
+  }
+]
