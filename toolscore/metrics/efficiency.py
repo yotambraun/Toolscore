@@ -50,11 +50,6 @@ def calculate_redundant_call_rate(
         if actual_count > expected_count:
             redundant_count += actual_count - expected_count
 
-    # Also count calls for tools that weren't expected at all
-    for tool in actual_counts:
-        if tool not in expected_counts:
-            redundant_count += actual_counts[tool]
-
     total_calls = len(trace_calls)
     redundant_rate = redundant_count / total_calls if total_calls > 0 else 0.0
 

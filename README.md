@@ -7,6 +7,21 @@
 
 Toolscore helps developers evaluate the tool-using behavior of LLM-based agents by comparing recorded tool usage traces against gold-standard specifications, producing detailed metrics and reports.
 
+## What is Toolscore?
+
+**Toolscore evaluates LLM tool usage** - it doesn't call LLM APIs directly. Think of it as a testing framework for function-calling agents:
+
+- ✅ **Evaluates** existing tool usage traces from OpenAI, Anthropic, or custom sources
+- ✅ **Compares** actual behavior against expected gold standards
+- ✅ **Reports** detailed metrics on accuracy, efficiency, and correctness
+- ❌ **Does NOT** call LLM APIs or execute tools (you capture traces separately)
+
+**Use Toolscore to:**
+- Benchmark different LLM models on tool usage tasks
+- Validate that your agent calls the right tools with the right arguments
+- Track improvements in function calling accuracy over time
+- Compare agent performance across different prompting strategies
+
 ## Features
 
 - **Trace vs. Spec Comparison**: Load agent tool-use traces (OpenAI, Anthropic, or custom) and compare against gold standard specifications
@@ -46,6 +61,32 @@ uv pip install -e ".[dev]"
 ```
 
 ## Quick Start
+
+### 5-Minute Getting Started
+
+1. **Install Toolscore:**
+   ```bash
+   git clone https://github.com/yourusername/toolscore.git
+   cd toolscore
+   pip install -e .
+   ```
+
+2. **Run your first evaluation** (using included examples):
+   ```bash
+   toolscore eval examples/gold_calls.json examples/trace_openai.json --html report.html
+   ```
+
+3. **View results:**
+   ```bash
+   # Console output shows:
+   Invocation Accuracy: 100.00%
+   Selection Accuracy: 100.00%
+   Sequence Accuracy: 100.00%
+
+   # Open report.html in your browser for detailed analysis
+   ```
+
+4. **Want to test with your own LLM?** See the [Complete Tutorial](TUTORIAL.md) for step-by-step instructions on capturing traces from OpenAI/Anthropic APIs.
 
 ### Command Line Usage
 
@@ -217,6 +258,12 @@ mypy toolscore
 ruff check toolscore
 ruff format toolscore
 ```
+
+## Documentation
+
+- **[Complete Tutorial](TUTORIAL.md)** - In-depth guide with end-to-end workflow
+- **[Examples Directory](examples/)** - Sample traces and capture scripts
+- **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to Toolscore
 
 ## Contributing
 
