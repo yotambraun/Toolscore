@@ -2,8 +2,12 @@
 
 > A Python package for evaluating LLM tool usage against gold standard specifications
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![PyPI version](https://badge.fury.io/py/toolscore.svg)](https://badge.fury.io/py/toolscore)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Downloads](https://static.pepy.tech/badge/toolscore)](https://pepy.tech/project/toolscore)
+[![Python Versions](https://img.shields.io/pypi/pyversions/toolscore.svg)](https://pypi.org/project/toolscore/)
+[![CI](https://github.com/yotambraun/toolscore/workflows/CI/badge.svg)](https://github.com/yotambraun/toolscore/actions)
+[![codecov](https://codecov.io/gh/yotambraun/toolscore/branch/main/graph/badge.svg)](https://codecov.io/gh/yotambraun/toolscore)
 
 Toolscore helps developers evaluate the tool-using behavior of LLM-based agents by comparing recorded tool usage traces against gold-standard specifications, producing detailed metrics and reports.
 
@@ -41,11 +45,11 @@ Toolscore helps developers evaluate the tool-using behavior of LLM-based agents 
 ## Installation
 
 ```bash
-# Install from PyPI (when published)
+# Install from PyPI
 pip install toolscore
 
 # Or install from source
-git clone https://github.com/yourusername/toolscore.git
+git clone https://github.com/yotambraun/toolscore.git
 cd toolscore
 pip install -e .
 ```
@@ -66,9 +70,7 @@ uv pip install -e ".[dev]"
 
 1. **Install Toolscore:**
    ```bash
-   git clone https://github.com/yourusername/toolscore.git
-   cd toolscore
-   pip install -e .
+   pip install toolscore
    ```
 
 2. **Run your first evaluation** (using included examples):
@@ -280,8 +282,8 @@ If you use Toolscore in your research, please cite:
 ```bibtex
 @software{toolscore,
   title = {Toolscore: LLM Tool Usage Evaluation Package},
-  author = {Toolscore Contributors},
+  author = {Yotam Braun},
   year = {2025},
-  url = {https://github.com/yourusername/toolscore}
+  url = {https://github.com/yotambraun/toolscore}
 }
 ```

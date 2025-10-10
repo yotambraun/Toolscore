@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Toolscore Contributors"},
+    {name = "Yotam Braun", email = "yotam@example.com"},
 ]
 keywords = [
     "llm",
@@ -55,10 +55,10 @@ http = [
 toolscore = "toolscore.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/toolscore"
-Documentation = "https://github.com/yourusername/toolscore#readme"
-Repository = "https://github.com/yourusername/toolscore"
-Issues = "https://github.com/yourusername/toolscore/issues"
+Homepage = "https://github.com/yotambraun/toolscore"
+Documentation = "https://github.com/yotambraun/toolscore#readme"
+Repository = "https://github.com/yotambraun/toolscore"
+Issues = "https://github.com/yotambraun/toolscore/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["toolscore"]
