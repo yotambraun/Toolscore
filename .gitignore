@@ -6,7 +6,7 @@ __pycache__/
 # C extensions
 *.so
 Toolscore_ LLM Tool Usage Evaluation Package.docx
-
+.claude
 # Distribution / packaging
 .Python
 build/
