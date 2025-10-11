@@ -94,7 +94,7 @@ def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
 
 def load_trace(
     file_path: str | Path,
-    format: str = "auto",  # noqa: A002
+    format: str = "auto",
 ) -> list[ToolCall]:
     """Load agent trace from JSON file.
 
@@ -142,9 +142,8 @@ def _detect_format(data: Any) -> BaseAdapter:
         Appropriate adapter for the detected format.
     """
     # Check for OpenAI format
-    if isinstance(data, dict):
-        if "messages" in data or "choices" in data:
-            return OpenAIAdapter()
+    if isinstance(data, dict) and ("messages" in data or "choices" in data):
+        return OpenAIAdapter()
 
     if isinstance(data, list) and data:
         first_item = data[0]
@@ -166,7 +165,7 @@ def _detect_format(data: Any) -> BaseAdapter:
 def evaluate_trace(
     gold_file: str | Path,
     trace_file: str | Path,
-    format: str = "auto",  # noqa: A002
+    format: str = "auto",
     validate_side_effects: bool = True,
 ) -> EvaluationResult:
     """Evaluate an agent's trace against gold standard.

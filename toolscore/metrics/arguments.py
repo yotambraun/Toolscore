@@ -52,9 +52,8 @@ def _calculate_argument_match(
     correct_count = 0
 
     for key, expected_val in expected_args.items():
-        if key in actual_args:
-            if _compare_values(expected_val, actual_args[key]):
-                correct_count += 1
+        if key in actual_args and _compare_values(expected_val, actual_args[key]):
+            correct_count += 1
 
     return correct_count, expected_count, actual_count
 
@@ -111,10 +110,7 @@ def calculate_argument_f1(
     recall = total_correct / total_expected if total_expected > 0 else 0.0
 
     # Calculate F1 score
-    if precision + recall > 0:
-        f1 = 2 * (precision * recall) / (precision + recall)
-    else:
-        f1 = 0.0
+    f1 = 2 * (precision * recall) / (precision + recall) if precision + recall > 0 else 0.0
 
     return {
         "precision": precision,

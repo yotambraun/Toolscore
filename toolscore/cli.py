@@ -60,7 +60,7 @@ def main() -> None:
 def eval(
     gold_file: Path,
     trace_file: Path,
-    format: str,  # noqa: A002
+    format: str,
     output: Path,
     html: Path | None,
     no_side_effects: bool,
@@ -141,7 +141,7 @@ def eval(
     default="auto",
     help="Trace format (auto-detect by default)",
 )
-def validate(trace_file: Path, format: str) -> None:  # noqa: A002
+def validate(trace_file: Path, format: str) -> None:
     """Validate trace file format.
 
     TRACE_FILE: Path to trace file to validate

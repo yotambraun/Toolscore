@@ -34,10 +34,7 @@ class CustomAdapter(BaseAdapter):
             calls = trace_data.get("calls", trace_data.get("tool_calls", []))
             if not calls:
                 # Maybe the dict itself is a single call
-                if "tool" in trace_data or "name" in trace_data:
-                    calls = [trace_data]
-                else:
-                    calls = []
+                calls = [trace_data] if "tool" in trace_data or "name" in trace_data else []
         else:
             calls = trace_data
 

@@ -49,9 +49,6 @@ class HTTPValidator:
             return int(status) == int(expected)
 
         # Check if there's a URL in args and assume success if no error
-        if call.args and ("url" in call.args or "endpoint" in call.args):
-            # If we got here and there's no error indication, assume success
-            if call.result and not isinstance(call.result, Exception):
-                return True
-
-        return False
+        # If we got here and there's no error indication, assume success
+        return (call.args and ("url" in call.args or "endpoint" in call.args) and
+                call.result and not isinstance(call.result, Exception))

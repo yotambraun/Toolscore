@@ -38,9 +38,7 @@ class SQLValidator:
         if isinstance(expected, dict):
             if "min" in expected and row_count < expected["min"]:
                 return False
-            if "max" in expected and row_count > expected["max"]:
-                return False
-            return True
+            return not ("max" in expected and row_count > expected["max"])
 
         return False
 
