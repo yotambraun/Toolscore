@@ -22,8 +22,8 @@ def main() -> None:
 
 
 @main.command()
-@click.argument("gold_file", type=click.Path(exists=True, path_type=Path))
-@click.argument("trace_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("gold_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.argument("trace_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
 @click.option(
     "--format",
     "-f",
@@ -34,13 +34,13 @@ def main() -> None:
 @click.option(
     "--output",
     "-o",
-    type=click.Path(path_type=Path),
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
     default="toolscore.json",
     help="Output JSON report file",
 )
 @click.option(
     "--html",
-    type=click.Path(path_type=Path),
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
     default=None,
     help="Output HTML report file",
 )
@@ -133,7 +133,7 @@ def eval(
 
 
 @main.command()
-@click.argument("trace_file", type=click.Path(exists=True, path_type=Path))
+@click.argument("trace_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
 @click.option(
     "--format",
     "-f",

@@ -9,7 +9,7 @@ def calculate_side_effect_success_rate(
     gold_calls: list[ToolCall],
     trace_calls: list[ToolCall],
     validators: dict[str, Any] | None = None,
-) -> dict[str, float]:
+) -> dict[str, int | float | list[dict[str, Any]]]:
     """Calculate side-effect success rate.
 
     Evaluates whether tool calls achieved their intended side effects

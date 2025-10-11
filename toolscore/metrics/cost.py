@@ -34,7 +34,7 @@ def calculate_latency(trace_calls: list[ToolCall]) -> dict[str, float]:
     }
 
 
-def calculate_cost_attribution(trace_calls: list[ToolCall]) -> dict[str, float]:
+def calculate_cost_attribution(trace_calls: list[ToolCall]) -> dict[str, float | dict[str, float]]:
     """Calculate cost attribution from tool calls.
 
     Args:

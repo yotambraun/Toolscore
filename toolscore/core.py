@@ -213,7 +213,8 @@ def evaluate_trace(
         result.metrics["latency_metrics"] = latency_metrics
 
     cost_metrics = calculate_cost_attribution(trace_calls)
-    if cost_metrics["total_cost"] > 0:
+    total_cost = cost_metrics.get("total_cost", 0.0)
+    if isinstance(total_cost, (int, float)) and total_cost > 0:
         result.metrics["cost_metrics"] = cost_metrics
 
     # Side effects validation
