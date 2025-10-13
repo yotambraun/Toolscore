@@ -1,6 +1,5 @@
 """Unit tests for metrics calculations."""
 
-import pytest
 
 from toolscore.adapters.base import ToolCall
 from toolscore.metrics import (

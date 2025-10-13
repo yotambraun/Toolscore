@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from toolscore.adapters import AnthropicAdapter, CustomAdapter, OpenAIAdapter
+from toolscore.adapters import AnthropicAdapter, CustomAdapter, LangChainAdapter, OpenAIAdapter
 from toolscore.adapters.base import BaseAdapter, ToolCall
 from toolscore.metrics import (
     calculate_argument_f1,
@@ -100,7 +100,7 @@ def load_trace(
 
     Args:
         file_path: Path to trace file.
-        format: Trace format ('auto', 'openai', 'anthropic', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'langchain', 'custom').
 
     Returns:
         List of tool calls from the trace.
@@ -124,6 +124,8 @@ def load_trace(
         adapter = OpenAIAdapter()
     elif format == "anthropic":
         adapter = AnthropicAdapter()
+    elif format == "langchain":
+        adapter = LangChainAdapter()
     elif format == "custom":
         adapter = CustomAdapter()
     else:

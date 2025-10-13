@@ -4,10 +4,18 @@ import sys
 from pathlib import Path
 
 import click
+from rich.console import Console
 
 from toolscore import __version__
 from toolscore.core import evaluate_trace
-from toolscore.reports import generate_html_report, generate_json_report
+from toolscore.reports import (
+    generate_html_report,
+    generate_json_report,
+    print_error,
+    print_evaluation_summary,
+    print_progress,
+    print_validation_result,
+)
 
 
 @click.group()
@@ -27,7 +35,7 @@ def main() -> None:
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -72,12 +80,14 @@ def eval(
 
     TRACE_FILE: Path to agent trace file (trace.json)
     """
+    console = Console()
+
     try:
-        # Run evaluation
+        # Show progress
         if verbose:
-            click.echo(f"Loading gold standard from: {gold_file}")
-            click.echo(f"Loading trace from: {trace_file}")
-            click.echo(f"Format: {format}")
+            print_progress(f"Loading gold standard from: {gold_file}", console)
+            print_progress(f"Loading trace from: {trace_file}", console)
+            print_progress(f"Format: {format}", console)
 
         result = evaluate_trace(
             gold_file,
@@ -86,47 +96,33 @@ def eval(
             validate_side_effects=not no_side_effects,
         )
 
-        if verbose:
-            click.echo(f"\nEvaluated {len(result.trace_calls)} tool calls")
-            click.echo(f"Expected {len(result.gold_calls)} tool calls")
-
-        # Generate JSON report
+        # Generate reports
         json_path = generate_json_report(result, output)
-        click.echo(f"\nJSON report saved to: {json_path}")
+        if verbose:
+            print_progress(f"JSON report saved to: {json_path}", console)
 
-        # Generate HTML report if requested
         if html:
             html_path = generate_html_report(result, html)
-            click.echo(f"HTML report saved to: {html_path}")
+            if verbose:
+                print_progress(f"HTML report saved to: {html_path}", console)
 
-        # Print summary
-        click.echo("\n=== Summary ===")
-        metrics = result.metrics
+        # Print beautiful summary
+        print_evaluation_summary(result, console=console, verbose=verbose)
 
-        click.echo(f"Invocation Accuracy: {metrics['invocation_accuracy']:.2%}")
-        click.echo(f"Selection Accuracy: {metrics['selection_accuracy']:.2%}")
-
-        seq_metrics = metrics.get("sequence_metrics", {})
-        click.echo(f"Sequence Accuracy: {seq_metrics.get('sequence_accuracy', 0):.2%}")
-
-        arg_metrics = metrics.get("argument_metrics", {})
-        click.echo(f"Argument F1 Score: {arg_metrics.get('f1', 0):.2%}")
-
-        eff_metrics = metrics.get("efficiency_metrics", {})
-        click.echo(f"Redundant Call Rate: {eff_metrics.get('redundant_rate', 0):.2%}")
-
-        if not no_side_effects:
-            se_metrics = metrics.get("side_effect_metrics", {})
-            click.echo(f"Side-Effect Success Rate: {se_metrics.get('success_rate', 0):.2%}")
+        # Show file locations at the end
+        console.print(f"[dim]>[/dim] JSON report: [cyan]{json_path}[/cyan]")
+        if html:
+            console.print(f"[dim]>[/dim] HTML report: [cyan]{html}[/cyan]")
+        console.print()
 
     except FileNotFoundError as e:
-        click.echo(f"Error: {e}", err=True)
+        print_error(f"File not found: {e}", console)
         sys.exit(1)
     except ValueError as e:
-        click.echo(f"Error: {e}", err=True)
+        print_error(f"Invalid data: {e}", console)
         sys.exit(1)
     except Exception as e:
-        click.echo(f"Unexpected error: {e}", err=True)
+        print_error(f"Unexpected error: {e}", console)
         if verbose:
             raise
         sys.exit(1)
@@ -137,7 +133,7 @@ def eval(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -146,20 +142,18 @@ def validate(trace_file: Path, format: str) -> None:
 
     TRACE_FILE: Path to trace file to validate
     """
+    console = Console()
+
     try:
         from toolscore.core import load_trace
 
         calls = load_trace(trace_file, format=format)
-        click.echo(f"✓ Valid trace file with {len(calls)} tool calls")
 
-        if calls:
-            click.echo("\nFirst call:")
-            call = calls[0]
-            click.echo(f"  Tool: {call.tool}")
-            click.echo(f"  Args: {call.args}")
+        first_call = calls[0] if calls else None
+        print_validation_result(str(trace_file), len(calls), first_call, console)
 
     except Exception as e:
-        click.echo(f"✗ Invalid trace file: {e}", err=True)
+        print_error(f"Invalid trace file: {e}", console)
         sys.exit(1)
 
 

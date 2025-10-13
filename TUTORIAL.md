@@ -10,6 +10,11 @@ This tutorial walks you through the complete workflow of using Toolscore to eval
 5. [Step 3: Evaluate and Generate Reports](#step-3-evaluate-and-generate-reports)
 6. [Understanding the Metrics](#understanding-the-metrics)
 7. [Advanced Usage](#advanced-usage)
+   - [Pytest Integration](#pytest-integration)
+   - [Interactive Tutorials](#interactive-tutorials)
+   - [LangChain Support](#langchain-support)
+   - [Custom Trace Format](#custom-trace-format)
+   - [Batch Evaluation](#batch-evaluation)
 
 ## Overview
 
@@ -32,8 +37,11 @@ Toolscore is an evaluation framework for LLM agents that use tools (function cal
 ### 1. Install Toolscore
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/toolscore.git
+# Install from PyPI (recommended)
+pip install tool-scorer
+
+# Or clone from source
+git clone https://github.com/yotambraun/toolscore.git
 cd toolscore
 
 # Create virtual environment
@@ -44,9 +52,27 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 ```
 
-### 2. Set Up API Keys (Optional)
+### 2. Optional Dependencies
 
-If you plan to capture traces from OpenAI or Anthropic, create a `.env` file:
+Install additional features as needed:
+
+```bash
+# HTTP validation support
+pip install tool-scorer[http]
+
+# LLM-as-a-judge metrics (OpenAI API)
+pip install tool-scorer[llm]
+
+# LangChain support
+pip install tool-scorer[langchain]
+
+# All optional features
+pip install tool-scorer[all]
+```
+
+### 3. Set Up API Keys (Optional)
+
+If you plan to capture traces from OpenAI or Anthropic, or use LLM-as-a-judge metrics, create a `.env` file:
 
 ```bash
 # Create .env file
@@ -358,7 +384,127 @@ python evaluate.py
 
 Only applicable if you specify `side_effects` in your gold standard and have validators enabled.
 
+### 7. LLM-as-a-judge Semantic Correctness (Optional)
+**What it measures:** Beyond exact string matching, are the tool calls semantically equivalent?
+
+This optional metric uses OpenAI API to evaluate semantic similarity. Useful for catching cases where tool names or arguments differ slightly but intentions match (e.g., `search_web` vs `web_search`).
+
+```python
+# Requires: pip install tool-scorer[llm]
+# Set OPENAI_API_KEY in .env or environment
+from toolscore.metrics import calculate_semantic_correctness
+
+result = calculate_semantic_correctness(gold_calls, trace_calls, model="gpt-4o-mini")
+print(f"Semantic Score: {result['semantic_score']:.2%}")
+print(f"Explanations: {result['explanations']}")
+```
+
 ## Advanced Usage
+
+### Pytest Integration
+
+Toolscore includes a pytest plugin for seamless test integration:
+
+```python
+# test_my_agent.py
+def test_agent_meets_accuracy_threshold(toolscore_eval, toolscore_assertions):
+    """Verify agent achieves minimum accuracy requirements."""
+    result = toolscore_eval("gold_calls.json", "trace.json")
+
+    # Use built-in assertions
+    toolscore_assertions.assert_invocation_accuracy(result, min_accuracy=0.9)
+    toolscore_assertions.assert_selection_accuracy(result, min_accuracy=0.9)
+    toolscore_assertions.assert_argument_f1(result, min_f1=0.8)
+    toolscore_assertions.assert_sequence_accuracy(result, min_accuracy=0.8)
+
+def test_agent_efficiency(toolscore_eval, toolscore_assertions):
+    """Verify agent doesn't make redundant calls."""
+    result = toolscore_eval("gold_calls.json", "trace.json")
+    toolscore_assertions.assert_redundancy_rate(result, max_rate=0.1)
+
+# Run with pytest
+# pytest test_my_agent.py -v
+```
+
+The pytest plugin provides:
+- `toolscore_eval` fixture for running evaluations
+- `toolscore_assertions` fixture with pre-built assertion helpers
+- `toolscore_gold_dir` and `toolscore_trace_dir` fixtures for file organization
+- Automatic directory setup for gold standards and traces
+
+### Interactive Tutorials
+
+Toolscore includes Jupyter notebooks for hands-on learning:
+
+1. **Quickstart Tutorial** (`examples/notebooks/01_quickstart.ipynb`)
+   - 5-minute introduction to Toolscore
+   - Load gold standards and traces
+   - Run evaluations and interpret metrics
+   - Generate HTML/JSON reports
+
+2. **Custom Formats** (`examples/notebooks/02_custom_formats.ipynb`)
+   - Work with custom trace formats
+   - Create gold standards for custom workflows
+   - Best practices for format design
+
+3. **Advanced Metrics** (`examples/notebooks/03_advanced_metrics.ipynb`)
+   - Deep dive into each metric
+   - Real-world examples and scenarios
+   - Metric selection guide
+   - Tips for improving scores
+
+Run locally:
+```bash
+cd examples/notebooks
+jupyter notebook
+```
+
+Or open in Google Colab for instant experimentation (no installation required!).
+
+### LangChain Support
+
+Toolscore supports LangChain agent traces in both legacy and modern formats:
+
+**Legacy format (AgentAction):**
+```python
+from langchain.agents import AgentExecutor
+import json
+
+# Your LangChain agent execution
+result = agent_executor.invoke({"input": "Search for Python tutorials"})
+
+# Extract tool calls from result
+trace = []
+for step in result['intermediate_steps']:
+    action, observation = step
+    trace.append({
+        "tool": action.tool,
+        "tool_input": action.tool_input,
+        "log": action.log
+    })
+
+# Save trace
+with open("langchain_trace.json", "w") as f:
+    json.dump(trace, f, indent=2)
+```
+
+**Modern format (ToolCall):**
+```python
+trace = [
+    {
+        "name": "search",
+        "args": {"query": "Python tutorials"},
+        "id": "call_123"
+    }
+]
+```
+
+Evaluate LangChain traces:
+```bash
+tool-scorer eval gold_calls.json langchain_trace.json --format langchain
+# Or use auto-detection
+tool-scorer eval gold_calls.json langchain_trace.json --format auto
+```
 
 ### Custom Trace Format
 

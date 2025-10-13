@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tool-scorer"
 version = "0.1.0"
-description = "A Python package for evaluating LLM tool usage against gold standard specifications"
+description = "Evaluate LLM tool usage and function calling accuracy with comprehensive metrics, support for OpenAI/Anthropic/LangChain, pytest integration, and beautiful reports"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -16,27 +16,44 @@ keywords = [
     "llm",
     "evaluation",
     "tool-use",
+    "function-calling",
     "metrics",
     "ai-agents",
     "benchmarking",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "langchain",
+    "testing",
+    "accuracy",
+    "agent-evaluation",
+    "llm-testing",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
     "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Testing :: Unit",
     "Typing :: Typed",
+    "Framework :: Pytest",
 ]
 dependencies = [
     "click>=8.1.0",
     "jinja2>=3.1.0",
     "python-Levenshtein>=0.25.0",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -46,13 +63,34 @@ dev = [
     "mypy>=1.8.0",
     "ruff>=0.6.0",
     "types-click",
+    "python-semantic-release>=9.0.0",
 ]
 http = [
     "httpx>=0.27.0",
 ]
+llm = [
+    "openai>=1.0.0",
+]
+langchain = [
+    "langchain>=0.1.0",
+]
+all = [
+    "httpx>=0.27.0",
+    "openai>=1.0.0",
+    "langchain>=0.1.0",
+]
+docs = [
+    "sphinx>=7.0.0",
+    "sphinx-rtd-theme>=2.0.0",
+    "sphinx-autodoc-typehints>=2.0.0",
+    "myst-parser>=2.0.0",
+]
 
 [project.scripts]
 tool-scorer = "toolscore.cli:main"
+
+[project.entry-points.pytest11]
+toolscore = "toolscore.pytest_plugin"
 
 [project.urls]
 Homepage = "https://github.com/yotambraun/toolscore"
@@ -114,6 +152,18 @@ show_error_codes = true
 module = "Levenshtein"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "rich.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "openai"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "langchain.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
@@ -149,3 +199,29 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_vcs_release = true
+build_command = "python -m build"
+major_on_zero = false
+tag_format = "v{version}"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = [
+    "^Merge",
+    "^Bump",
+    "^chore\\(release\\):",
+]
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
