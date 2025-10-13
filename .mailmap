@@ -1,0 +1,5 @@
+# Git mailmap file
+# This file maps commit authors to hide automation/bot emails from contributor lists
+
+# Hide automation emails
+<noreply@anthropic.com> <noreply@anthropic.com>
