@@ -89,7 +89,7 @@ class TestEvalCommand:
 
         assert result.exit_code == 0
         assert html_file.exists()
-        assert "HTML report saved" in result.output
+        assert "HTML report:" in result.output
 
     def test_eval_with_json_output(self, runner, temp_files):
         """Test evaluation with custom JSON output path."""
@@ -108,7 +108,7 @@ class TestEvalCommand:
 
         assert result.exit_code == 0
         assert json_file.exists()
-        assert "JSON report saved" in result.output
+        assert "JSON report:" in result.output
 
     def test_eval_verbose(self, runner, temp_files):
         """Test evaluation with verbose output."""
@@ -199,7 +199,7 @@ class TestValidateCommand:
 
         assert result.exit_code == 0
         assert "Valid trace file" in result.output
-        assert "tool calls" in result.output
+        assert "Total calls:" in result.output
 
     def test_validate_with_details(self, runner, temp_files):
         """Test validation shows first call details."""
@@ -209,9 +209,9 @@ class TestValidateCommand:
         )
 
         assert result.exit_code == 0
-        assert "First call:" in result.output
-        assert "Tool:" in result.output
-        assert "Args:" in result.output
+        assert "Total calls:" in result.output
+        assert "First tool:" in result.output
+        assert "First args:" in result.output
 
     def test_validate_invalid_file(self, runner, tmp_path):
         """Test validation of invalid trace file."""

@@ -37,6 +37,7 @@ dependencies = [
     "click>=8.1.0",
     "jinja2>=3.1.0",
     "python-Levenshtein>=0.25.0",
+    "rich>=13.0.0",
 ]
 
 [project.optional-dependencies]
@@ -118,6 +119,10 @@ show_error_codes = true
 
 [[tool.mypy.overrides]]
 module = "Levenshtein"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rich.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
