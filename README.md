@@ -439,7 +439,7 @@ log_to_datadog({
 
 ## What's New
 
-### v0.2.0 (Latest)
+### v1.0.x (Latest)
 
 - **LLM-as-a-judge metrics**: Semantic correctness evaluation using OpenAI API
 - **LangChain adapter**: Support for LangChain agent traces (legacy and modern formats)
@@ -449,6 +449,7 @@ log_to_datadog({
 - **Comprehensive documentation**: Sphinx docs on ReadTheDocs
 - **Test coverage**: Increased to 80%+ with 123 passing tests
 - **Automated releases**: Semantic versioning with conventional commits
+- **Enhanced PyPI presence**: 16 searchable keywords, Beta status, comprehensive classifiers
 
 See [CHANGELOG.md](CHANGELOG.md) for full release history.
 
