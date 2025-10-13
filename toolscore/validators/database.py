@@ -60,8 +60,12 @@ class SQLValidator:
                 return len(call.result)
 
             if isinstance(call.result, dict):
-                if "row_count" in call.result:
-                    return int(call.result["row_count"])
+                # Check for various row count field names
+                for key in ["rows_affected", "rowcount", "row_count", "count"]:
+                    if key in call.result:
+                        return int(call.result[key])
+
+                # Check for rows list
                 if "rows" in call.result:
                     if isinstance(call.result["rows"], list):
                         return len(call.result["rows"])
@@ -69,7 +73,8 @@ class SQLValidator:
                         return int(call.result["rows"])
 
         # Check metadata
-        if "row_count" in call.metadata:
-            return int(call.metadata["row_count"])
+        for key in ["rows_affected", "rowcount", "row_count"]:
+            if key in call.metadata:
+                return int(call.metadata[key])
 
         return None
