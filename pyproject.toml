@@ -61,6 +61,9 @@ docs = [
 [project.scripts]
 tool-scorer = "toolscore.cli:main"
 
+[project.entry-points.pytest11]
+toolscore = "toolscore.pytest_plugin"
+
 [project.urls]
 Homepage = "https://github.com/yotambraun/toolscore"
 Documentation = "https://github.com/yotambraun/toolscore#readme"
