@@ -57,6 +57,29 @@ Proportion of validated side-effects that succeeded.
 
 Only applicable if you specify ``side_effects`` in your gold standard.
 
+LLM-as-a-judge Semantic Correctness (Optional)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Uses OpenAI API to evaluate semantic equivalence beyond exact string matching.
+
+Great for catching cases where tool names differ but intentions match (e.g., ``search_web`` vs ``web_search``).
+
+.. code-block:: python
+
+   # Requires: pip install tool-scorer[llm]
+   # Set OPENAI_API_KEY environment variable
+   from toolscore.metrics import calculate_semantic_correctness
+
+   result = calculate_semantic_correctness(
+       gold_calls,
+       trace_calls,
+       model="gpt-4o-mini"  # or "gpt-4" for better accuracy
+   )
+
+   print(f"Semantic Score: {result['semantic_score']:.2%}")
+   print(f"Per-call scores: {result['per_call_scores']}")
+   print(f"Explanations: {result['explanations']}")
+
 Working with Trace Formats
 ---------------------------
 
@@ -86,7 +109,7 @@ For better performance, specify the format:
        format="openai"
    )
 
-Supported formats: ``"auto"``, ``"openai"``, ``"anthropic"``, ``"custom"``
+Supported formats: ``"auto"``, ``"openai"``, ``"anthropic"``, ``"langchain"``, ``"custom"``
 
 Capturing Traces
 ----------------
@@ -148,6 +171,48 @@ From Anthropic
 
    with open("trace_anthropic.json", "w") as f:
        json.dump(trace, f)
+
+From LangChain
+^^^^^^^^^^^^^^
+
+Toolscore supports both legacy and modern LangChain formats:
+
+.. code-block:: python
+
+   import json
+   from langchain.agents import AgentExecutor
+
+   # Your LangChain agent execution
+   result = agent_executor.invoke({"input": "Search for Python tutorials"})
+
+   # Extract tool calls from result (legacy format)
+   trace = []
+   for step in result['intermediate_steps']:
+       action, observation = step
+       trace.append({
+           "tool": action.tool,
+           "tool_input": action.tool_input,
+           "log": action.log
+       })
+
+   # Save trace
+   with open("trace_langchain.json", "w") as f:
+       json.dump(trace, f)
+
+   # Evaluate
+   result = evaluate_trace("gold.json", "trace_langchain.json", format="langchain")
+
+Modern LangChain format (ToolCall):
+
+.. code-block:: json
+
+   [
+     {
+       "name": "search",
+       "args": {"query": "Python tutorials"},
+       "id": "call_123"
+     }
+   ]
 
 Creating Effective Gold Standards
 ----------------------------------
@@ -291,6 +356,121 @@ Evaluate multiple traces:
    # Find best performer
    best = max(results, key=lambda x: x['accuracy'])
    print(f"Best trace: {best['file']} ({best['accuracy']:.1%})")
+
+Pytest Integration
+------------------
+
+Toolscore includes a pytest plugin for seamless test integration. The plugin is automatically loaded when you install Toolscore.
+
+Using Fixtures
+^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   # test_my_agent.py
+   def test_agent_accuracy(toolscore_eval, toolscore_assertions):
+       """Test that agent achieves minimum accuracy."""
+       result = toolscore_eval("gold_calls.json", "trace.json")
+
+       # Use built-in assertions
+       toolscore_assertions.assert_invocation_accuracy(result, min_accuracy=0.9)
+       toolscore_assertions.assert_selection_accuracy(result, min_accuracy=0.9)
+       toolscore_assertions.assert_argument_f1(result, min_f1=0.8)
+
+Available Fixtures
+^^^^^^^^^^^^^^^^^^
+
+* ``toolscore_eval``: Run evaluations with automatic path resolution
+* ``toolscore_assertions``: Pre-built assertion helpers
+* ``toolscore_gold_dir``: Path to gold standards directory
+* ``toolscore_trace_dir``: Path to traces directory
+
+Assertion Helpers
+^^^^^^^^^^^^^^^^^
+
+The ``toolscore_assertions`` fixture provides:
+
+* ``assert_invocation_accuracy(result, min_accuracy, msg=None)``
+* ``assert_selection_accuracy(result, min_accuracy, msg=None)``
+* ``assert_sequence_accuracy(result, min_accuracy, msg=None)``
+* ``assert_argument_f1(result, min_f1, msg=None)``
+* ``assert_redundancy_rate(result, max_rate, msg=None)``
+
+Example Test Suite
+^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   # tests/test_agent_performance.py
+   import pytest
+
+   def test_agent_meets_requirements(toolscore_eval, toolscore_assertions):
+       """Verify agent meets all accuracy requirements."""
+       result = toolscore_eval("gold_standard.json", "agent_trace.json")
+
+       # Multiple assertions
+       toolscore_assertions.assert_invocation_accuracy(result, 0.9)
+       toolscore_assertions.assert_selection_accuracy(result, 0.9)
+       toolscore_assertions.assert_argument_f1(result, 0.8)
+
+   def test_agent_efficiency(toolscore_eval, toolscore_assertions):
+       """Verify agent doesn't make redundant calls."""
+       result = toolscore_eval("gold_standard.json", "agent_trace.json")
+       toolscore_assertions.assert_redundancy_rate(result, max_rate=0.1)
+
+   def test_multiple_scenarios(toolscore_eval, toolscore_assertions):
+       """Test agent across multiple scenarios."""
+       scenarios = [
+           ("scenario1_gold.json", "scenario1_trace.json", 0.95),
+           ("scenario2_gold.json", "scenario2_trace.json", 0.90),
+           ("scenario3_gold.json", "scenario3_trace.json", 0.85),
+       ]
+
+       for gold, trace, min_acc in scenarios:
+           result = toolscore_eval(gold, trace)
+           toolscore_assertions.assert_selection_accuracy(
+               result, min_acc, f"Failed for {gold}"
+           )
+
+Run tests:
+
+.. code-block:: bash
+
+   pytest tests/ -v
+
+Interactive Tutorials
+---------------------
+
+Toolscore includes Jupyter notebooks for hands-on learning:
+
+1. **Quickstart Tutorial** (``examples/notebooks/01_quickstart.ipynb``)
+
+   * 5-minute introduction to Toolscore
+   * Load gold standards and traces
+   * Run evaluations and interpret metrics
+   * Generate HTML/JSON reports
+
+2. **Custom Formats** (``examples/notebooks/02_custom_formats.ipynb``)
+
+   * Work with custom trace formats
+   * Create gold standards for custom workflows
+   * Best practices for format design
+
+3. **Advanced Metrics** (``examples/notebooks/03_advanced_metrics.ipynb``)
+
+   * Deep dive into each metric
+   * Real-world examples and scenarios
+   * Metric selection guide
+   * Tips for improving scores
+
+Run locally:
+
+.. code-block:: bash
+
+   cd examples/notebooks
+   jupyter notebook
+
+Or open in `Google Colab <https://colab.research.google.com/>`_ for instant experimentation.
 
 Tips and Tricks
 ---------------

@@ -35,6 +35,16 @@ Anthropic Adapter
    :undoc-members:
    :show-inheritance:
 
+LangChain Adapter
+^^^^^^^^^^^^^^^^^
+
+.. autoclass:: LangChainAdapter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Supports both legacy (AgentAction) and modern (ToolCall) LangChain formats.
+
 Custom Adapter
 ^^^^^^^^^^^^^^
 

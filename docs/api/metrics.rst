@@ -38,3 +38,13 @@ Performance Metrics
 .. autofunction:: calculate_latency
 
 .. autofunction:: calculate_cost_attribution
+
+LLM-as-a-judge Metrics (Optional)
+----------------------------------
+
+These metrics require the ``llm`` optional dependency (``pip install tool-scorer[llm]``)
+and an OpenAI API key.
+
+.. autofunction:: toolscore.metrics.llm_judge.calculate_semantic_correctness
+
+.. autofunction:: toolscore.metrics.llm_judge.calculate_batch_semantic_correctness

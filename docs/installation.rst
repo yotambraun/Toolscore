@@ -62,6 +62,35 @@ For HTTP side-effect validation:
 
    pip install tool-scorer[http]
 
+LLM-as-a-judge Metrics
+^^^^^^^^^^^^^^^^^^^^^^
+
+For semantic correctness evaluation using OpenAI API:
+
+.. code-block:: bash
+
+   pip install tool-scorer[llm]
+
+Requires ``OPENAI_API_KEY`` environment variable.
+
+LangChain Support
+^^^^^^^^^^^^^^^^^
+
+For LangChain agent trace parsing:
+
+.. code-block:: bash
+
+   pip install tool-scorer[langchain]
+
+All Optional Features
+^^^^^^^^^^^^^^^^^^^^^
+
+To install all optional dependencies at once:
+
+.. code-block:: bash
+
+   pip install tool-scorer[all]
+
 Documentation
 ^^^^^^^^^^^^^
 
