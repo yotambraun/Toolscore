@@ -47,6 +47,7 @@ dev = [
     "mypy>=1.8.0",
     "ruff>=0.6.0",
     "types-click",
+    "python-semantic-release>=9.0.0",
 ]
 http = [
     "httpx>=0.27.0",
@@ -163,3 +164,29 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
+
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+upload_to_vcs_release = true
+build_command = "python -m build"
+major_on_zero = false
+tag_format = "v{version}"
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = [
+    "^Merge",
+    "^Bump",
+    "^chore\\(release\\):",
+]
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore"]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
