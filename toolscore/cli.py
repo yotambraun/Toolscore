@@ -35,7 +35,7 @@ def main() -> None:
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -133,7 +133,7 @@ def eval(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
