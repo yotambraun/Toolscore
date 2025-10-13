@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tool-scorer"
 version = "0.1.0"
-description = "A Python package for evaluating LLM tool usage against gold standard specifications"
+description = "Evaluate LLM tool usage and function calling accuracy with comprehensive metrics, support for OpenAI/Anthropic/LangChain, pytest integration, and beautiful reports"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -16,22 +16,38 @@ keywords = [
     "llm",
     "evaluation",
     "tool-use",
+    "function-calling",
     "metrics",
     "ai-agents",
     "benchmarking",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt",
+    "langchain",
+    "testing",
+    "accuracy",
+    "agent-evaluation",
+    "llm-testing",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Quality Assurance",
     "Topic :: Software Development :: Testing",
+    "Topic :: Software Development :: Testing :: Unit",
     "Typing :: Typed",
+    "Framework :: Pytest",
 ]
 dependencies = [
     "click>=8.1.0",

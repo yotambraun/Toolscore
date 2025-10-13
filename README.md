@@ -47,6 +47,21 @@ Toolscore helps developers evaluate the tool-using behavior of LLM-based agents 
 - **Extensible Checks**: Validate side-effects like HTTP calls, file creation, database queries
 - **Automated Releases**: Semantic versioning with conventional commits
 
+## Why Toolscore?
+
+| Feature | Toolscore | Manual Testing | Basic Assertions |
+|---------|-----------|----------------|------------------|
+| **Multiple LLM Support** | ✅ OpenAI, Anthropic, LangChain, Custom | ❌ | ❌ |
+| **Comprehensive Metrics** | ✅ 7+ metrics | ❌ | ⚠️ Basic |
+| **Pytest Integration** | ✅ Native plugin | ❌ | ⚠️ Manual |
+| **Beautiful Reports** | ✅ HTML + JSON | ❌ | ❌ |
+| **Semantic Evaluation** | ✅ LLM-as-a-judge | ❌ | ❌ |
+| **Side-effect Validation** | ✅ HTTP, FS, DB | ❌ | ❌ |
+| **Sequence Analysis** | ✅ Edit distance | ❌ | ❌ |
+| **Interactive Tutorials** | ✅ Jupyter notebooks | ❌ | ❌ |
+| **CI/CD Ready** | ✅ GitHub Actions | ⚠️ Custom | ⚠️ Custom |
+| **Type Safety** | ✅ Fully typed | ❌ | ❌ |
+
 ## Installation
 
 ```bash
@@ -347,6 +362,71 @@ mypy toolscore
 # Linting and formatting
 ruff check toolscore
 ruff format toolscore
+```
+
+## Real-World Use Cases
+
+### 1. Model Evaluation & Selection
+Compare GPT-4 vs Claude vs Gemini on your specific tool-calling tasks:
+
+```python
+models = ["gpt-4", "claude-3-5-sonnet", "gemini-pro"]
+results = {}
+
+for model in models:
+    trace = capture_trace(model, task="customer_support")
+    result = evaluate_trace("gold_standard.json", trace)
+    results[model] = result.metrics['selection_accuracy']
+
+best_model = max(results, key=results.get)
+print(f"Best model: {best_model} ({results[best_model]:.1%} accuracy)")
+```
+
+### 2. CI/CD Integration
+Catch regressions in agent behavior before deployment:
+
+```python
+# test_agent_quality.py
+def test_agent_meets_sla(toolscore_eval, toolscore_assertions):
+    """Ensure agent meets 95% accuracy SLA."""
+    result = toolscore_eval("gold_standard.json", "production_trace.json")
+    toolscore_assertions.assert_selection_accuracy(result, min_accuracy=0.95)
+    toolscore_assertions.assert_redundancy_rate(result, max_rate=0.1)
+```
+
+### 3. Prompt Engineering Optimization
+A/B test different prompts and measure impact:
+
+```python
+prompts = ["prompt_v1.txt", "prompt_v2.txt", "prompt_v3.txt"]
+
+for prompt_file in prompts:
+    trace = run_agent_with_prompt(prompt_file)
+    result = evaluate_trace("gold_standard.json", trace)
+
+    print(f"{prompt_file}:")
+    print(f"  Selection: {result.metrics['selection_accuracy']:.1%}")
+    print(f"  Arguments: {result.metrics['argument_metrics']['f1']:.1%}")
+    print(f"  Efficiency: {result.metrics['efficiency_metrics']['redundant_rate']:.1%}")
+```
+
+### 4. Production Monitoring
+Track agent performance over time in production:
+
+```python
+# Run daily
+today_traces = collect_production_traces(date=today)
+result = evaluate_trace("gold_standard.json", today_traces)
+
+# Alert if degradation
+if result.metrics['selection_accuracy'] < 0.90:
+    send_alert("Agent performance degraded!")
+
+# Log metrics to dashboard
+log_to_datadog({
+    "accuracy": result.metrics['selection_accuracy'],
+    "redundancy": result.metrics['efficiency_metrics']['redundant_rate'],
+})
 ```
 
 ## Documentation
