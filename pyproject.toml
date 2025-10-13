@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tool-scorer"
-version = "1.0.0"
+version = "1.0.1"
 description = "Evaluate LLM tool usage and function calling accuracy with comprehensive metrics, support for OpenAI/Anthropic/LangChain, pytest integration, and beautiful reports"
 readme = "README.md"
 requires-python = ">=3.10"
