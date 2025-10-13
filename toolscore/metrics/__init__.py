@@ -37,6 +37,6 @@ __all__ = [
 # Add LLM metrics if available
 if _llm_available:
     __all__.extend([
-        "calculate_semantic_correctness",
         "calculate_batch_semantic_correctness",
+        "calculate_semantic_correctness",
     ])

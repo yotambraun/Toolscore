@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from toolscore.adapters.base import ToolCall
+if TYPE_CHECKING:
+    from toolscore.adapters.base import ToolCall
 
 
 def calculate_semantic_correctness(
@@ -113,13 +114,10 @@ def calculate_semantic_correctness(
         except Exception as e:
             # If API call fails, record it but continue
             per_call_scores.append(0.0)
-            explanations.append(f"Evaluation failed: {str(e)}")
+            explanations.append(f"Evaluation failed: {e!s}")
 
     # Calculate overall score
-    if per_call_scores:
-        semantic_score = sum(per_call_scores) / len(per_call_scores)
-    else:
-        semantic_score = 0.0
+    semantic_score = sum(per_call_scores) / len(per_call_scores) if per_call_scores else 0.0
 
     # Penalize length mismatch
     if len(gold_calls) != len(trace_calls):
