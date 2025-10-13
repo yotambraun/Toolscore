@@ -1,0 +1,31 @@
+name: Debug Token
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if token exists
+        run: |
+          if [ -z "${{ secrets.PYPI_API_TOKEN }}" ]; then
+            echo "ERROR: PYPI_API_TOKEN is empty or not set!"
+            exit 1
+          else
+            echo "Token exists and has length: ${#PYPI_API_TOKEN}"
+            echo "Token starts with: ${PYPI_API_TOKEN:0:5}..."
+          fi
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+
+      - name: Check token format
+        run: |
+          if [[ "$PYPI_API_TOKEN" == pypi-* ]]; then
+            echo "✓ Token has correct format (starts with pypi-)"
+          else
+            echo "✗ Token doesn't start with pypi-"
+            exit 1
+          fi
+        env:
+          PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
