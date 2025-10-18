@@ -18,6 +18,7 @@ from toolscore.comparison import (
     save_comparison_report,
 )
 from toolscore.core import evaluate_trace
+from toolscore.debug import run_interactive_debug
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
 from toolscore.reports import (
@@ -89,6 +90,13 @@ def main() -> None:
     default=False,
     help="Verbose output",
 )
+@click.option(
+    "--debug",
+    "-d",
+    is_flag=True,
+    default=False,
+    help="Interactive debug mode for failures",
+)
 def eval(
     gold_file: Path,
     trace_file: Path,
@@ -99,6 +107,7 @@ def eval(
     llm_judge: bool,
     llm_model: str,
     verbose: bool,
+    debug: bool,
 ) -> None:
     """Evaluate an agent trace against gold standard.
 
@@ -136,6 +145,10 @@ def eval(
 
         # Print beautiful summary
         print_evaluation_summary(result, console=console, verbose=verbose)
+
+        # Interactive debug mode for failures
+        if debug:
+            run_interactive_debug(result, console=console)
 
         # Show file locations at the end
         console.print(f"[dim]>[/dim] JSON report: [cyan]{json_path}[/cyan]")

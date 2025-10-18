@@ -300,33 +300,33 @@ def print_evaluation_summary(
             different_tools = trace_tools - gold_tools
             if different_tools:
                 suggestions.append(
-                    f"⚠️  Tool name mismatch detected: Agent used {list(different_tools)[:3]} "
+                    f"! Tool name mismatch detected: Agent used {list(different_tools)[:3]} "
                     f"but expected {list(gold_tools)[:3]}"
                 )
                 suggestions.append(
-                    "💡 Try: Add [cyan]--llm-judge[/cyan] flag to check semantic equivalence "
+                    "* Try: Add [cyan]--llm-judge[/cyan] flag to check semantic equivalence "
                     "(e.g., 'web_search' vs 'search')"
                 )
 
     if arg_f1 < 0.5:
         suggestions.append(
-            "⚠️  Argument mismatch detected: Tool arguments don't match expected values"
+            "! Argument mismatch detected: Tool arguments don't match expected values"
         )
         suggestions.append(
-            "💡 Check: Argument names, types, and values in your trace"
+            "* Check: Argument names, types, and values in your trace"
         )
         if schema_metrics and schema_metrics.get("total_errors", 0) > 0:
             suggestions.append(
-                "💡 Tip: Schema validation found type errors - run with [cyan]--verbose[/cyan] "
+                "* Tip: Schema validation found type errors - run with [cyan]--verbose[/cyan] "
                 "to see details"
             )
 
     if seq_acc < 0.8:
         suggestions.append(
-            "⚠️  Sequence mismatch: Tools called in wrong order"
+            "! Sequence mismatch: Tools called in wrong order"
         )
         suggestions.append(
-            "💡 Review: Agent's planning logic and tool dependencies"
+            "* Review: Agent's planning logic and tool dependencies"
         )
 
     tool_correctness = tool_correctness_metrics.get("tool_correctness", 1.0)
@@ -334,16 +334,16 @@ def print_evaluation_summary(
         missing = tool_correctness_metrics.get("missing_tools", [])
         if missing:
             suggestions.append(
-                f"⚠️  Missing tools: Agent didn't call {missing}"
+                f"! Missing tools: Agent didn't call {missing}"
             )
             suggestions.append(
-                "💡 Check: Agent's tool selection logic and available tools"
+                "* Check: Agent's tool selection logic and available tools"
             )
 
     # Display suggestions if any
     if suggestions:
         console.print()
-        console.print("[bold yellow]📋 Suggestions for Improvement:[/bold yellow]")
+        console.print("[bold yellow]Suggestions for Improvement:[/bold yellow]")
         for suggestion in suggestions:
             console.print(f"   {suggestion}")
         console.print()
