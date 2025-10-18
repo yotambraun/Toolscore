@@ -14,7 +14,9 @@ from toolscore.metrics import (
     calculate_latency,
     calculate_redundant_call_rate,
     calculate_selection_accuracy,
+    calculate_semantic_correctness,
     calculate_side_effect_success_rate,
+    calculate_tool_correctness,
 )
 from toolscore.validators import FileSystemValidator, HTTPValidator, SQLValidator
 
@@ -169,6 +171,9 @@ def evaluate_trace(
     trace_file: str | Path,
     format: str = "auto",
     validate_side_effects: bool = True,
+    use_llm_judge: bool = False,
+    llm_judge_model: str = "gpt-4o-mini",
+    llm_judge_api_key: str | None = None,
 ) -> EvaluationResult:
     """Evaluate an agent's trace against gold standard.
 
@@ -177,6 +182,9 @@ def evaluate_trace(
         trace_file: Path to agent trace.
         format: Trace format ('auto', 'openai', 'anthropic', 'custom').
         validate_side_effects: Whether to validate side effects.
+        use_llm_judge: Whether to use LLM-as-a-judge for semantic evaluation.
+        llm_judge_model: Model to use for LLM judge (default: gpt-4o-mini).
+        llm_judge_api_key: OpenAI API key (defaults to OPENAI_API_KEY env var).
 
     Returns:
         EvaluationResult containing all computed metrics.
@@ -199,6 +207,9 @@ def evaluate_trace(
         gold_calls, trace_calls
     )
     result.metrics["selection_accuracy"] = calculate_selection_accuracy(gold_calls, trace_calls)
+
+    tool_correctness_metrics = calculate_tool_correctness(gold_calls, trace_calls)
+    result.metrics["tool_correctness_metrics"] = tool_correctness_metrics
 
     sequence_metrics = calculate_edit_distance(gold_calls, trace_calls)
     result.metrics["sequence_metrics"] = sequence_metrics
@@ -231,5 +242,25 @@ def evaluate_trace(
             gold_calls, trace_calls, validators
         )
         result.metrics["side_effect_metrics"] = side_effect_metrics
+
+    # LLM-as-a-judge semantic evaluation
+    if use_llm_judge:
+        try:
+            semantic_metrics = calculate_semantic_correctness(
+                gold_calls,
+                trace_calls,
+                api_key=llm_judge_api_key,
+                model=llm_judge_model,
+            )
+            result.metrics["semantic_metrics"] = semantic_metrics
+        except ImportError:
+            # If openai not installed, skip silently
+            pass
+        except ValueError as e:
+            # If API key missing, add warning to metrics
+            result.metrics["semantic_metrics"] = {
+                "error": str(e),
+                "semantic_score": None,
+            }
 
     return result

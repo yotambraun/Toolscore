@@ -59,6 +59,18 @@ def main() -> None:
     help="Disable side-effect validation",
 )
 @click.option(
+    "--llm-judge",
+    is_flag=True,
+    default=False,
+    help="Use LLM-as-a-judge for semantic evaluation (requires OpenAI API key)",
+)
+@click.option(
+    "--llm-model",
+    type=str,
+    default="gpt-4o-mini",
+    help="Model to use for LLM judge (default: gpt-4o-mini)",
+)
+@click.option(
     "--verbose",
     "-v",
     is_flag=True,
@@ -72,6 +84,8 @@ def eval(
     output: Path,
     html: Path | None,
     no_side_effects: bool,
+    llm_judge: bool,
+    llm_model: str,
     verbose: bool,
 ) -> None:
     """Evaluate an agent trace against gold standard.
@@ -94,6 +108,8 @@ def eval(
             trace_file,
             format=format,
             validate_side_effects=not no_side_effects,
+            use_llm_judge=llm_judge,
+            llm_judge_model=llm_model,
         )
 
         # Generate reports

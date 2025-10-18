@@ -104,6 +104,17 @@ def print_evaluation_summary(
         "Selection Accuracy", _format_percentage(sel_acc), "Did agent choose correct tools?"
     )
 
+    # Tool Correctness
+    tool_correctness_metrics = metrics.get("tool_correctness_metrics", {})
+    tool_correctness = tool_correctness_metrics.get("tool_correctness", 0.0)
+    correct_count = tool_correctness_metrics.get("correct_count", 0)
+    total_expected = tool_correctness_metrics.get("total_expected", 0)
+    metrics_table.add_row(
+        "Tool Correctness",
+        _format_percentage(tool_correctness),
+        f"All expected tools called? ({correct_count}/{total_expected})",
+    )
+
     # Sequence Accuracy
     seq_metrics = metrics.get("sequence_metrics", {})
     seq_acc = seq_metrics.get("sequence_accuracy", 0.0)
@@ -140,6 +151,58 @@ def print_evaluation_summary(
 
     console.print(metrics_table)
     console.print()
+
+    # Show missing/extra tools in verbose mode
+    if verbose and tool_correctness_metrics:
+        missing_tools = tool_correctness_metrics.get("missing_tools", [])
+        extra_tools = tool_correctness_metrics.get("extra_tools", [])
+
+        if missing_tools or extra_tools:
+            tools_table = Table(
+                title="Tool Coverage Details", show_header=True, header_style="bold magenta"
+            )
+            tools_table.add_column("Category", style="cyan", no_wrap=True)
+            tools_table.add_column("Tools", justify="left")
+
+            if missing_tools:
+                tools_table.add_row("Missing", Text(", ".join(missing_tools), style="red"))
+            if extra_tools:
+                tools_table.add_row("Extra", Text(", ".join(extra_tools), style="yellow"))
+
+            console.print(tools_table)
+            console.print()
+
+    # LLM Judge metrics if available
+    semantic_metrics = metrics.get("semantic_metrics")
+    if semantic_metrics:
+        sem_table = Table(
+            title="LLM-as-a-Judge Evaluation", show_header=True, header_style="bold magenta"
+        )
+        sem_table.add_column("Metric", style="cyan", no_wrap=True)
+        sem_table.add_column("Value", justify="right")
+        sem_table.add_column("Description", style="dim")
+
+        if "error" in semantic_metrics:
+            sem_table.add_row(
+                "Status", Text("Error", style="bold red"), semantic_metrics["error"]
+            )
+        else:
+            sem_score = semantic_metrics.get("semantic_score", 0.0)
+            model_used = semantic_metrics.get("model_used", "unknown")
+            gold_count = semantic_metrics.get("gold_count", 0)
+            trace_count = semantic_metrics.get("trace_count", 0)
+
+            sem_table.add_row(
+                "Semantic Score",
+                _format_percentage(sem_score),
+                "Semantic equivalence beyond exact matching",
+            )
+            sem_table.add_row("Model Used", model_used, "LLM judge model")
+            if verbose:
+                sem_table.add_row("Evaluated Calls", f"{min(gold_count, trace_count)}", "")
+
+        console.print(sem_table)
+        console.print()
 
     # Side-effect metrics if available
     se_metrics = metrics.get("side_effect_metrics")

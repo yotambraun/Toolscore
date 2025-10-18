@@ -9,6 +9,10 @@ from toolscore.metrics.cost import calculate_cost_attribution, calculate_latency
 from toolscore.metrics.efficiency import calculate_redundant_call_rate
 from toolscore.metrics.sequence import calculate_edit_distance
 from toolscore.metrics.side_effects import calculate_side_effect_success_rate
+from toolscore.metrics.tool_correctness import (
+    calculate_tool_correctness,
+    calculate_tool_correctness_with_args,
+)
 
 # Optional LLM judge metrics (requires openai package)
 try:
@@ -32,6 +36,8 @@ __all__ = [
     "calculate_redundant_call_rate",
     "calculate_selection_accuracy",
     "calculate_side_effect_success_rate",
+    "calculate_tool_correctness",
+    "calculate_tool_correctness_with_args",
 ]
 
 # Add LLM metrics if available
