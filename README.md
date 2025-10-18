@@ -111,6 +111,44 @@ uv pip install -e ".[dev]"
 
 ## ⚡ What's New in v1.1
 
+Toolscore v1.1 focuses on **making evaluation incredibly easy and intuitive** with powerful new features:
+
+### 🚀 Zero-Friction Onboarding (`toolscore init`)
+Interactive project setup in 30 seconds. Choose your agent type (Weather, E-commerce, Code, RAG, Multi-tool), get pre-built templates and ready-to-use examples.
+
+```bash
+toolscore init
+# Follow prompts → Start evaluating in 30 seconds
+```
+
+### ⚡ Synthetic Test Generator (`toolscore generate`)
+Create comprehensive test suites automatically from OpenAI function schemas. Generates varied test cases with edge cases and boundary values - no manual test writing needed.
+
+```bash
+toolscore generate --from-openai functions.json --count 20
+# Creates 20 test cases with normal + edge + boundary variations
+```
+
+### 📊 Quick Compare (`toolscore compare`)
+Compare multiple models side-by-side in one command. See which model (GPT-4, Claude, Gemini, etc.) performs best on each metric with beautiful comparison tables.
+
+```bash
+toolscore compare gold.json gpt4.json claude.json gemini.json \
+  -n gpt-4 -n claude-3 -n gemini-1.5
+# Shows color-coded comparison table with overall winner
+```
+
+### 🔍 Interactive Debug Mode (`--debug`)
+Step through failures one-by-one with guided troubleshooting. See exactly what went wrong and get actionable fix suggestions for each mismatch.
+
+```bash
+toolscore eval gold.json trace.json --debug
+# Navigate mismatches interactively with context-specific suggestions
+```
+
+### 💡 Actionable Error Messages
+Automatic failure detection with specific fix suggestions. No more guessing - get told exactly what to try next (use `--llm-judge`, check schemas, review arguments, etc.).
+
 ### 🎯 Tool Correctness Metric
 Deterministic evaluation of whether all expected tools were called - goes beyond just checking individual call matches.
 
@@ -125,54 +163,114 @@ Validate argument types, ranges, patterns, and constraints - catch type errors, 
 
 ## Quick Start
 
-### 5-Minute Getting Started
+### 🚀 30-Second Start
+
+The fastest way to start evaluating:
+
+```bash
+# Install
+pip install tool-scorer
+
+# Initialize project (interactive)
+toolscore init
+
+# Evaluate (included templates)
+toolscore eval gold_calls.json example_trace.json
+```
+
+Done! You now have evaluation results with detailed metrics.
+
+### 5-Minute Complete Workflow
 
 1. **Install Toolscore:**
    ```bash
    pip install tool-scorer
    ```
 
-2. **Run your first evaluation** (using included examples):
+2. **Initialize a project** (choose from 5 agent types):
    ```bash
-   # Try with a realistic weather agent example
-   tool-scorer eval examples/datasets/weather_agent.json examples/trace_openai.json --html report.html
-
-   # Or use LLM judge for semantic matching
-   tool-scorer eval examples/gold_calls.json examples/trace_openai.json --llm-judge
+   toolscore init
+   # Select agent type → Get templates + examples
    ```
 
-3. **View results:**
+3. **Generate test cases** (if you have OpenAI function schemas):
    ```bash
-   # Console output shows:
-   Invocation Accuracy: 100.00%
-   Selection Accuracy: 100.00%
-   Sequence Accuracy: 100.00%
-
-   # Open report.html in your browser for detailed analysis
+   toolscore generate --from-openai functions.json --count 20
    ```
 
-4. **Want to test with your own LLM?** See the [Complete Tutorial](TUTORIAL.md) for step-by-step instructions on capturing traces from OpenAI/Anthropic APIs.
+4. **Run evaluation** with your agent's trace:
+   ```bash
+   # Basic evaluation
+   toolscore eval gold_calls.json my_trace.json --html report.html
+
+   # With semantic matching (catches similar tool names)
+   toolscore eval gold_calls.json my_trace.json --llm-judge
+
+   # With interactive debugging
+   toolscore eval gold_calls.json my_trace.json --debug
+   ```
+
+5. **Compare multiple models:**
+   ```bash
+   toolscore compare gold.json gpt4.json claude.json \
+     -n gpt-4 -n claude-3
+   ```
+
+6. **View results:**
+   - Console shows color-coded metrics
+   - Open `report.html` for interactive analysis
+   - Check `toolscore.json` for machine-readable results
+
+**Want to test with your own LLM?** See the [Complete Tutorial](TUTORIAL.md) for step-by-step instructions on capturing traces from OpenAI/Anthropic APIs.
 
 ### Command Line Usage
 
 ```bash
-# Evaluate a trace against gold standard
-tool-scorer eval gold_calls.json trace.json
+# ===== GETTING STARTED =====
 
-# Use LLM judge for semantic evaluation (catches "search" vs "web_search")
-tool-scorer eval gold_calls.json trace.json --llm-judge
+# Initialize new project (interactive)
+toolscore init
 
-# Generate both JSON and HTML reports
-tool-scorer eval gold_calls.json trace.json --html report.html
-
-# Use a realistic example dataset
-tool-scorer eval examples/datasets/ecommerce_agent.json trace.json --verbose
-
-# Specify trace format explicitly
-tool-scorer eval gold_calls.json trace.json --format openai
+# Generate test cases from OpenAI function schemas
+toolscore generate --from-openai functions.json --count 20 -o gold.json
 
 # Validate trace file format
-tool-scorer validate trace.json
+toolscore validate trace.json
+
+# ===== EVALUATION =====
+
+# Basic evaluation
+toolscore eval gold_calls.json trace.json
+
+# With HTML report
+toolscore eval gold_calls.json trace.json --html report.html
+
+# With semantic matching (LLM-as-a-judge)
+toolscore eval gold_calls.json trace.json --llm-judge
+
+# With interactive debugging
+toolscore eval gold_calls.json trace.json --debug
+
+# Verbose output (shows missing/extra tools)
+toolscore eval gold_calls.json trace.json --verbose
+
+# Specify trace format explicitly
+toolscore eval gold_calls.json trace.json --format openai
+
+# Use realistic example dataset
+toolscore eval examples/datasets/ecommerce_agent.json trace.json
+
+# ===== MULTI-MODEL COMPARISON =====
+
+# Compare multiple models side-by-side
+toolscore compare gold.json gpt4.json claude.json gemini.json
+
+# With custom model names
+toolscore compare gold.json model1.json model2.json \
+  -n "GPT-4" -n "Claude-3-Opus"
+
+# Save comparison report
+toolscore compare gold.json *.json -o comparison.json
 ```
 
 ### Python API
