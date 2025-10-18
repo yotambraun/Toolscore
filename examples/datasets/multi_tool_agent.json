@@ -1,0 +1,114 @@
+[
+  {
+    "tool": "web_search",
+    "args": {
+      "query": "latest Python 3.12 features",
+      "num_results": 5
+    },
+    "description": "Search the web for information",
+    "metadata": {
+      "schema": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "num_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "extract_text",
+    "args": {
+      "url": "https://docs.python.org/3.12/whatsnew/3.12.html"
+    },
+    "description": "Extract main text content from a webpage",
+    "metadata": {
+      "schema": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://.+"
+        }
+      }
+    }
+  },
+  {
+    "tool": "summarize_text",
+    "args": {
+      "text": "Python 3.12 introduces several new features...",
+      "max_sentences": 3
+    },
+    "description": "Create a concise summary of text",
+    "metadata": {
+      "schema": {
+        "text": {
+          "type": "string",
+          "minLength": 10
+        },
+        "max_sentences": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "create_file",
+    "args": {
+      "path": "python312_features.md",
+      "content": "# Python 3.12 Features\n\nSummary of new features..."
+    },
+    "description": "Create a new file with content",
+    "metadata": {
+      "schema": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "side_effects": {
+        "file_exists": "python312_features.md"
+      }
+    }
+  },
+  {
+    "tool": "send_email",
+    "args": {
+      "to": "user@example.com",
+      "subject": "Python 3.12 Features Summary",
+      "body": "Here's what I found about Python 3.12...",
+      "attachments": ["python312_features.md"]
+    },
+    "description": "Send an email with optional attachments",
+    "metadata": {
+      "schema": {
+        "to": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attachments": {
+          "type": "array",
+          "required": false
+        }
+      }
+    }
+  }
+]
