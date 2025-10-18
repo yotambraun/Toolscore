@@ -101,6 +101,17 @@ Issues = "https://github.com/yotambraun/toolscore/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["toolscore"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "/toolscore",
+    "/assets",
+    "/tests",
+    "/examples",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

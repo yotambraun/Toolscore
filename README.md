@@ -1,6 +1,12 @@
-# Toolscore
+<p align="center">
+  <img src="assets/logo.png" alt="Toolscore Logo" width="200"/>
+</p>
 
-> A Python package for evaluating LLM tool usage against gold standard specifications
+<h1 align="center">Toolscore</h1>
+
+<p align="center">
+  <em>A Python package for evaluating LLM tool usage against gold standard specifications</em>
+</p>
 
 [![PyPI version](https://badge.fury.io/py/tool-scorer.svg)](https://badge.fury.io/py/tool-scorer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
