@@ -17,6 +17,18 @@ This directory contains example files and scripts demonstrating the usage of Too
 
 ## Quick Start
 
+### NEW in v1.1: Generate Your Own Tests
+
+Use the synthetic test generator to create gold standards from OpenAI function schemas:
+
+```bash
+# Generate 10 test cases from your OpenAI function schema
+toolscore generate my_functions.json --count 10 --output gold_calls.json
+
+# Or use interactive setup
+toolscore init
+```
+
 ### Option 1: Use Pre-captured Examples
 
 Evaluate an OpenAI trace:
