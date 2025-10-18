@@ -32,18 +32,21 @@ Toolscore helps developers evaluate the tool-using behavior of LLM-based agents 
 - **Comprehensive Metrics Suite**:
   - Tool Invocation Accuracy
   - Tool Selection Accuracy
+  - **NEW**: Tool Correctness (were all expected tools called?)
   - Tool Call Sequence Edit Distance
   - Argument Match F1 Score
+  - **NEW**: Parameter Schema Validation (types, ranges, patterns)
   - Redundant Call Rate
   - Side-Effect Success Rate
   - Latency/Cost Attribution
-  - **NEW**: LLM-as-a-judge semantic correctness (optional)
+  - **NEW**: Integrated LLM-as-a-judge semantic evaluation
 - **Multiple Trace Adapters**: Built-in support for OpenAI, Anthropic Claude, LangChain, and custom JSON formats
 - **CLI and API**: Command-line interface and Python API for programmatic use
 - **Beautiful Console Output**: Color-coded metrics, tables, and progress indicators with Rich
 - **Rich Output Reports**: Interactive HTML and machine-readable JSON reports
 - **Pytest Integration**: Seamless test integration with pytest plugin and assertion helpers
 - **Interactive Tutorials**: Jupyter notebooks for hands-on learning
+- **Example Datasets**: 5 realistic gold standards for common agent types (weather, ecommerce, code, RAG, multi-tool)
 - **Extensible Checks**: Validate side-effects like HTTP calls, file creation, database queries
 - **Automated Releases**: Semantic versioning with conventional commits
 
@@ -52,10 +55,13 @@ Toolscore helps developers evaluate the tool-using behavior of LLM-based agents 
 | Feature | Toolscore | Manual Testing | Basic Assertions |
 |---------|-----------|----------------|------------------|
 | **Multiple LLM Support** | ✅ OpenAI, Anthropic, LangChain, Custom | ❌ | ❌ |
-| **Comprehensive Metrics** | ✅ 7+ metrics | ❌ | ⚠️ Basic |
+| **Comprehensive Metrics** | ✅ 10+ metrics | ❌ | ⚠️ Basic |
+| **Schema Validation** | ✅ Types, ranges, patterns | ❌ | ❌ |
+| **Tool Correctness** | ✅ Deterministic coverage check | ❌ | ❌ |
+| **Semantic Evaluation** | ✅ Integrated LLM-as-a-judge | ❌ | ❌ |
+| **Example Datasets** | ✅ 5 realistic templates | ❌ | ❌ |
 | **Pytest Integration** | ✅ Native plugin | ❌ | ⚠️ Manual |
 | **Beautiful Reports** | ✅ HTML + JSON | ❌ | ❌ |
-| **Semantic Evaluation** | ✅ LLM-as-a-judge | ❌ | ❌ |
 | **Side-effect Validation** | ✅ HTTP, FS, DB | ❌ | ❌ |
 | **Sequence Analysis** | ✅ Edit distance | ❌ | ❌ |
 | **Interactive Tutorials** | ✅ Jupyter notebooks | ❌ | ❌ |
@@ -103,6 +109,20 @@ pip install -e ".[dev,docs]"
 uv pip install -e ".[dev]"
 ```
 
+## ⚡ What's New in v1.1
+
+### 🎯 Tool Correctness Metric
+Deterministic evaluation of whether all expected tools were called - goes beyond just checking individual call matches.
+
+### 🧠 Integrated LLM-as-a-Judge
+Semantic evaluation is now built into the core - just add `--llm-judge` flag to catch equivalent but differently-named tools (e.g., `search` vs `web_search`).
+
+### 🔒 Parameter Schema Validation
+Validate argument types, ranges, patterns, and constraints - catch type errors, out-of-range values, and missing required fields.
+
+### 📦 Example Datasets
+5 realistic gold standards for common agent types (weather, ecommerce, code assistant, RAG, multi-tool) - start evaluating in 30 seconds!
+
 ## Quick Start
 
 ### 5-Minute Getting Started
@@ -114,7 +134,11 @@ uv pip install -e ".[dev]"
 
 2. **Run your first evaluation** (using included examples):
    ```bash
-   tool-scorer eval examples/gold_calls.json examples/trace_openai.json --html report.html
+   # Try with a realistic weather agent example
+   tool-scorer eval examples/datasets/weather_agent.json examples/trace_openai.json --html report.html
+
+   # Or use LLM judge for semantic matching
+   tool-scorer eval examples/gold_calls.json examples/trace_openai.json --llm-judge
    ```
 
 3. **View results:**
@@ -135,8 +159,14 @@ uv pip install -e ".[dev]"
 # Evaluate a trace against gold standard
 tool-scorer eval gold_calls.json trace.json
 
+# Use LLM judge for semantic evaluation (catches "search" vs "web_search")
+tool-scorer eval gold_calls.json trace.json --llm-judge
+
 # Generate both JSON and HTML reports
 tool-scorer eval gold_calls.json trace.json --html report.html
+
+# Use a realistic example dataset
+tool-scorer eval examples/datasets/ecommerce_agent.json trace.json --verbose
 
 # Specify trace format explicitly
 tool-scorer eval gold_calls.json trace.json --format openai
@@ -298,11 +328,30 @@ Measures whether the agent invoked tools when needed and refrained when not need
 ### Tool Selection Accuracy
 Proportion of tool calls that match expected tool names.
 
+### Tool Correctness (NEW)
+Checks if all expected tools were called at least once - complements selection accuracy by measuring coverage rather than per-call matching.
+
 ### Sequence Edit Distance
 Levenshtein distance between expected and actual tool call sequences.
 
 ### Argument Match F1
 Precision and recall of argument correctness across all tool calls.
+
+### Schema Validation (NEW)
+Validates argument types, numeric ranges, string patterns, enums, and required fields. Define schemas in your gold standard:
+
+```json
+{
+  "tool": "search",
+  "args": {"query": "test", "limit": 10},
+  "metadata": {
+    "schema": {
+      "query": {"type": "string", "minLength": 1},
+      "limit": {"type": "integer", "minimum": 1, "maximum": 100}
+    }
+  }
+}
+```
 
 ### Redundant Call Rate
 Percentage of unnecessary or duplicate tool calls.
@@ -310,16 +359,16 @@ Percentage of unnecessary or duplicate tool calls.
 ### Side-Effect Success Rate
 Proportion of validated side-effects (HTTP, filesystem, database) that succeeded.
 
-### LLM-as-a-judge Semantic Correctness (Optional)
-Uses OpenAI API to evaluate semantic equivalence beyond exact string matching. Great for catching cases where tool names differ but intentions match (e.g., `search_web` vs `web_search`).
+### LLM-as-a-judge Semantic Evaluation (Integrated)
+Now built into core evaluation! Use `--llm-judge` flag to evaluate semantic equivalence beyond exact string matching. Perfect for catching cases where tool names differ but intentions match (e.g., `search_web` vs `web_search`).
 
-```python
-from toolscore.metrics import calculate_semantic_correctness
+```bash
+# CLI usage - easiest way
+tool-scorer eval gold.json trace.json --llm-judge
 
-# Requires: pip install tool-scorer[llm]
-# Set OPENAI_API_KEY environment variable
-result = calculate_semantic_correctness(gold_calls, trace_calls)
-print(f"Semantic Score: {result['semantic_score']:.2%}")
+# Python API
+result = evaluate_trace("gold.json", "trace.json", use_llm_judge=True)
+print(f"Semantic Score: {result.metrics['semantic_metrics']['semantic_score']:.2%}")
 ```
 
 ## Project Structure
@@ -433,13 +482,23 @@ log_to_datadog({
 
 - **[ReadTheDocs](https://toolscore.readthedocs.io/)** - Complete API documentation
 - **[Complete Tutorial](TUTORIAL.md)** - In-depth guide with end-to-end workflow
+- **[Example Datasets](examples/datasets/)** - 5 realistic gold standards (weather, ecommerce, code, RAG, multi-tool)
 - **[Examples Directory](examples/)** - Sample traces and capture scripts
 - **[Jupyter Notebooks](examples/notebooks/)** - Interactive tutorials
 - **[Contributing Guide](CONTRIBUTING.md)** - How to contribute to Toolscore
 
 ## What's New
 
-### v1.0.x (Latest)
+### v1.1.0 (Latest - October 2025)
+
+**Major Product Improvements:**
+- **🧠 Integrated LLM-as-a-Judge**: Semantic evaluation now built into core with `--llm-judge` flag
+- **🎯 Tool Correctness Metric**: Deterministic check for complete tool coverage
+- **🔒 Parameter Schema Validation**: Validate types, ranges, patterns, enums in arguments
+- **📦 Example Datasets**: 5 realistic gold standards (weather, ecommerce, code, RAG, multi-tool)
+- **Enhanced Console Output**: Beautiful tables showing tool coverage and schema validation
+
+### v1.0.x
 
 - **LLM-as-a-judge metrics**: Semantic correctness evaluation using OpenAI API
 - **LangChain adapter**: Support for LangChain agent traces (legacy and modern formats)
