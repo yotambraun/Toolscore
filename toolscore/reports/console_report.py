@@ -288,6 +288,66 @@ def print_evaluation_summary(
         console.print(perf_table)
         console.print()
 
+    # Actionable suggestions based on failures
+    suggestions = []
+
+    if sel_acc < 0.5:
+        # Check if there are tool name mismatches
+        gold_tools = {call.tool for call in result.gold_calls}
+        trace_tools = {call.tool for call in result.trace_calls}
+
+        if gold_tools != trace_tools:
+            different_tools = trace_tools - gold_tools
+            if different_tools:
+                suggestions.append(
+                    f"⚠️  Tool name mismatch detected: Agent used {list(different_tools)[:3]} "
+                    f"but expected {list(gold_tools)[:3]}"
+                )
+                suggestions.append(
+                    "💡 Try: Add [cyan]--llm-judge[/cyan] flag to check semantic equivalence "
+                    "(e.g., 'web_search' vs 'search')"
+                )
+
+    if arg_f1 < 0.5:
+        suggestions.append(
+            "⚠️  Argument mismatch detected: Tool arguments don't match expected values"
+        )
+        suggestions.append(
+            "💡 Check: Argument names, types, and values in your trace"
+        )
+        if schema_metrics and schema_metrics.get("total_errors", 0) > 0:
+            suggestions.append(
+                "💡 Tip: Schema validation found type errors - run with [cyan]--verbose[/cyan] "
+                "to see details"
+            )
+
+    if seq_acc < 0.8:
+        suggestions.append(
+            "⚠️  Sequence mismatch: Tools called in wrong order"
+        )
+        suggestions.append(
+            "💡 Review: Agent's planning logic and tool dependencies"
+        )
+
+    tool_correctness = tool_correctness_metrics.get("tool_correctness", 1.0)
+    if tool_correctness < 1.0:
+        missing = tool_correctness_metrics.get("missing_tools", [])
+        if missing:
+            suggestions.append(
+                f"⚠️  Missing tools: Agent didn't call {missing}"
+            )
+            suggestions.append(
+                "💡 Check: Agent's tool selection logic and available tools"
+            )
+
+    # Display suggestions if any
+    if suggestions:
+        console.print()
+        console.print("[bold yellow]📋 Suggestions for Improvement:[/bold yellow]")
+        for suggestion in suggestions:
+            console.print(f"   {suggestion}")
+        console.print()
+
     # Overall assessment
     avg_score = (inv_acc + sel_acc + seq_acc + arg_f1) / 4
     assessment_color = _get_metric_color(avg_score)
