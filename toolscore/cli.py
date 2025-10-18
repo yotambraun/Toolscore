@@ -12,6 +12,11 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from toolscore import __version__
+from toolscore.comparison import (
+    compare_models,
+    print_comparison_table,
+    save_comparison_report,
+)
 from toolscore.core import evaluate_trace
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
@@ -492,6 +497,131 @@ def generate(
         sys.exit(1)
     except Exception as e:
         print_error(f"Failed to generate test cases: {e}", console)
+        if verbose:
+            raise
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("gold_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.argument("trace_files", nargs=-1, type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.option(
+    "--names",
+    "-n",
+    multiple=True,
+    help="Model names (same order as trace files, e.g., -n gpt-4 -n claude-3)",
+)
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
+    default="auto",
+    help="Trace format (auto-detect by default)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default="comparison.json",
+    help="Output comparison report file",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Verbose output",
+)
+def compare(
+    gold_file: Path,
+    trace_files: tuple[Path, ...],
+    names: tuple[str, ...],
+    format: str,
+    output: Path,
+    verbose: bool,
+) -> None:
+    """Compare multiple model traces against gold standard.
+
+    Evaluates multiple traces and displays a side-by-side comparison table
+    showing which model performs best on each metric.
+
+    GOLD_FILE: Path to gold standard specification
+
+    TRACE_FILES: Paths to trace files from different models
+
+    Example:
+
+        toolscore compare gold.json gpt4_trace.json claude_trace.json \\
+            -n gpt-4 -n claude-3 -o comparison.json
+    """
+    console = Console()
+
+    if not trace_files:
+        print_error("At least one trace file is required", console)
+        sys.exit(1)
+
+    # Generate model names if not provided
+    if names:
+        if len(names) != len(trace_files):
+            print_error(
+                f"Number of names ({len(names)}) must match number of trace files ({len(trace_files)})",
+                console,
+            )
+            sys.exit(1)
+        model_names = list(names)
+    else:
+        # Use file stems as model names
+        model_names = [trace_file.stem for trace_file in trace_files]
+
+    try:
+        if verbose:
+            print_progress(f"Loading gold standard from: {gold_file}", console)
+            print_progress(f"Comparing {len(trace_files)} models", console)
+
+        # Evaluate each trace
+        model_results = {}
+        for model_name, trace_file in zip(model_names, trace_files, strict=True):
+            if verbose:
+                print_progress(f"Evaluating {model_name}...", console)
+
+            result = evaluate_trace(
+                gold_file,
+                trace_file,
+                format=format,
+                validate_side_effects=False,  # Skip side effects for comparison
+                use_llm_judge=False,  # Skip LLM judge for speed
+            )
+            model_results[model_name] = result
+
+        # Generate comparison
+        comparison = compare_models(model_results)
+
+        # Print comparison table
+        print_comparison_table(comparison, console=console)
+
+        # Save comparison report
+        report_path = save_comparison_report(comparison, output)
+        if verbose:
+            print_progress(f"Comparison report saved to: {report_path}", console)
+
+        console.print(f"[dim]>[/dim] Comparison report: [cyan]{report_path}[/cyan]")
+        console.print()
+
+        # Show quick tips
+        console.print("[bold]Next steps:[/bold]")
+        console.print("  • Check the winner and see where other models fell short")
+        console.print("  • Run individual evals with [cyan]--verbose[/cyan] for details")
+        console.print("  • Use [cyan]--llm-judge[/cyan] if tool names differ semantically")
+        console.print()
+
+    except FileNotFoundError as e:
+        print_error(f"File not found: {e}", console)
+        sys.exit(1)
+    except ValueError as e:
+        print_error(f"Invalid data: {e}", console)
+        sys.exit(1)
+    except Exception as e:
+        print_error(f"Comparison failed: {e}", console)
         if verbose:
             raise
         sys.exit(1)
