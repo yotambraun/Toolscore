@@ -58,9 +58,9 @@ def calculate_tool_correctness(
         return {
             "tool_correctness": 1.0 if not trace_calls else 0.0,
             "expected_tools": [],
-            "called_tools": sorted(list({call.tool for call in trace_calls})),
+            "called_tools": sorted({call.tool for call in trace_calls}),
             "missing_tools": [],
-            "extra_tools": sorted(list({call.tool for call in trace_calls})),
+            "extra_tools": sorted({call.tool for call in trace_calls}),
             "correct_count": 0,
             "total_expected": 0,
         }
@@ -84,8 +84,8 @@ def calculate_tool_correctness(
 
         return {
             "tool_correctness": tool_correctness,
-            "expected_tools": sorted(list(expected_tools)),
-            "called_tools": sorted(list(called_tools)),
+            "expected_tools": sorted(expected_tools),
+            "called_tools": sorted(called_tools),
             "expected_sequence": expected_sequence,
             "called_sequence": called_sequence,
             "correct_count": correct_count,
@@ -102,10 +102,10 @@ def calculate_tool_correctness(
 
     return {
         "tool_correctness": tool_correctness,
-        "expected_tools": sorted(list(expected_tools)),
-        "called_tools": sorted(list(called_tools)),
-        "missing_tools": sorted(list(missing_tools)),
-        "extra_tools": sorted(list(extra_tools)),
+        "expected_tools": sorted(expected_tools),
+        "called_tools": sorted(called_tools),
+        "missing_tools": sorted(missing_tools),
+        "extra_tools": sorted(extra_tools),
         "correct_count": len(correct_tools),
         "total_expected": len(expected_tools),
         "strict_order": False,
