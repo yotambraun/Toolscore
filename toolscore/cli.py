@@ -1,16 +1,20 @@
 """Command-line interface for Toolscore."""
 
+import json
 import shutil
 import sys
 from pathlib import Path
 
 import click
 from rich.console import Console
+from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
 from toolscore import __version__
 from toolscore.core import evaluate_trace
+from toolscore.generators import generate_from_openai_schema
+from toolscore.generators.synthetic import save_gold_standard
 from toolscore.reports import (
     generate_html_report,
     generate_json_report,
@@ -359,6 +363,137 @@ toolscore eval gold_calls.json claude_trace.json --html claude.html
 
     except Exception as e:
         print_error(f"Failed to initialize project: {e}", console)
+        sys.exit(1)
+
+
+@main.command()
+@click.option(
+    "--from-openai",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    required=True,
+    help="Path to OpenAI function definitions JSON file",
+)
+@click.option(
+    "--count",
+    "-n",
+    type=int,
+    default=10,
+    help="Number of test cases to generate per function (default: 10)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default="gold_calls.json",
+    help="Output file path (default: gold_calls.json)",
+)
+@click.option(
+    "--no-edge-cases",
+    is_flag=True,
+    default=False,
+    help="Disable edge case and boundary value generation",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Verbose output",
+)
+def generate(
+    from_openai: Path,
+    count: int,
+    output: Path,
+    no_edge_cases: bool,
+    verbose: bool,
+) -> None:
+    """Generate synthetic test cases from function schemas.
+
+    Creates gold standard test cases from OpenAI-style function definitions.
+    Automatically generates varied test cases including edge cases and
+    boundary values.
+
+    Example OpenAI schema format:
+
+        [
+          {
+            "name": "get_weather",
+            "description": "Get current weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "location": {"type": "string"},
+                "unit": {"type": "string", "enum": ["C", "F"]}
+              },
+              "required": ["location"]
+            }
+          }
+        ]
+    """
+    console = Console()
+
+    try:
+        if verbose:
+            print_progress(f"Loading function schema from: {from_openai}", console)
+
+        # Generate test cases
+        gold_calls = generate_from_openai_schema(
+            from_openai,
+            count=count,
+            include_edge_cases=not no_edge_cases,
+        )
+
+        if verbose:
+            print_progress(f"Generated {len(gold_calls)} test cases", console)
+
+        # Save to file
+        output_path = save_gold_standard(gold_calls, output)
+
+        console.print()
+        console.print(
+            Panel.fit(
+                f"[green]OK[/green] Generated {len(gold_calls)} test cases",
+                border_style="green",
+            )
+        )
+
+        # Show summary
+        info = Table(show_header=False, box=None, padding=(0, 1))
+        info.add_column(style="dim")
+        info.add_column()
+
+        info.add_row("Output file:", str(output_path))
+        info.add_row("Test cases:", str(len(gold_calls)))
+
+        # Count unique tools
+        unique_tools = {call["tool"] for call in gold_calls}
+        info.add_row("Functions:", str(len(unique_tools)))
+
+        if not no_edge_cases:
+            info.add_row("Variations:", "Normal + Edge cases + Boundary values")
+        else:
+            info.add_row("Variations:", "Normal cases only")
+
+        console.print(info)
+        console.print()
+
+        # Next steps
+        console.print("[bold]Next steps:[/bold]")
+        console.print(f"  1. Review generated test cases: [cyan]{output_path}[/cyan]")
+        console.print("  2. Capture your agent's trace to [cyan]trace.json[/cyan]")
+        console.print(f"  3. Run: [cyan]toolscore eval {output_path} trace.json[/cyan]")
+        console.print()
+
+    except FileNotFoundError as e:
+        print_error(f"File not found: {e}", console)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print_error(f"Invalid JSON in schema file: {e}", console)
+        sys.exit(1)
+    except Exception as e:
+        print_error(f"Failed to generate test cases: {e}", console)
+        if verbose:
+            raise
         sys.exit(1)
 
 
