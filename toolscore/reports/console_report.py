@@ -172,6 +172,51 @@ def print_evaluation_summary(
             console.print(tools_table)
             console.print()
 
+    # Schema validation metrics if available
+    schema_metrics = metrics.get("schema_metrics")
+    if schema_metrics:
+        schema_table = Table(
+            title="Schema Validation", show_header=True, header_style="bold magenta"
+        )
+        schema_table.add_column("Metric", style="cyan", no_wrap=True)
+        schema_table.add_column("Value", justify="right")
+        schema_table.add_column("Description", style="dim")
+
+        compliance_rate = schema_metrics.get("schema_compliance_rate", 0.0)
+        total_validated = schema_metrics.get("total_validated", 0)
+        failed_count = schema_metrics.get("failed_count", 0)
+        total_errors = schema_metrics.get("total_errors", 0)
+
+        schema_table.add_row(
+            "Compliance Rate",
+            _format_percentage(compliance_rate),
+            "Arguments match schema requirements",
+        )
+        schema_table.add_row(
+            "Validated Calls", str(total_validated), "Calls with schema definitions"
+        )
+        if failed_count > 0:
+            schema_table.add_row(
+                "Failed Calls", Text(str(failed_count), style="bold red"), "Validation failures"
+            )
+            schema_table.add_row(
+                "Total Errors", Text(str(total_errors), style="bold red"), "Schema violations"
+            )
+
+        console.print(schema_table)
+        console.print()
+
+        # Show detailed errors in verbose mode
+        if verbose and total_errors > 0:
+            error_details = schema_metrics.get("error_details", [])
+            if error_details:
+                console.print("[bold red]Schema Validation Errors:[/bold red]")
+                for error in error_details[:10]:  # Limit to first 10 errors
+                    console.print(f"  • [red]{error}[/red]")
+                if len(error_details) > 10:
+                    console.print(f"  [dim]... and {len(error_details) - 10} more[/dim]")
+                console.print()
+
     # LLM Judge metrics if available
     semantic_metrics = metrics.get("semantic_metrics")
     if semantic_metrics:

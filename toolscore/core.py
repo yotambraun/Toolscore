@@ -18,7 +18,12 @@ from toolscore.metrics import (
     calculate_side_effect_success_rate,
     calculate_tool_correctness,
 )
-from toolscore.validators import FileSystemValidator, HTTPValidator, SQLValidator
+from toolscore.validators import (
+    FileSystemValidator,
+    HTTPValidator,
+    SQLValidator,
+    calculate_schema_validation_metrics,
+)
 
 
 class EvaluationResult:
@@ -219,6 +224,11 @@ def evaluate_trace(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
+
+    # Schema validation (if schemas are provided in metadata)
+    schema_metrics = calculate_schema_validation_metrics(gold_calls, trace_calls)
+    if schema_metrics["total_validated"] > 0:
+        result.metrics["schema_metrics"] = schema_metrics
 
     # Latency and cost (if available)
     latency_metrics = calculate_latency(trace_calls)
