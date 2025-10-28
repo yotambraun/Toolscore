@@ -7,8 +7,10 @@ import pytest
 
 from toolscore.adapters.base import ToolCall
 from toolscore.core import EvaluationResult
+from toolscore.reports.csv_report import generate_csv_report
 from toolscore.reports.html_report import generate_html_report
 from toolscore.reports.json_report import generate_json_report
+from toolscore.reports.markdown_report import generate_markdown_report
 
 
 @pytest.fixture
@@ -316,3 +318,222 @@ class TestHTMLReport:
         assert "</style>" in content
         assert "font-family" in content
         assert "color" in content
+
+
+class TestCSVReport:
+    """Tests for CSV report generation."""
+
+    def test_generate_basic_csv_report(self, sample_result, tmp_path):
+        """Test generating a basic CSV report."""
+        output_path = tmp_path / "report.csv"
+        result_path = generate_csv_report(sample_result, output_path)
+
+        assert result_path == output_path
+        assert output_path.exists()
+
+    def test_csv_report_header(self, sample_result, tmp_path):
+        """Test CSV report contains proper headers."""
+        output_path = tmp_path / "report.csv"
+        generate_csv_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Category,Metric,Value" in content
+
+    def test_csv_report_summary_data(self, sample_result, tmp_path):
+        """Test CSV report includes summary data."""
+        output_path = tmp_path / "report.csv"
+        generate_csv_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Summary,Gold Calls Count,2" in content
+        assert "Summary,Trace Calls Count,3" in content
+
+    def test_csv_report_metrics(self, sample_result, tmp_path):
+        """Test CSV report includes metrics."""
+        output_path = tmp_path / "report.csv"
+        generate_csv_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        # Should include accuracy metrics formatted as percentages
+        assert "invocation_accuracy" in content
+        assert "selection_accuracy" in content
+        assert "95.00%" in content or "90.00%" in content
+
+    def test_csv_report_nested_metrics(self, sample_result, tmp_path):
+        """Test CSV report flattens nested metrics."""
+        output_path = tmp_path / "report.csv"
+        generate_csv_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        # Check that nested metrics are included
+        assert "sequence_metrics" in content or "edit_distance" in content
+        assert "argument_metrics" in content or "precision" in content
+
+    def test_csv_report_percentage_formatting(self, sample_result, tmp_path):
+        """Test CSV report formats percentages correctly."""
+        output_path = tmp_path / "report.csv"
+        generate_csv_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        # Accuracy metrics should be formatted as percentages
+        lines = content.split("\n")
+        percentage_lines = [l for l in lines if "%" in l]
+        assert len(percentage_lines) > 0
+
+    def test_csv_report_default_path(self, sample_result, tmp_path, monkeypatch):
+        """Test CSV report with default output path."""
+        monkeypatch.chdir(tmp_path)
+
+        result_path = generate_csv_report(sample_result)
+
+        assert result_path.name == "toolscore.csv"
+        assert result_path.exists()
+
+    def test_csv_report_readable_format(self, sample_result, tmp_path):
+        """Test CSV report is properly formatted for Excel/Sheets."""
+        output_path = tmp_path / "report.csv"
+        generate_csv_report(sample_result, output_path)
+
+        # Verify it's valid CSV by reading it
+        import csv
+
+        with output_path.open("r") as f:
+            reader = csv.reader(f)
+            rows = list(reader)
+
+        # Should have multiple rows
+        assert len(rows) > 5
+        # First row should be header
+        assert rows[0] == ["Category", "Metric", "Value"]
+
+
+class TestMarkdownReport:
+    """Tests for Markdown report generation."""
+
+    def test_generate_basic_markdown_report(self, sample_result, tmp_path):
+        """Test generating a basic Markdown report."""
+        output_path = tmp_path / "report.md"
+        result_path = generate_markdown_report(sample_result, output_path)
+
+        assert result_path == output_path
+        assert output_path.exists()
+
+    def test_markdown_report_title(self, sample_result, tmp_path):
+        """Test Markdown report includes title."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "# Toolscore Evaluation Report" in content
+
+    def test_markdown_report_summary(self, sample_result, tmp_path):
+        """Test Markdown report includes summary section."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Summary" in content
+        assert "Gold Standard Calls:** 2" in content
+        assert "Actual Trace Calls:** 3" in content
+
+    def test_markdown_report_metrics_table(self, sample_result, tmp_path):
+        """Test Markdown report includes metrics table."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Key Metrics" in content
+        assert "| Metric | Value | Status |" in content
+        assert "|--------|-------|--------|" in content
+
+    def test_markdown_report_status_indicators(self, sample_result, tmp_path):
+        """Test Markdown report includes status indicators."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        # Should include status text
+        assert "Excellent" in content or "Good" in content or "Fair" in content
+
+    def test_markdown_report_efficiency_metrics(self, sample_result, tmp_path):
+        """Test Markdown report includes efficiency metrics."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Efficiency Metrics" in content
+        assert "Redundant Call Rate" in content
+
+    def test_markdown_report_collapsible_details(self, sample_result, tmp_path):
+        """Test Markdown report includes collapsible details section."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "<details>" in content
+        assert "</details>" in content
+        assert "Click to expand" in content
+
+    def test_markdown_report_footer(self, sample_result, tmp_path):
+        """Test Markdown report includes footer."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Generated with [Toolscore]" in content
+
+    def test_markdown_report_timestamp(self, sample_result, tmp_path):
+        """Test Markdown report includes timestamp."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "**Generated:**" in content
+        # Should contain current year
+        assert str(datetime.now().year) in content
+
+    def test_markdown_report_default_path(self, sample_result, tmp_path, monkeypatch):
+        """Test Markdown report with default output path."""
+        monkeypatch.chdir(tmp_path)
+
+        result_path = generate_markdown_report(sample_result)
+
+        assert result_path.name == "toolscore.md"
+        assert result_path.exists()
+
+    def test_markdown_report_with_semantic_metrics(self, sample_result, tmp_path):
+        """Test Markdown report with semantic metrics."""
+        sample_result.metrics["semantic_metrics"] = {
+            "semantic_score": 0.92,
+            "semantic_matches": 5,
+        }
+
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        assert "Semantic Evaluation" in content
+        assert "Semantic Score" in content
+
+    def test_markdown_report_with_side_effects(self, result_with_side_effects, tmp_path):
+        """Test Markdown report with side effect metrics."""
+        result_with_side_effects.metrics["side_effect_metrics"] = {
+            "success_rate": 1.0,
+            "validated_count": 3,
+        }
+
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(result_with_side_effects, output_path)
+
+        content = output_path.read_text()
+        assert "Side Effects" in content
+        assert "Success Rate" in content
+
+    def test_markdown_report_percentage_formatting(self, sample_result, tmp_path):
+        """Test Markdown report formats percentages correctly."""
+        output_path = tmp_path / "report.md"
+        generate_markdown_report(sample_result, output_path)
+
+        content = output_path.read_text()
+        # Should have percentages with 2 decimal places
+        assert "95.00%" in content or "90.00%" in content or "85.00%" in content

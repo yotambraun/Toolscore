@@ -22,8 +22,10 @@ from toolscore.debug import run_interactive_debug
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
 from toolscore.reports import (
+    generate_csv_report,
     generate_html_report,
     generate_json_report,
+    generate_markdown_report,
     print_error,
     print_evaluation_summary,
     print_progress,
@@ -48,7 +50,7 @@ def main() -> None:
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -64,6 +66,18 @@ def main() -> None:
     type=click.Path(path_type=Path),  # type: ignore[type-var]
     default=None,
     help="Output HTML report file",
+)
+@click.option(
+    "--csv",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Output CSV report file (for Excel/Google Sheets)",
+)
+@click.option(
+    "--markdown",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Output Markdown report file (for GitHub/docs)",
 )
 @click.option(
     "--no-side-effects",
@@ -103,6 +117,8 @@ def eval(
     format: str,
     output: Path,
     html: Path | None,
+    csv: Path | None,
+    markdown: Path | None,
     no_side_effects: bool,
     llm_judge: bool,
     llm_model: str,
@@ -143,6 +159,16 @@ def eval(
             if verbose:
                 print_progress(f"HTML report saved to: {html_path}", console)
 
+        if csv:
+            csv_path = generate_csv_report(result, csv)
+            if verbose:
+                print_progress(f"CSV report saved to: {csv_path}", console)
+
+        if markdown:
+            md_path = generate_markdown_report(result, markdown)
+            if verbose:
+                print_progress(f"Markdown report saved to: {md_path}", console)
+
         # Print beautiful summary
         print_evaluation_summary(result, console=console, verbose=verbose)
 
@@ -154,6 +180,10 @@ def eval(
         console.print(f"[dim]>[/dim] JSON report: [cyan]{json_path}[/cyan]")
         if html:
             console.print(f"[dim]>[/dim] HTML report: [cyan]{html}[/cyan]")
+        if csv:
+            console.print(f"[dim]>[/dim] CSV report: [cyan]{csv}[/cyan]")
+        if markdown:
+            console.print(f"[dim]>[/dim] Markdown report: [cyan]{markdown}[/cyan]")
         console.print()
 
     except FileNotFoundError as e:
@@ -174,7 +204,7 @@ def eval(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -527,7 +557,7 @@ def generate(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )

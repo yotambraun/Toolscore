@@ -6,6 +6,13 @@ from toolscore.metrics.accuracy import (
 )
 from toolscore.metrics.arguments import calculate_argument_f1
 from toolscore.metrics.cost import calculate_cost_attribution, calculate_latency
+from toolscore.metrics.cost_estimator import (
+    calculate_cost_savings,
+    calculate_llm_cost,
+    estimate_tokens,
+    estimate_trace_cost,
+    format_cost,
+)
 from toolscore.metrics.efficiency import calculate_redundant_call_rate
 from toolscore.metrics.sequence import calculate_edit_distance
 from toolscore.metrics.side_effects import calculate_side_effect_success_rate
@@ -30,14 +37,19 @@ except ImportError:
 __all__ = [
     "calculate_argument_f1",
     "calculate_cost_attribution",
+    "calculate_cost_savings",
     "calculate_edit_distance",
     "calculate_invocation_accuracy",
     "calculate_latency",
+    "calculate_llm_cost",
     "calculate_redundant_call_rate",
     "calculate_selection_accuracy",
     "calculate_side_effect_success_rate",
     "calculate_tool_correctness",
     "calculate_tool_correctness_with_args",
+    "estimate_tokens",
+    "estimate_trace_cost",
+    "format_cost",
 ]
 
 # Add LLM metrics if available

@@ -4,7 +4,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from toolscore.adapters import AnthropicAdapter, CustomAdapter, LangChainAdapter, OpenAIAdapter
+from toolscore.adapters import (
+    AnthropicAdapter,
+    CustomAdapter,
+    GeminiAdapter,
+    LangChainAdapter,
+    OpenAIAdapter,
+)
 from toolscore.adapters.base import BaseAdapter, ToolCall
 from toolscore.metrics import (
     calculate_argument_f1,
@@ -107,7 +113,7 @@ def load_trace(
 
     Args:
         file_path: Path to trace file.
-        format: Trace format ('auto', 'openai', 'anthropic', 'langchain', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'langchain', 'custom').
 
     Returns:
         List of tool calls from the trace.
@@ -131,6 +137,8 @@ def load_trace(
         adapter = OpenAIAdapter()
     elif format == "anthropic":
         adapter = AnthropicAdapter()
+    elif format == "gemini":
+        adapter = GeminiAdapter()
     elif format == "langchain":
         adapter = LangChainAdapter()
     elif format == "custom":
@@ -150,6 +158,10 @@ def _detect_format(data: Any) -> BaseAdapter:
     Returns:
         Appropriate adapter for the detected format.
     """
+    # Check for Gemini format (candidates with function calls)
+    if isinstance(data, dict) and "candidates" in data:
+        return GeminiAdapter()
+
     # Check for OpenAI format
     if isinstance(data, dict) and ("messages" in data or "choices" in data):
         return OpenAIAdapter()
@@ -157,6 +169,13 @@ def _detect_format(data: Any) -> BaseAdapter:
     if isinstance(data, list) and data:
         first_item = data[0]
         if isinstance(first_item, dict):
+            # Check for Gemini format (parts with functionCall)
+            if "parts" in first_item:
+                parts = first_item["parts"]
+                if isinstance(parts, list) and parts:
+                    if any("functionCall" in p for p in parts if isinstance(p, dict)):
+                        return GeminiAdapter()
+
             # Check for Anthropic format
             if first_item.get("role") == "assistant" and isinstance(
                 first_item.get("content"), list
@@ -185,7 +204,7 @@ def evaluate_trace(
     Args:
         gold_file: Path to gold standard specification.
         trace_file: Path to agent trace.
-        format: Trace format ('auto', 'openai', 'anthropic', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'langchain', 'custom').
         validate_side_effects: Whether to validate side effects.
         use_llm_judge: Whether to use LLM-as-a-judge for semantic evaluation.
         llm_judge_model: Model to use for LLM judge (default: gpt-4o-mini).

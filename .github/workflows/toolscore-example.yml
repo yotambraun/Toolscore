@@ -1,0 +1,156 @@
+# Example GitHub Actions workflow for Toolscore
+# Copy this file to your repository's .github/workflows/ directory and customize
+
+name: LLM Agent Evaluation
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  evaluate-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Toolscore
+        run: |
+          pip install tool-scorer
+
+      # Optional: Install with LLM judge support
+      # - name: Install Toolscore with LLM judge
+      #   run: |
+      #     pip install tool-scorer[llm]
+
+      - name: Run Toolscore evaluation
+        id: toolscore
+        run: |
+          # Customize these paths to match your project
+          toolscore eval \
+            tests/gold_standard.json \
+            tests/agent_trace.json \
+            --html report.html \
+            --csv metrics.csv \
+            --markdown summary.md \
+            --verbose
+
+          # Capture metrics for later use
+          echo "evaluation_complete=true" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Upload evaluation reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: toolscore-reports
+          path: |
+            toolscore.json
+            report.html
+            metrics.csv
+            summary.md
+
+      - name: Comment PR with results
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            // Read the markdown summary (if it exists)
+            let summary = '';
+            try {
+              summary = fs.readFileSync('summary.md', 'utf8');
+            } catch (error) {
+              summary = '⚠️ Toolscore evaluation completed, but summary file not found.';
+            }
+
+            // Post comment on PR
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🤖 LLM Agent Evaluation Results\n\n${summary}\n\n---\n*Automated evaluation powered by [Toolscore](https://github.com/yotambraun/toolscore)*`
+            });
+
+      - name: Check accuracy thresholds
+        run: |
+          # Parse JSON report and check thresholds
+          python3 << 'EOF'
+          import json
+          import sys
+
+          # Load evaluation results
+          with open('toolscore.json', 'r') as f:
+              results = json.load(f)
+
+          metrics = results['metrics']
+
+          # Define thresholds (customize these for your project)
+          thresholds = {
+              'selection_accuracy': 0.90,  # 90% minimum
+              'invocation_accuracy': 0.90,
+              'tool_correctness': 0.95
+          }
+
+          # Check each metric
+          failed = []
+          for metric, threshold in thresholds.items():
+              if metric in metrics:
+                  value = metrics[metric]
+                  if value < threshold:
+                      failed.append(f"{metric}: {value:.2%} < {threshold:.2%}")
+
+          # Fail the build if any threshold is not met
+          if failed:
+              print("❌ Accuracy thresholds not met:")
+              for failure in failed:
+                  print(f"  - {failure}")
+              sys.exit(1)
+          else:
+              print("✅ All accuracy thresholds met!")
+          EOF
+
+      - name: Quality Gate
+        if: failure()
+        run: |
+          echo "::error::LLM agent evaluation failed. Please review the accuracy metrics."
+          exit 1
+
+# Additional configuration examples:
+
+# Example with LLM-as-a-judge (requires OpenAI API key):
+# - name: Run evaluation with LLM judge
+#   env:
+#     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+#   run: |
+#     toolscore eval \
+#       tests/gold_standard.json \
+#       tests/agent_trace.json \
+#       --llm-judge \
+#       --html report.html
+
+# Example with model comparison:
+# - name: Compare multiple models
+#   run: |
+#     toolscore compare \
+#       tests/gold_standard.json \
+#       tests/gpt4_trace.json \
+#       tests/claude_trace.json \
+#       -n gpt-4 \
+#       -n claude-3.5 \
+#       --output comparison.json
+
+# Example with custom thresholds in pytest:
+# - name: Run pytest with Toolscore
+#   run: |
+#     pytest tests/ --toolscore-min-accuracy=0.95

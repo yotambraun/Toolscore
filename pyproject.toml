@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tool-scorer"
 version = "1.2.0"
-description = "Evaluate LLM tool usage and function calling accuracy with comprehensive metrics, support for OpenAI/Anthropic/LangChain, pytest integration, and beautiful reports"
+description = "Catch LLM agent regressions before deployment. Test tool-calling accuracy for OpenAI, Anthropic, Gemini with pytest integration and CI/CD workflows."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -13,6 +13,7 @@ authors = [
     {name = "Yotam Barun", email = "yotambarun93@gmail.com"},
 ]
 keywords = [
+    # Core functionality
     "llm",
     "evaluation",
     "tool-use",
@@ -20,15 +21,39 @@ keywords = [
     "metrics",
     "ai-agents",
     "benchmarking",
-    "openai",
-    "anthropic",
-    "claude",
-    "gpt",
-    "langchain",
+    # Testing & QA
     "testing",
-    "accuracy",
+    "pytest",
+    "quality-assurance",
+    "test-automation",
+    "ci-cd",
+    "regression-testing",
+    # Variations for discoverability
+    "agent-testing",
     "agent-evaluation",
     "llm-testing",
+    "llm-evaluation",
+    "llm-benchmark",
+    "agent-qa",
+    "ai-testing",
+    "function-calling-test",
+    "tool-calling",
+    # Providers
+    "openai",
+    "openai-functions",
+    "anthropic",
+    "claude",
+    "claude-tools",
+    "gpt",
+    "gemini",
+    "gemini-tools",
+    # Frameworks & integrations
+    "langchain",
+    "model-comparison",
+    "prompt-engineering",
+    # Specific use cases
+    "accuracy",
+    "langsmith-alternative",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -97,6 +122,10 @@ Homepage = "https://github.com/yotambraun/toolscore"
 Documentation = "https://github.com/yotambraun/toolscore#readme"
 Repository = "https://github.com/yotambraun/toolscore"
 Issues = "https://github.com/yotambraun/toolscore/issues"
+Changelog = "https://github.com/yotambraun/toolscore/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/yotambraun/toolscore/issues"
+"Source Code" = "https://github.com/yotambraun/toolscore"
+PyPI = "https://pypi.org/project/tool-scorer/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["toolscore"]
