@@ -9,7 +9,22 @@ class SQLValidator:
     """Validator for SQL/database-related side effects.
 
     Checks if database queries returned expected number of rows or results.
+    Can also validate specific data values in results.
     """
+
+    def __init__(
+        self,
+        where: dict[str, Any] | None = None,
+        contains_row: dict[str, Any] | None = None,
+    ) -> None:
+        """Initialize SQL validator.
+
+        Args:
+            where: Filter conditions that results must match (e.g., {"status": "active"}).
+            contains_row: Specific row that must exist in results.
+        """
+        self.where = where
+        self.contains_row = contains_row
 
     def validate(self, call: ToolCall, expected: Any) -> bool:
         """Validate SQL side effect.
@@ -24,6 +39,14 @@ class SQLValidator:
         row_count = self._get_row_count(call)
 
         if row_count is None:
+            return False
+
+        # Validate where conditions if specified
+        if self.where and not self._check_where_conditions(call):
+            return False
+
+        # Validate contains_row if specified
+        if self.contains_row and not self._check_contains_row(call):
             return False
 
         # If expected is True, just check for non-empty result
@@ -78,3 +101,87 @@ class SQLValidator:
                 return int(call.metadata[key])
 
         return None
+
+    def _check_where_conditions(self, call: ToolCall) -> bool:
+        """Check if result rows match WHERE conditions.
+
+        Args:
+            call: The tool call.
+
+        Returns:
+            True if all rows match the WHERE conditions, False otherwise.
+        """
+        if not self.where:
+            return True
+
+        rows = self._get_rows(call)
+        if not rows:
+            return False
+
+        # Check if all rows match the where conditions
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+
+            for field, expected_value in self.where.items():
+                if field not in row or row[field] != expected_value:
+                    return False
+
+        return True
+
+    def _check_contains_row(self, call: ToolCall) -> bool:
+        """Check if results contain a specific row.
+
+        Args:
+            call: The tool call.
+
+        Returns:
+            True if the specific row exists in results, False otherwise.
+        """
+        if not self.contains_row:
+            return True
+
+        rows = self._get_rows(call)
+        if not rows:
+            return False
+
+        # Check if any row matches the expected row
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+
+            # Check if all fields in contains_row match
+            matches = True
+            for field, expected_value in self.contains_row.items():
+                if field not in row or row[field] != expected_value:
+                    matches = False
+                    break
+
+            if matches:
+                return True
+
+        return False
+
+    def _get_rows(self, call: ToolCall) -> list[dict[str, Any]]:
+        """Extract rows from call result.
+
+        Args:
+            call: The tool call.
+
+        Returns:
+            List of row dicts, or empty list if not available.
+        """
+        if call.result is None:
+            return []
+
+        # If result is already a list of dicts
+        if isinstance(call.result, list):
+            return [r for r in call.result if isinstance(r, dict)]
+
+        # If result is a dict with rows key
+        if isinstance(call.result, dict) and "rows" in call.result:
+            rows = call.result["rows"]
+            if isinstance(rows, list):
+                return [r for r in rows if isinstance(r, dict)]
+
+        return []

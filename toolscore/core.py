@@ -9,6 +9,7 @@ from toolscore.adapters import (
     CustomAdapter,
     GeminiAdapter,
     LangChainAdapter,
+    MCPAdapter,
     OpenAIAdapter,
 )
 from toolscore.adapters.base import BaseAdapter, ToolCall
@@ -23,6 +24,7 @@ from toolscore.metrics import (
     calculate_semantic_correctness,
     calculate_side_effect_success_rate,
     calculate_tool_correctness,
+    calculate_trajectory_accuracy,
 )
 from toolscore.validators import (
     FileSystemValidator,
@@ -113,7 +115,7 @@ def load_trace(
 
     Args:
         file_path: Path to trace file.
-        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'langchain', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'custom').
 
     Returns:
         List of tool calls from the trace.
@@ -139,6 +141,8 @@ def load_trace(
         adapter = AnthropicAdapter()
     elif format == "gemini":
         adapter = GeminiAdapter()
+    elif format == "mcp":
+        adapter = MCPAdapter()
     elif format == "langchain":
         adapter = LangChainAdapter()
     elif format == "custom":
@@ -158,6 +162,10 @@ def _detect_format(data: Any) -> BaseAdapter:
     Returns:
         Appropriate adapter for the detected format.
     """
+    # Check for MCP format (JSON-RPC 2.0)
+    if isinstance(data, dict) and "jsonrpc" in data:
+        return MCPAdapter()
+
     # Check for Gemini format (candidates with function calls)
     if isinstance(data, dict) and "candidates" in data:
         return GeminiAdapter()
@@ -237,6 +245,10 @@ def evaluate_trace(
 
     sequence_metrics = calculate_edit_distance(gold_calls, trace_calls)
     result.metrics["sequence_metrics"] = sequence_metrics
+
+    # Trajectory evaluation: assess the path taken by the agent
+    trajectory_metrics = calculate_trajectory_accuracy(gold_calls, trace_calls)
+    result.metrics["trajectory_metrics"] = trajectory_metrics
 
     argument_metrics = calculate_argument_f1(gold_calls, trace_calls)
     result.metrics["argument_metrics"] = argument_metrics

@@ -15,6 +15,10 @@ from toolscore.metrics.cost_estimator import (
 )
 from toolscore.metrics.efficiency import calculate_redundant_call_rate
 from toolscore.metrics.sequence import calculate_edit_distance
+from toolscore.metrics.trajectory import (
+    calculate_partial_trajectory_accuracy,
+    calculate_trajectory_accuracy,
+)
 from toolscore.metrics.side_effects import calculate_side_effect_success_rate
 from toolscore.metrics.tool_correctness import (
     calculate_tool_correctness,
@@ -42,11 +46,13 @@ __all__ = [
     "calculate_invocation_accuracy",
     "calculate_latency",
     "calculate_llm_cost",
+    "calculate_partial_trajectory_accuracy",
     "calculate_redundant_call_rate",
     "calculate_selection_accuracy",
     "calculate_side_effect_success_rate",
     "calculate_tool_correctness",
     "calculate_tool_correctness_with_args",
+    "calculate_trajectory_accuracy",
     "estimate_tokens",
     "estimate_trace_cost",
     "format_cost",

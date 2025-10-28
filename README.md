@@ -43,26 +43,28 @@ Stop shipping broken LLM agents. Toolscore automatically tests tool-calling beha
 
 ## ✨ Features
 
-- **Trace vs. Spec Comparison**: Load agent tool-use traces (OpenAI, Anthropic, **Gemini**, LangChain, or custom) and compare against gold standard specifications
+- **Trace vs. Spec Comparison**: Load agent tool-use traces (OpenAI, Anthropic, **Gemini**, **MCP**, LangChain, or custom) and compare against gold standard specifications
 - **Comprehensive Metrics Suite**:
   - Tool Invocation Accuracy
   - Tool Selection Accuracy
-  - **NEW**: Tool Correctness (were all expected tools called?)
+  - Tool Correctness (were all expected tools called?)
   - Tool Call Sequence Edit Distance
+  - **NEW v1.3**: Trajectory Accuracy (did agent take the correct reasoning path?)
   - Argument Match F1 Score
-  - **NEW**: Parameter Schema Validation (types, ranges, patterns)
+  - Parameter Schema Validation (types, ranges, patterns)
   - Redundant Call Rate
-  - Side-Effect Success Rate
-  - **NEW**: Cost Tracking & Estimation (token usage, pricing for OpenAI/Anthropic/Gemini)
-  - **NEW**: Integrated LLM-as-a-judge semantic evaluation
-- **Multiple Trace Adapters**: Built-in support for OpenAI, Anthropic, **Google Gemini**, LangChain, and custom JSON formats
+  - Side-Effect Success Rate (with content validation)
+  - Cost Tracking & Estimation (token usage, pricing for OpenAI/Anthropic/Gemini)
+  - Integrated LLM-as-a-judge semantic evaluation
+- **Multiple Trace Adapters**: Built-in support for OpenAI, Anthropic, **Google Gemini**, **MCP (Anthropic)**, LangChain, and custom JSON formats
+- **Production Trace Capture**: Decorator to capture real agent executions and convert them to test cases
 - **CLI and API**: Command-line interface and Python API for programmatic use
 - **Beautiful Console Output**: Color-coded metrics, tables, and progress indicators with Rich
 - **Rich Output Reports**: Interactive HTML, JSON, **CSV (Excel/Sheets)**, **Markdown (GitHub/docs)** formats
 - **Pytest Integration**: Seamless test integration with pytest plugin and assertion helpers
 - **Interactive Tutorials**: Jupyter notebooks for hands-on learning
 - **Example Datasets**: 5 realistic gold standards for common agent types (weather, ecommerce, code, RAG, multi-tool)
-- **Extensible Checks**: Validate side-effects like HTTP calls, file creation, database queries
+- **Enhanced Validators**: Validate side-effects with content checking (file content, database rows, HTTP responses)
 - **CI/CD Ready**: GitHub Actions workflow template included
 - **Automated Releases**: Semantic versioning with conventional commits
 
@@ -70,10 +72,13 @@ Stop shipping broken LLM agents. Toolscore automatically tests tool-calling beha
 
 | Feature | Toolscore | LangSmith | OpenAI Evals | Weights & Biases | Manual Testing |
 |---------|-----------|-----------|--------------|------------------|----------------|
-| **Multi-Provider Support** | ✅ OpenAI, Anthropic, Gemini, Custom | ⚠️ LangChain-focused | ⚠️ OpenAI-focused | ✅ Yes | ❌ |
+| **Multi-Provider Support** | ✅ OpenAI, Anthropic, Gemini, MCP | ⚠️ LangChain-focused | ⚠️ OpenAI-focused | ✅ Yes | ❌ |
+| **Trajectory Evaluation** | ✅ Multi-step path analysis | ✅ Yes | ❌ | ⚠️ Custom | ❌ |
+| **Production Trace Capture** | ✅ Decorator + auto-save | ✅ Yes | ❌ | ✅ Yes | ❌ |
 | **Open Source & Free** | ✅ Apache 2.0 | ❌ Paid (limited free tier) | ✅ MIT | ❌ Paid | ✅ Free |
 | **Pytest Integration** | ✅ Native plugin | ⚠️ Custom | ❌ | ⚠️ Custom | ⚠️ Manual |
-| **Comprehensive Metrics** | ✅ 10+ specialized metrics | ⚠️ General metrics | ⚠️ Basic scoring | ✅ General ML metrics | ❌ |
+| **Comprehensive Metrics** | ✅ 12+ specialized metrics | ⚠️ General metrics | ⚠️ Basic scoring | ✅ General ML metrics | ❌ |
+| **Content Validation** | ✅ File/DB content checks | ❌ | ❌ | ❌ | ❌ |
 | **Schema Validation** | ✅ Types, ranges, patterns | ❌ | ❌ | ❌ | ❌ |
 | **Tool Correctness Check** | ✅ Deterministic coverage | ❌ | ❌ | ❌ | ❌ |
 | **LLM-as-a-Judge** | ✅ Built-in | ✅ Yes | ⚠️ External | ✅ Yes | ❌ |
@@ -93,10 +98,10 @@ Toolscore works seamlessly with your existing stack:
 
 | Category | Supported |
 |----------|-----------|
-| **LLM Providers** | OpenAI, Anthropic, Google Gemini, Custom APIs |
+| **LLM Providers** | OpenAI, Anthropic, Google Gemini, **MCP (Model Context Protocol)**, Custom APIs |
 | **Frameworks** | LangChain, AutoGPT, CrewAI, Semantic Kernel, raw API calls |
 | **Testing** | Pytest (native plugin), unittest, CI/CD pipelines (GitHub Actions, GitLab CI) |
-| **Input Formats** | JSON, OpenAI format, Anthropic format, LangChain format, custom adapters |
+| **Input Formats** | JSON, OpenAI format, Anthropic format, Gemini format, **MCP (JSON-RPC 2.0)**, LangChain format, custom adapters |
 | **Output Formats** | HTML reports, JSON, CSV, Markdown, Terminal (Rich), Prometheus metrics |
 | **Development** | VS Code, PyCharm, Jupyter notebooks, Google Colab |
 
