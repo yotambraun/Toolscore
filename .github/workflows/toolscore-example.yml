@@ -12,6 +12,8 @@ on:
 jobs:
   evaluate-agent:
     runs-on: ubuntu-latest
+    # This is an example workflow - it won't run on the Toolscore repo itself
+    if: github.repository != 'yotambraun/Toolscore'
 
     steps:
       - name: Checkout code
