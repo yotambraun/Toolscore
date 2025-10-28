@@ -180,9 +180,8 @@ def _detect_format(data: Any) -> BaseAdapter:
             # Check for Gemini format (parts with functionCall)
             if "parts" in first_item:
                 parts = first_item["parts"]
-                if isinstance(parts, list) and parts:
-                    if any("functionCall" in p for p in parts if isinstance(p, dict)):
-                        return GeminiAdapter()
+                if isinstance(parts, list) and parts and any("functionCall" in p for p in parts if isinstance(p, dict)):
+                    return GeminiAdapter()
 
             # Check for Anthropic format
             if first_item.get("role") == "assistant" and isinstance(

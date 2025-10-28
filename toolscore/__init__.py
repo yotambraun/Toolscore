@@ -9,4 +9,4 @@ __version__ = "1.2.0"
 from toolscore.capture import TraceCapture, capture_trace
 from toolscore.core import evaluate_trace
 
-__all__ = ["__version__", "evaluate_trace", "TraceCapture", "capture_trace"]
+__all__ = ["TraceCapture", "__version__", "capture_trace", "evaluate_trace"]

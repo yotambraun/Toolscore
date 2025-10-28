@@ -161,10 +161,7 @@ def _compare_steps(gold_step: ToolCall, trace_step: ToolCall) -> bool:
         actual_value = trace_args[key]
 
         # Handle nested comparisons
-        if isinstance(expected_value, dict) and isinstance(actual_value, dict):
-            if expected_value != actual_value:
-                return False
-        elif isinstance(expected_value, list) and isinstance(actual_value, list):
+        if (isinstance(expected_value, dict) and isinstance(actual_value, dict)) or (isinstance(expected_value, list) and isinstance(actual_value, list)):
             if expected_value != actual_value:
                 return False
         elif expected_value != actual_value:

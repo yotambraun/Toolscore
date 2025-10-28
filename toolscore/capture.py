@@ -1,10 +1,11 @@
 """Production trace capture for building test datasets from real agent executions."""
 
 import json
+from collections.abc import Callable
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from toolscore.adapters.base import ToolCall
 
