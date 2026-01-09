@@ -234,8 +234,10 @@ def explain_argument_metrics(
 
         if gold.tool == trace.tool:
             # Same tool, check argument differences
-            gold_args = set(gold.args.keys())
-            trace_args = set(trace.args.keys())
+            gold_args_dict = gold.args or {}
+            trace_args_dict = trace.args or {}
+            gold_args = set(gold_args_dict.keys())
+            trace_args = set(trace_args_dict.keys())
 
             missing_args = gold_args - trace_args
             extra_args = trace_args - gold_args
@@ -263,8 +265,8 @@ def explain_argument_metrics(
 
             # Check value mismatches
             for arg in common_args:
-                gold_val = gold.args[arg]
-                trace_val = trace.args[arg]
+                gold_val = gold_args_dict[arg]
+                trace_val = trace_args_dict[arg]
                 if gold_val != trace_val:
                     # Check for type mismatch vs value mismatch
                     if type(gold_val) is not type(trace_val):
