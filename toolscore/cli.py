@@ -16,6 +16,8 @@ from toolscore.baseline import (
     compare_to_baseline,
     load_baseline,
     print_comparison_result,
+)
+from toolscore.baseline import (
     save_baseline as save_baseline_file,
 )
 from toolscore.comparison import (

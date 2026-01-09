@@ -267,7 +267,7 @@ def explain_argument_metrics(
                 trace_val = trace.args[arg]
                 if gold_val != trace_val:
                     # Check for type mismatch vs value mismatch
-                    if type(gold_val) != type(trace_val):
+                    if type(gold_val) is not type(trace_val):
                         explanation.items.append(
                             Explanation(
                                 category="mismatch",

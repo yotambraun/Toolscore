@@ -10,7 +10,6 @@ from rich.table import Table
 from rich.text import Text
 
 from toolscore.explainer import (
-    Explanation,
     MetricExplanation,
     generate_explanations,
     get_all_tips,
