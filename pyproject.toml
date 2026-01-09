@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tool-scorer"
-version = "1.4.1"
+version = "1.4.2"
 description = "Pytest for LLM agents. Self-explaining metrics show exactly WHY your agent failed. Regression testing catches degradation before deployment. GitHub Action for one-click CI/CD. Supports OpenAI, Anthropic, Gemini."
 readme = "README.md"
 requires-python = ">=3.10"
