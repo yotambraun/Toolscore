@@ -9,6 +9,14 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from toolscore.explainer import (
+    Explanation,
+    MetricExplanation,
+    generate_explanations,
+    get_all_tips,
+    get_top_issues,
+)
+
 if TYPE_CHECKING:
     from toolscore.core import EvaluationResult
 
@@ -45,10 +53,78 @@ def _format_percentage(value: float) -> Text:
     return Text(f"{value:.1%}", style=f"bold {color}")
 
 
+def _get_severity_style(severity: str) -> str:
+    """Get Rich style for explanation severity.
+
+    Args:
+        severity: Severity level
+
+    Returns:
+        Rich style string
+    """
+    styles = {
+        "error": "bold red",
+        "warning": "yellow",
+        "info": "dim",
+        "success": "green",
+    }
+    return styles.get(severity, "dim")
+
+
+def _get_category_icon(category: str) -> str:
+    """Get icon/prefix for explanation category.
+
+    Args:
+        category: Category name
+
+    Returns:
+        Icon string
+    """
+    icons = {
+        "missing": "MISSING",
+        "extra": "EXTRA",
+        "mismatch": "MISMATCH",
+        "tip": "TIP",
+        "info": "INFO",
+        "warning": "WARNING",
+    }
+    return icons.get(category, "")
+
+
+def _print_metric_explanation(
+    explanation: MetricExplanation,
+    console: Console,
+    max_items: int = 5,
+) -> None:
+    """Print a metric explanation with its items and tips.
+
+    Args:
+        explanation: The metric explanation to print
+        console: Rich Console instance
+        max_items: Maximum number of items to show
+    """
+    if not explanation.items and not explanation.tips:
+        return
+
+    # Print explanation items
+    shown_items = explanation.items[:max_items]
+    for item in shown_items:
+        style = _get_severity_style(item.severity)
+        icon = _get_category_icon(item.category)
+        if icon:
+            console.print(f"      [{style}]{icon}:[/{style}] {item.message}")
+        else:
+            console.print(f"      [{style}]{item.message}[/{style}]")
+
+    if len(explanation.items) > max_items:
+        console.print(f"      [dim]... and {len(explanation.items) - max_items} more[/dim]")
+
+
 def print_evaluation_summary(
     result: EvaluationResult,
     console: Console | None = None,
     verbose: bool = False,
+    show_explanations: bool = True,
 ) -> None:
     """Print a beautiful console summary of evaluation results.
 
@@ -56,11 +132,15 @@ def print_evaluation_summary(
         result: Evaluation result to display
         console: Rich Console instance (creates new one if None)
         verbose: Whether to show detailed information
+        show_explanations: Whether to show self-explaining metric details
     """
     if console is None:
         console = Console()
 
     metrics = result.metrics
+
+    # Generate explanations for all metrics
+    explanations = generate_explanations(result) if show_explanations else {}
 
     # Print header
     console.print()
@@ -88,7 +168,7 @@ def print_evaluation_summary(
     metrics_table = Table(title="Core Metrics", show_header=True, header_style="bold magenta")
     metrics_table.add_column("Metric", style="cyan", no_wrap=True)
     metrics_table.add_column("Score", justify="right")
-    metrics_table.add_column("Description", style="dim")
+    metrics_table.add_column("Details", style="dim")
 
     # Invocation Accuracy
     inv_acc = metrics.get("invocation_accuracy", 0.0)
@@ -100,40 +180,43 @@ def print_evaluation_summary(
 
     # Selection Accuracy
     sel_acc = metrics.get("selection_accuracy", 0.0)
+    sel_exp = explanations.get("selection_accuracy")
+    sel_desc = sel_exp.score_description if sel_exp else "Did agent choose correct tools?"
     metrics_table.add_row(
-        "Selection Accuracy", _format_percentage(sel_acc), "Did agent choose correct tools?"
+        "Selection Accuracy", _format_percentage(sel_acc), sel_desc
     )
 
     # Tool Correctness
     tool_correctness_metrics = metrics.get("tool_correctness_metrics", {})
     tool_correctness = tool_correctness_metrics.get("tool_correctness", 0.0)
-    correct_count = tool_correctness_metrics.get("correct_count", 0)
-    total_expected = tool_correctness_metrics.get("total_expected", 0)
+    tc_exp = explanations.get("tool_correctness")
+    tc_desc = tc_exp.score_description if tc_exp else f"{tool_correctness_metrics.get('correct_count', 0)}/{tool_correctness_metrics.get('total_expected', 0)} expected tools called"
     metrics_table.add_row(
         "Tool Correctness",
         _format_percentage(tool_correctness),
-        f"All expected tools called? ({correct_count}/{total_expected})",
+        tc_desc,
     )
 
     # Sequence Accuracy
     seq_metrics = metrics.get("sequence_metrics", {})
     seq_acc = seq_metrics.get("sequence_accuracy", 0.0)
-    edit_dist = seq_metrics.get("edit_distance", 0)
+    seq_exp = explanations.get("sequence_metrics")
+    seq_desc = seq_exp.score_description if seq_exp else f"Edit distance: {seq_metrics.get('edit_distance', 0)}"
     metrics_table.add_row(
         "Sequence Accuracy",
         _format_percentage(seq_acc),
-        f"Did agent call tools in order? (distance: {edit_dist})",
+        seq_desc,
     )
 
     # Argument F1
     arg_metrics = metrics.get("argument_metrics", {})
     arg_f1 = arg_metrics.get("f1", 0.0)
-    arg_precision = arg_metrics.get("precision", 0.0)
-    arg_recall = arg_metrics.get("recall", 0.0)
+    arg_exp = explanations.get("argument_metrics")
+    arg_desc = arg_exp.score_description if arg_exp else f"P:{arg_metrics.get('precision', 0.0):.1%} R:{arg_metrics.get('recall', 0.0):.1%}"
     metrics_table.add_row(
         "Argument F1",
         _format_percentage(arg_f1),
-        f"How well arguments matched? (P:{arg_precision:.1%} R:{arg_recall:.1%})",
+        arg_desc,
     )
 
     # Redundant Call Rate
@@ -151,6 +234,25 @@ def print_evaluation_summary(
 
     console.print(metrics_table)
     console.print()
+
+    # Show self-explaining details for metrics with issues
+    if show_explanations and explanations:
+        issues = get_top_issues(explanations, max_issues=8)
+        if issues:
+            console.print("[bold]What Went Wrong:[/bold]")
+            for item in issues:
+                style = _get_severity_style(item.severity)
+                icon = _get_category_icon(item.category)
+                console.print(f"   [{style}]{icon}:[/{style}] {item.message}")
+            console.print()
+
+        # Show tips
+        tips = get_all_tips(explanations)
+        if tips:
+            console.print("[bold cyan]Tips:[/bold cyan]")
+            for tip in tips[:3]:  # Limit to top 3 tips
+                console.print(f"   [cyan]TIP:[/cyan] {tip}")
+            console.print()
 
     # Show missing/extra tools in verbose mode
     if verbose and tool_correctness_metrics:
@@ -286,66 +388,6 @@ def print_evaluation_summary(
         perf_table.add_row("Min Duration", f"{lat_metrics.get('min_duration', 0):.3f}s")
 
         console.print(perf_table)
-        console.print()
-
-    # Actionable suggestions based on failures
-    suggestions = []
-
-    if sel_acc < 0.5:
-        # Check if there are tool name mismatches
-        gold_tools = {call.tool for call in result.gold_calls}
-        trace_tools = {call.tool for call in result.trace_calls}
-
-        if gold_tools != trace_tools:
-            different_tools = trace_tools - gold_tools
-            if different_tools:
-                suggestions.append(
-                    f"! Tool name mismatch detected: Agent used {list(different_tools)[:3]} "
-                    f"but expected {list(gold_tools)[:3]}"
-                )
-                suggestions.append(
-                    "* Try: Add [cyan]--llm-judge[/cyan] flag to check semantic equivalence "
-                    "(e.g., 'web_search' vs 'search')"
-                )
-
-    if arg_f1 < 0.5:
-        suggestions.append(
-            "! Argument mismatch detected: Tool arguments don't match expected values"
-        )
-        suggestions.append(
-            "* Check: Argument names, types, and values in your trace"
-        )
-        if schema_metrics and schema_metrics.get("total_errors", 0) > 0:
-            suggestions.append(
-                "* Tip: Schema validation found type errors - run with [cyan]--verbose[/cyan] "
-                "to see details"
-            )
-
-    if seq_acc < 0.8:
-        suggestions.append(
-            "! Sequence mismatch: Tools called in wrong order"
-        )
-        suggestions.append(
-            "* Review: Agent's planning logic and tool dependencies"
-        )
-
-    tool_correctness = tool_correctness_metrics.get("tool_correctness", 1.0)
-    if tool_correctness < 1.0:
-        missing = tool_correctness_metrics.get("missing_tools", [])
-        if missing:
-            suggestions.append(
-                f"! Missing tools: Agent didn't call {missing}"
-            )
-            suggestions.append(
-                "* Check: Agent's tool selection logic and available tools"
-            )
-
-    # Display suggestions if any
-    if suggestions:
-        console.print()
-        console.print("[bold yellow]Suggestions for Improvement:[/bold yellow]")
-        for suggestion in suggestions:
-            console.print(f"   {suggestion}")
         console.print()
 
     # Overall assessment

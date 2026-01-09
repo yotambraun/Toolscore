@@ -17,7 +17,28 @@ This directory contains example files and scripts demonstrating the usage of Too
 
 ## Quick Start
 
-### NEW in v1.1: Generate Your Own Tests
+### NEW in v1.4: Regression Testing & Self-Explaining Metrics
+
+**Regression Testing:**
+```bash
+# Save a baseline from your best evaluation
+toolscore eval gold_calls.json trace.json --save-baseline baseline.json
+
+# Run regression checks in CI
+toolscore regression baseline.json new_trace.json --gold-file gold_calls.json
+```
+
+**Self-Explaining Metrics** are now automatic - you'll see exactly what went wrong:
+```
+What Went Wrong:
+   MISSING: Expected tool 'search_web' was never called
+   MISMATCH: Position 2: Expected 'summarize' but got 'summary'
+
+Tips:
+   TIP: Use --llm-judge flag to catch semantic equivalence
+```
+
+### Generate Your Own Tests
 
 Use the synthetic test generator to create gold standards from OpenAI function schemas:
 

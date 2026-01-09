@@ -9,12 +9,15 @@ This tutorial walks you through the complete workflow of using Toolscore to eval
 4. [Step 2: Create Gold Standards](#step-2-create-gold-standards)
 5. [Step 3: Evaluate and Generate Reports](#step-3-evaluate-and-generate-reports)
 6. [Understanding the Metrics](#understanding-the-metrics)
-7. [Advanced Usage](#advanced-usage)
-   - [Pytest Integration](#pytest-integration)
-   - [Interactive Tutorials](#interactive-tutorials)
-   - [LangChain Support](#langchain-support)
-   - [Custom Trace Format](#custom-trace-format)
-   - [Batch Evaluation](#batch-evaluation)
+7. [Self-Explaining Metrics](#self-explaining-metrics)
+8. [Regression Testing](#regression-testing)
+9. [CI/CD Integration](#cicd-integration)
+10. [Advanced Usage](#advanced-usage)
+    - [Pytest Integration](#pytest-integration)
+    - [Interactive Tutorials](#interactive-tutorials)
+    - [LangChain Support](#langchain-support)
+    - [Custom Trace Format](#custom-trace-format)
+    - [Batch Evaluation](#batch-evaluation)
 
 ## Overview
 
@@ -398,6 +401,183 @@ result = calculate_semantic_correctness(gold_calls, trace_calls, model="gpt-4o-m
 print(f"Semantic Score: {result['semantic_score']:.2%}")
 print(f"Explanations: {result['explanations']}")
 ```
+
+## Self-Explaining Metrics
+
+Toolscore v1.4+ includes **self-explaining metrics** that tell you exactly what went wrong and how to fix it.
+
+### What You'll See
+
+When you run an evaluation, you'll see output like this:
+
+```
+Core Metrics
+Metric              Score     Details
+Selection Accuracy  75.0%     3 of 4 correct
+Tool Correctness    66.7%     2 of 3 expected tools called
+Argument F1         80.0%     Precision: 85.0%, Recall: 75.0%
+
+What Went Wrong:
+   MISSING: Expected tool 'search_web' was never called
+   MISMATCH: Position 2: Expected 'summarize' but got 'summary' (similar names)
+   EXTRA: Tool 'log_debug' was called but not expected
+
+Tips:
+   TIP: 'search_web' might be equivalent to 'web_search' - use --llm-judge to verify
+   TIP: Use --llm-judge flag to catch semantic equivalence
+```
+
+### Categories Explained
+
+- **MISSING**: Expected tool was never called - check if your agent has access to the tool
+- **EXTRA**: Tool was called but not expected - may indicate unnecessary calls
+- **MISMATCH**: Wrong tool or argument at a specific position
+
+### Tips
+
+Tips are automatically generated based on detected issues:
+- Tool name mismatches suggest using `--llm-judge` for semantic matching
+- Low precision suggests the agent is passing extra/wrong arguments
+- Low recall suggests required arguments are missing
+
+## Regression Testing
+
+Regression testing lets you catch performance degradation automatically in CI/CD.
+
+### Step 1: Create a Baseline
+
+First, establish a baseline from your best evaluation:
+
+```bash
+toolscore eval gold.json trace.json --save-baseline baseline.json
+```
+
+This saves:
+- All metric values
+- Gold file hash (for verification)
+- Timestamp
+- Version information
+
+### Step 2: Run Regression Checks
+
+In CI/CD, compare new evaluations against the baseline:
+
+```bash
+# Basic regression check (5% threshold)
+toolscore regression baseline.json new_trace.json --gold-file gold.json
+
+# Custom threshold (10% allowed regression)
+toolscore regression baseline.json trace.json -g gold.json -t 0.10
+
+# Save comparison report
+toolscore regression baseline.json trace.json -g gold.json -o comparison.json
+```
+
+### Understanding Results
+
+**PASS output:**
+```
+PASS: No significant changes (threshold: 5%)
+
+Metric              Baseline    Current     Delta      Status
+Selection           92.0%       93.1%       +1.1%      OK
+Invocation          88.0%       87.2%       -0.8%      OK
+Arguments F1        85.0%       84.5%       -0.5%      OK
+```
+
+**FAIL output:**
+```
+FAIL: 1 regression(s) detected (threshold: 5%)
+
+Metric              Baseline    Current     Delta      Status
+Selection           92.0%       78.0%       -14.0%     REGRESSION
+Invocation          88.0%       87.2%       -0.8%      OK
+```
+
+### Exit Codes
+
+- `0`: PASS - No regression detected
+- `1`: FAIL - Regression detected (accuracy dropped beyond threshold)
+- `2`: ERROR - Invalid files or other errors
+
+## CI/CD Integration
+
+### GitHub Action
+
+The easiest way to add Toolscore to your CI:
+
+```yaml
+name: Agent Evaluation
+on: [push, pull_request]
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: yotambraun/toolscore@v1
+        with:
+          gold-file: tests/gold_standard.json
+          trace-file: tests/agent_trace.json
+          threshold: '0.90'
+```
+
+### With Regression Testing
+
+```yaml
+- uses: yotambraun/toolscore@v1
+  with:
+    gold-file: tests/gold_standard.json
+    trace-file: tests/agent_trace.json
+    baseline-file: tests/baseline.json
+    regression-threshold: '0.05'
+```
+
+### Manual GitHub Actions Setup
+
+If you need more control:
+
+```yaml
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Toolscore
+        run: pip install tool-scorer
+
+      - name: Run Evaluation
+        run: |
+          toolscore eval tests/gold.json tests/trace.json \
+            --html report.html \
+            --save-baseline current_baseline.json
+
+      - name: Run Regression Check
+        run: |
+          toolscore regression tests/baseline.json tests/trace.json \
+            --gold-file tests/gold.json \
+            --threshold 0.05
+
+      - name: Upload Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-report
+          path: report.html
+```
+
+### Best Practices
+
+1. **Commit your baseline** - Keep `baseline.json` in version control
+2. **Update baseline on releases** - When you intentionally change behavior
+3. **Use meaningful thresholds** - 5% is a good default, adjust based on your tolerance
+4. **Review regressions** - Not all regressions are bugs; some may be acceptable tradeoffs
 
 ## Advanced Usage
 

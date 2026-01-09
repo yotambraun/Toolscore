@@ -1,0 +1,44 @@
+# Toolscore Basic Evaluation Workflow
+# Copy this file to .github/workflows/ in your repository
+
+name: Agent Evaluation
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    name: Evaluate Agent Tool Usage
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Add your agent execution step here
+      # Example:
+      # - name: Run Agent
+      #   run: python run_agent.py --output trace.json
+      #   env:
+      #     OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Run Toolscore Evaluation
+        uses: yotambraun/toolscore@v1
+        id: eval
+        with:
+          gold-file: tests/gold_standard.json
+          trace-file: tests/agent_trace.json
+          threshold: '0.90'
+          fail-on-regression: 'true'
+          generate-report: 'true'
+
+      - name: Check Results
+        if: always()
+        run: |
+          echo "Selection Accuracy: ${{ steps.eval.outputs.selection-accuracy }}"
+          echo "Invocation Accuracy: ${{ steps.eval.outputs.invocation-accuracy }}"
+          echo "Argument F1: ${{ steps.eval.outputs.argument-f1 }}"
+          echo "Passed: ${{ steps.eval.outputs.passed }}"

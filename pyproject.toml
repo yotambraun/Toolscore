@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tool-scorer"
-version = "1.3.3"
-description = "Catch LLM agent regressions before deployment. Test tool-calling accuracy for OpenAI, Anthropic, Gemini with pytest integration and CI/CD workflows."
+version = "1.4.0"
+description = "Pytest for LLM agents. Self-explaining metrics show exactly WHY your agent failed. Regression testing catches degradation before deployment. GitHub Action for one-click CI/CD. Supports OpenAI, Anthropic, Gemini."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -54,6 +54,13 @@ keywords = [
     # Specific use cases
     "accuracy",
     "langsmith-alternative",
+    # v1.4 features
+    "self-explaining-metrics",
+    "baseline-comparison",
+    "github-action",
+    "quality-gates",
+    "mcp",
+    "model-context-protocol",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

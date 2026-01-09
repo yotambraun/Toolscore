@@ -1,0 +1,226 @@
+name: 'Toolscore - LLM Agent Evaluation'
+description: 'Catch LLM agent regressions before deployment. Test tool-calling accuracy for OpenAI, Anthropic, Gemini with pytest-like simplicity.'
+author: 'Yotam Braun'
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  gold-file:
+    description: 'Path to gold standard JSON file containing expected tool calls'
+    required: true
+  trace-file:
+    description: 'Path to agent trace JSON file to evaluate'
+    required: true
+  format:
+    description: 'Trace format (auto, openai, anthropic, gemini, langchain, custom)'
+    required: false
+    default: 'auto'
+  threshold:
+    description: 'Minimum accuracy threshold (0.0-1.0). Fails if selection_accuracy or invocation_accuracy falls below this.'
+    required: false
+    default: '0.9'
+  baseline-file:
+    description: 'Path to baseline JSON for regression testing. If provided, runs regression check instead of threshold check.'
+    required: false
+    default: ''
+  regression-threshold:
+    description: 'Maximum allowed regression as decimal (e.g., 0.05 = 5%). Only used with baseline-file.'
+    required: false
+    default: '0.05'
+  fail-on-regression:
+    description: 'Fail the action if accuracy drops below threshold or regression is detected'
+    required: false
+    default: 'true'
+  generate-report:
+    description: 'Generate HTML report artifact'
+    required: false
+    default: 'true'
+  python-version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+
+outputs:
+  selection-accuracy:
+    description: 'Tool selection accuracy score (0.0-1.0)'
+    value: ${{ steps.eval.outputs.selection_accuracy }}
+  invocation-accuracy:
+    description: 'Tool invocation accuracy score (0.0-1.0)'
+    value: ${{ steps.eval.outputs.invocation_accuracy }}
+  argument-f1:
+    description: 'Argument match F1 score (0.0-1.0)'
+    value: ${{ steps.eval.outputs.argument_f1 }}
+  passed:
+    description: 'Whether all thresholds were met (true/false)'
+    value: ${{ steps.eval.outputs.passed }}
+  regression-detected:
+    description: 'Whether a regression was detected (true/false). Only set when using baseline-file.'
+    value: ${{ steps.eval.outputs.regression_detected }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Toolscore
+      shell: bash
+      run: pip install tool-scorer
+
+    - name: Run Evaluation
+      id: eval
+      shell: bash
+      env:
+        INPUT_GOLD_FILE: ${{ inputs.gold-file }}
+        INPUT_TRACE_FILE: ${{ inputs.trace-file }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_THRESHOLD: ${{ inputs.threshold }}
+        INPUT_BASELINE_FILE: ${{ inputs.baseline-file }}
+        INPUT_REGRESSION_THRESHOLD: ${{ inputs.regression-threshold }}
+        INPUT_FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+        INPUT_GENERATE_REPORT: ${{ inputs.generate-report }}
+      run: |
+        # Run evaluation
+        echo "Running Toolscore evaluation..."
+
+        REPORT_FLAGS=""
+        if [ "$INPUT_GENERATE_REPORT" = "true" ]; then
+          REPORT_FLAGS="--html toolscore-report.html --markdown toolscore-summary.md"
+        fi
+
+        toolscore eval "$INPUT_GOLD_FILE" "$INPUT_TRACE_FILE" \
+          --format "$INPUT_FORMAT" \
+          --output toolscore-results.json \
+          $REPORT_FLAGS \
+          --verbose || true
+
+        # Parse results and set outputs
+        python3 << 'PYTHON_SCRIPT'
+        import json
+        import os
+        import sys
+
+        # Load evaluation results
+        try:
+            with open('toolscore-results.json', 'r') as f:
+                results = json.load(f)
+        except FileNotFoundError:
+            print("::error::Toolscore evaluation failed - no results file generated")
+            sys.exit(1)
+
+        metrics = results.get('metrics', {})
+
+        # Extract key metrics
+        sel_acc = metrics.get('selection_accuracy', 0)
+        inv_acc = metrics.get('invocation_accuracy', 0)
+        arg_metrics = metrics.get('argument_metrics', {})
+        arg_f1 = arg_metrics.get('f1', 0)
+
+        threshold = float(os.environ.get('INPUT_THRESHOLD', '0.9'))
+        fail_on_regression = os.environ.get('INPUT_FAIL_ON_REGRESSION', 'true').lower() == 'true'
+        baseline_file = os.environ.get('INPUT_BASELINE_FILE', '')
+
+        # Check if using regression mode
+        regression_detected = 'false'
+        if baseline_file:
+            # Regression mode - we'll check this separately
+            passed = True  # Will be updated by regression check
+        else:
+            # Threshold mode
+            passed = sel_acc >= threshold and inv_acc >= threshold
+
+        # Write outputs
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f'selection_accuracy={sel_acc}\n')
+            f.write(f'invocation_accuracy={inv_acc}\n')
+            f.write(f'argument_f1={arg_f1}\n')
+            f.write(f'passed={str(passed).lower()}\n')
+            f.write(f'regression_detected={regression_detected}\n')
+
+        # Print summary
+        print(f"\n{'='*50}")
+        print("TOOLSCORE EVALUATION RESULTS")
+        print(f"{'='*50}")
+        print(f"Selection Accuracy:  {sel_acc:.1%}")
+        print(f"Invocation Accuracy: {inv_acc:.1%}")
+        print(f"Argument F1:         {arg_f1:.1%}")
+        print(f"Threshold:           {threshold:.1%}")
+        print(f"{'='*50}")
+
+        if not baseline_file:
+            if passed:
+                print("STATUS: PASS - All metrics meet threshold")
+            else:
+                print(f"STATUS: FAIL - Metrics below {threshold:.0%} threshold")
+                if fail_on_regression:
+                    print("::error::Toolscore evaluation failed - accuracy below threshold")
+                    sys.exit(1)
+
+        PYTHON_SCRIPT
+
+    - name: Run Regression Check
+      if: inputs.baseline-file != ''
+      id: regression
+      shell: bash
+      env:
+        INPUT_GOLD_FILE: ${{ inputs.gold-file }}
+        INPUT_TRACE_FILE: ${{ inputs.trace-file }}
+        INPUT_FORMAT: ${{ inputs.format }}
+        INPUT_BASELINE_FILE: ${{ inputs.baseline-file }}
+        INPUT_REGRESSION_THRESHOLD: ${{ inputs.regression-threshold }}
+        INPUT_FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
+      run: |
+        echo "Running regression check against baseline..."
+
+        # Run regression command
+        RESULT=0
+        toolscore regression "$INPUT_BASELINE_FILE" "$INPUT_TRACE_FILE" \
+          --gold-file "$INPUT_GOLD_FILE" \
+          --format "$INPUT_FORMAT" \
+          --threshold "$INPUT_REGRESSION_THRESHOLD" \
+          --output regression-report.json \
+          --verbose || RESULT=$?
+
+        if [ $RESULT -eq 0 ]; then
+          echo "regression_detected=false" >> $GITHUB_OUTPUT
+          echo "STATUS: PASS - No regression detected"
+        elif [ $RESULT -eq 1 ]; then
+          echo "regression_detected=true" >> $GITHUB_OUTPUT
+          echo "STATUS: FAIL - Regression detected"
+          if [ "$INPUT_FAIL_ON_REGRESSION" = "true" ]; then
+            echo "::error::Toolscore regression detected - performance degraded beyond threshold"
+            exit 1
+          fi
+        else
+          echo "::error::Toolscore regression check failed with error"
+          exit $RESULT
+        fi
+
+    - name: Upload HTML Report
+      if: inputs.generate-report == 'true' && always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: toolscore-report
+        path: |
+          toolscore-report.html
+          toolscore-results.json
+          toolscore-summary.md
+          regression-report.json
+        if-no-files-found: ignore
+
+    - name: Create Job Summary
+      if: always()
+      shell: bash
+      run: |
+        if [ -f toolscore-summary.md ]; then
+          echo "## Toolscore Evaluation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          cat toolscore-summary.md >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Powered by [Toolscore](https://github.com/yotambraun/toolscore)*" >> $GITHUB_STEP_SUMMARY
+        fi

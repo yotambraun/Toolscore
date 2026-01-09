@@ -1,0 +1,26 @@
+[
+  {
+    "role": "assistant",
+    "function_call": {
+      "name": "create_file",
+      "arguments": "{\"filename\": \"poem.txt\", \"lines_of_text\": [\"Roses are red,\", \"Violets are blue.\"]}"
+    }
+  },
+  {
+    "role": "function",
+    "name": "create_file",
+    "content": "{\"success\": true}"
+  },
+  {
+    "role": "assistant",
+    "function_call": {
+      "name": "get_file",
+      "arguments": "{\"filename\": \"poem.txt\"}"
+    }
+  },
+  {
+    "role": "function",
+    "name": "get_file",
+    "content": "Roses are red,\\nViolets are blue."
+  }
+]

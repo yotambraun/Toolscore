@@ -41,15 +41,18 @@ Stop shipping broken LLM agents. Toolscore automatically tests tool-calling beha
 - Track improvements in function calling accuracy over time
 - Compare agent performance across different prompting strategies
 
-## ✨ Features
+## Features
 
+- **Self-Explaining Metrics**: Know exactly WHY your agent failed with detailed explanations, similar name detection, and actionable tips
+- **Regression Testing**: `toolscore regression` command catches performance degradation with baseline comparison
+- **GitHub Action**: One-click CI/CD setup with `yotambraun/toolscore@v1`
 - **Trace vs. Spec Comparison**: Load agent tool-use traces (OpenAI, Anthropic, **Gemini**, **MCP**, LangChain, or custom) and compare against gold standard specifications
 - **Comprehensive Metrics Suite**:
   - Tool Invocation Accuracy
   - Tool Selection Accuracy
   - Tool Correctness (were all expected tools called?)
   - Tool Call Sequence Edit Distance
-  - **NEW v1.3**: Trajectory Accuracy (did agent take the correct reasoning path?)
+  - Trajectory Accuracy (did agent take the correct reasoning path?)
   - Argument Match F1 Score
   - Parameter Schema Validation (types, ranges, patterns)
   - Redundant Call Rate
@@ -72,6 +75,9 @@ Stop shipping broken LLM agents. Toolscore automatically tests tool-calling beha
 
 | Feature | Toolscore | LangSmith | OpenAI Evals | Weights & Biases | Manual Testing |
 |---------|-----------|-----------|--------------|------------------|----------------|
+| **Self-Explaining Metrics** | ✅ WHY it failed + tips | ❌ | ❌ | ❌ | ❌ |
+| **Regression Testing** | ✅ Baseline comparison | ⚠️ Manual | ❌ | ⚠️ Custom | ❌ |
+| **GitHub Action** | ✅ One-click CI | ⚠️ Custom setup | ❌ | ⚠️ Custom | ❌ |
 | **Multi-Provider Support** | ✅ OpenAI, Anthropic, Gemini, MCP | ⚠️ LangChain-focused | ⚠️ OpenAI-focused | ✅ Yes | ❌ |
 | **Trajectory Evaluation** | ✅ Multi-step path analysis | ✅ Yes | ❌ | ⚠️ Custom | ❌ |
 | **Production Trace Capture** | ✅ Decorator + auto-save | ✅ Yes | ❌ | ✅ Yes | ❌ |
@@ -106,6 +112,51 @@ Toolscore works seamlessly with your existing stack:
 | **Development** | VS Code, PyCharm, Jupyter notebooks, Google Colab |
 
 **Coming Soon**: DataDog integration, Weights & Biases export, Slack notifications
+
+## GitHub Action
+
+Add LLM agent evaluation to your CI in seconds:
+
+```yaml
+- uses: yotambraun/toolscore@v1
+  with:
+    gold-file: tests/gold_standard.json
+    trace-file: tests/agent_trace.json
+    threshold: '0.90'
+```
+
+**With regression testing:**
+
+```yaml
+- uses: yotambraun/toolscore@v1
+  with:
+    gold-file: tests/gold_standard.json
+    trace-file: tests/agent_trace.json
+    baseline-file: tests/baseline.json
+    regression-threshold: '0.05'
+```
+
+See [action.yml](action.yml) for all options.
+
+## Regression Testing
+
+Catch performance degradation automatically:
+
+```bash
+# Step 1: Create a baseline from your best evaluation
+toolscore eval gold.json trace.json --save-baseline baseline.json
+
+# Step 2: Run regression checks in CI (fails if accuracy drops >5%)
+toolscore regression baseline.json new_trace.json --gold-file gold.json
+
+# With custom threshold (10% allowed regression)
+toolscore regression baseline.json trace.json -g gold.json -t 0.10
+```
+
+**Exit codes:**
+- `0`: PASS - No regression detected
+- `1`: FAIL - Regression detected (accuracy dropped)
+- `2`: ERROR - Invalid files or other errors
 
 ## 👥 Who Uses Toolscore?
 
@@ -161,57 +212,64 @@ pip install -e ".[dev,docs]"
 uv pip install -e ".[dev]"
 ```
 
-## ⚡ What's New in v1.1
+## What's New in v1.4.0
 
-Toolscore v1.1 focuses on **making evaluation incredibly easy and intuitive** with powerful new features:
+Toolscore v1.4.0 introduces **three high-impact features** based on real user needs:
 
-### 🚀 Zero-Friction Onboarding (`toolscore init`)
-Interactive project setup in 30 seconds. Choose your agent type (Weather, E-commerce, Code, RAG, Multi-tool), get pre-built templates and ready-to-use examples.
-
-```bash
-toolscore init
-# Follow prompts → Start evaluating in 30 seconds
-```
-
-### ⚡ Synthetic Test Generator (`toolscore generate`)
-Create comprehensive test suites automatically from OpenAI function schemas. Generates varied test cases with edge cases and boundary values - no manual test writing needed.
+### Self-Explaining Metrics
+Know exactly **WHY** your agent failed - not just that it failed. Get detailed explanations after each evaluation.
 
 ```bash
-toolscore generate --from-openai functions.json --count 20
-# Creates 20 test cases with normal + edge + boundary variations
+toolscore eval gold.json trace.json --verbose
+
+# Output:
+# What Went Wrong:
+#   MISSING: Expected tool 'search_web' was never called
+#   MISMATCH: Position 2: Expected 'summarize' but got 'summary' (similar names detected)
+#   WRONG_ARGS: Argument 'limit' expected 10, got 100
+#
+# Tips:
+#   Use --llm-judge to catch semantic equivalence (search vs web_search)
 ```
 
-### 📊 Quick Compare (`toolscore compare`)
-Compare multiple models side-by-side in one command. See which model (GPT-4, Claude, Gemini, etc.) performs best on each metric with beautiful comparison tables.
+### Regression Testing (`toolscore regression`)
+Catch performance degradation automatically in CI/CD. 58% of prompt+model combinations degrade over API updates - now you'll know immediately.
 
 ```bash
-toolscore compare gold.json gpt4.json claude.json gemini.json \
-  -n gpt-4 -n claude-3 -n gemini-1.5
-# Shows color-coded comparison table with overall winner
+# Create baseline from your best run
+toolscore eval gold.json trace.json --save-baseline baseline.json
+
+# Run regression checks (fails if accuracy drops >5%)
+toolscore regression baseline.json new_trace.json --gold-file gold.json
+
+# Exit codes: 0=PASS, 1=FAIL (regression), 2=ERROR
 ```
 
-### 🔍 Interactive Debug Mode (`--debug`)
-Step through failures one-by-one with guided troubleshooting. See exactly what went wrong and get actionable fix suggestions for each mismatch.
+### GitHub Action
+One-click CI setup. Add agent quality gates to any repository in 30 seconds:
 
-```bash
-toolscore eval gold.json trace.json --debug
-# Navigate mismatches interactively with context-specific suggestions
+```yaml
+- uses: yotambraun/toolscore@v1
+  with:
+    gold-file: tests/gold_standard.json
+    trace-file: tests/agent_trace.json
+    threshold: '0.90'
+    fail-on-regression: 'true'
 ```
 
-### 💡 Actionable Error Messages
-Automatic failure detection with specific fix suggestions. No more guessing - get told exactly what to try next (use `--llm-judge`, check schemas, review arguments, etc.).
+See [examples/github_actions/](examples/github_actions/) for complete workflow examples.
 
-### 🎯 Tool Correctness Metric
-Deterministic evaluation of whether all expected tools were called - goes beyond just checking individual call matches.
+---
 
-### 🧠 Integrated LLM-as-a-Judge
-Semantic evaluation is now built into the core - just add `--llm-judge` flag to catch equivalent but differently-named tools (e.g., `search` vs `web_search`).
+### Also in Toolscore
 
-### 🔒 Parameter Schema Validation
-Validate argument types, ranges, patterns, and constraints - catch type errors, out-of-range values, and missing required fields.
-
-### 📦 Example Datasets
-5 realistic gold standards for common agent types (weather, ecommerce, code assistant, RAG, multi-tool) - start evaluating in 30 seconds!
+- **Zero-Friction Onboarding**: `toolscore init` - interactive project setup in 30 seconds
+- **Synthetic Test Generator**: `toolscore generate` - create test cases from OpenAI schemas
+- **Quick Compare**: `toolscore compare` - compare multiple models side-by-side
+- **Interactive Debug Mode**: `--debug` flag for step-by-step failure analysis
+- **LLM-as-a-Judge**: `--llm-judge` flag for semantic tool name matching
+- **Schema Validation**: Validate argument types, ranges, patterns
+- **Example Datasets**: 5 realistic gold standards (weather, ecommerce, code, RAG, multi-tool)
 
 ## 🚀 Quick Start
 
@@ -639,14 +697,34 @@ log_to_datadog({
 
 ## What's New
 
-### v1.1.0 (Latest - October 2025)
+### v1.4.0 (Latest - January 2026)
+
+**Self-Explaining Metrics:**
+- Know exactly WHY your agent failed with detailed explanations
+- Automatic detection of tool name mismatches and similar names
+- Actionable tips like "use --llm-judge to catch semantic equivalence"
+- Per-metric breakdowns showing missing, extra, and mismatched items
+
+**Regression Testing:**
+- New `toolscore regression` command for CI/CD integration
+- Save baselines with `--save-baseline` flag
+- Automatic PASS/FAIL with configurable thresholds
+- Detailed delta reports showing improvements and regressions
+
+**GitHub Action:**
+- Official action on GitHub Marketplace
+- One-click CI setup for any repository
+- Supports both threshold and regression testing modes
+- Automatic report artifacts and job summaries
+
+### v1.1.0 (October 2025)
 
 **Major Product Improvements:**
-- **🧠 Integrated LLM-as-a-Judge**: Semantic evaluation now built into core with `--llm-judge` flag
-- **🎯 Tool Correctness Metric**: Deterministic check for complete tool coverage
-- **🔒 Parameter Schema Validation**: Validate types, ranges, patterns, enums in arguments
-- **📦 Example Datasets**: 5 realistic gold standards (weather, ecommerce, code, RAG, multi-tool)
-- **Enhanced Console Output**: Beautiful tables showing tool coverage and schema validation
+- Integrated LLM-as-a-Judge with `--llm-judge` flag
+- Tool Correctness Metric for complete tool coverage
+- Parameter Schema Validation for types, ranges, patterns
+- Example Datasets: 5 realistic gold standards
+- Enhanced Console Output with Rich tables
 
 ### v1.0.x
 

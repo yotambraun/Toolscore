@@ -7,6 +7,68 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-01-09
+
+### Added - Self-Explaining Metrics, Regression Testing & GitHub Action
+
+#### Self-Explaining Metrics
+- **Know exactly WHY your agent failed** with detailed explanations after each metric
+- Automatic detection of tool name mismatches and similar names using SequenceMatcher
+- Actionable tips like "use --llm-judge to catch semantic equivalence"
+- Per-metric breakdowns showing MISSING, EXTRA, and MISMATCH items with severity levels
+- New `toolscore/explainer.py` module with comprehensive explanation generation
+- Categories: missing tools, extra tools, argument mismatches, type errors, value mismatches
+- Tips tailored to specific failure patterns (low precision vs low recall, etc.)
+- **Impact**: Users immediately understand what went wrong without manual debugging
+
+#### Regression Testing (`toolscore regression`)
+- **New CLI command** for CI/CD regression detection
+- Save baselines with `--save-baseline` flag on `eval` command
+- Automatic PASS/FAIL with configurable thresholds (default: 5%)
+- Detailed delta reports showing improvements and regressions for each metric
+- Exit codes: 0=PASS, 1=FAIL (regression), 2=ERROR
+- Baseline includes:
+  - Version tracking
+  - Timestamp
+  - Gold file hash for verification
+  - All core metrics
+- Comparison shows:
+  - Baseline vs current values
+  - Absolute delta and percentage change
+  - Status per metric (REGRESSION/IMPROVED/OK)
+- **Impact**: CI/CD pipelines can automatically catch agent degradation
+
+#### GitHub Action
+- **Official GitHub Action** for one-click CI setup
+- Available on GitHub Actions Marketplace
+- Supports both threshold and regression testing modes
+- Features:
+  - Automatic HTML report generation as artifacts
+  - Job summary with evaluation results
+  - Configurable accuracy thresholds
+  - Regression testing against baselines
+  - All trace format support
+- Example usage:
+  ```yaml
+  - uses: yotambraun/toolscore@v1
+    with:
+      gold-file: tests/gold_standard.json
+      trace-file: tests/agent_trace.json
+      threshold: '0.90'
+  ```
+- **Impact**: Zero-config CI/CD setup for any repository
+
+### Changed
+- Enhanced console output with "What Went Wrong" section showing top issues
+- Tips section now shows actionable suggestions based on detected problems
+- Metrics table now shows self-explaining descriptions (e.g., "3 of 4 correct")
+- Removed redundant "Suggestions for Improvement" section (replaced by new explainer)
+
+### New Files
+- `toolscore/explainer.py` - Self-explaining metrics generation
+- `toolscore/baseline.py` - Baseline save/load/compare for regression testing
+- `action.yml` - GitHub Action definition
+
 ## [1.2.0] - 2025-10-28
 
 ### Added - 🎯 Multi-Provider Support & Export Formats
@@ -267,7 +329,8 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 - API documentation
 - Usage examples
 
-[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/yotambraun/Toolscore/compare/v1.2.0...v1.4.0
 [1.2.0]: https://github.com/yotambraun/Toolscore/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yotambraun/Toolscore/compare/v0.1.0...v1.1.0
 [0.1.0]: https://github.com/yotambraun/Toolscore/releases/tag/v0.1.0

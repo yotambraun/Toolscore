@@ -12,6 +12,12 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from toolscore import __version__
+from toolscore.baseline import (
+    compare_to_baseline,
+    load_baseline,
+    print_comparison_result,
+    save_baseline as save_baseline_file,
+)
 from toolscore.comparison import (
     compare_models,
     print_comparison_table,
@@ -111,6 +117,12 @@ def main() -> None:
     default=False,
     help="Interactive debug mode for failures",
 )
+@click.option(
+    "--save-baseline",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Save evaluation as baseline for regression testing",
+)
 def eval(
     gold_file: Path,
     trace_file: Path,
@@ -124,6 +136,7 @@ def eval(
     llm_model: str,
     verbose: bool,
     debug: bool,
+    save_baseline: Path | None,
 ) -> None:
     """Evaluate an agent trace against gold standard.
 
@@ -175,6 +188,13 @@ def eval(
         # Interactive debug mode for failures
         if debug:
             run_interactive_debug(result, console=console)
+
+        # Save baseline if requested
+        if save_baseline:
+            baseline_path = save_baseline_file(result, save_baseline, gold_file)
+            if verbose:
+                print_progress(f"Baseline saved to: {baseline_path}", console)
+            console.print(f"[dim]>[/dim] Baseline: [cyan]{baseline_path}[/cyan]")
 
         # Show file locations at the end
         console.print(f"[dim]>[/dim] JSON report: [cyan]{json_path}[/cyan]")
@@ -668,6 +688,129 @@ def compare(
         if verbose:
             raise
         sys.exit(1)
+
+
+@main.command()
+@click.argument("baseline_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.argument("trace_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.option(
+    "--gold-file",
+    "-g",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    required=True,
+    help="Path to gold standard specification (required)",
+)
+@click.option(
+    "--threshold",
+    "-t",
+    type=float,
+    default=0.05,
+    help="Maximum allowed regression as decimal (default: 0.05 = 5%%)",
+)
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
+    default="auto",
+    help="Trace format (auto-detect by default)",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Output comparison report file (JSON)",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Verbose output",
+)
+def regression(
+    baseline_file: Path,
+    trace_file: Path,
+    gold_file: Path,
+    threshold: float,
+    format: str,
+    output: Path | None,
+    verbose: bool,
+) -> None:
+    """Compare agent trace against a saved baseline.
+
+    Detects regressions by comparing current evaluation against a previously
+    saved baseline. Returns exit code 0 for PASS, 1 for FAIL (regression detected).
+
+    BASELINE_FILE: Path to baseline JSON file (created with --save-baseline)
+
+    TRACE_FILE: Path to current agent trace file
+
+    Example:
+
+        # First, create a baseline:
+        toolscore eval gold.json trace.json --save-baseline baseline.json
+
+        # Then, run regression checks in CI:
+        toolscore regression baseline.json new_trace.json --gold-file gold.json
+
+        # With custom threshold (10%):
+        toolscore regression baseline.json trace.json -g gold.json -t 0.10
+    """
+    console = Console()
+
+    try:
+        if verbose:
+            print_progress(f"Loading baseline from: {baseline_file}", console)
+            print_progress(f"Loading trace from: {trace_file}", console)
+            print_progress(f"Threshold: {threshold:.0%}", console)
+
+        # Load baseline
+        baseline = load_baseline(baseline_file)
+
+        # Evaluate current trace
+        if verbose:
+            print_progress("Evaluating current trace...", console)
+
+        result = evaluate_trace(
+            gold_file,
+            trace_file,
+            format=format,
+            validate_side_effects=False,  # Skip for speed in CI
+            use_llm_judge=False,  # Skip for consistency
+        )
+
+        # Compare against baseline
+        comparison = compare_to_baseline(result, baseline, threshold, gold_file)
+
+        # Print comparison results
+        print_comparison_result(comparison, console=console)
+
+        # Save comparison report if requested
+        if output:
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with output.open("w") as f:
+                json.dump(comparison.to_dict(), f, indent=2)
+            console.print(f"[dim]>[/dim] Comparison report: [cyan]{output}[/cyan]")
+            console.print()
+
+        # Exit with appropriate code
+        if comparison.passed:
+            sys.exit(0)
+        else:
+            sys.exit(1)
+
+    except FileNotFoundError as e:
+        print_error(f"File not found: {e}", console)
+        sys.exit(2)
+    except ValueError as e:
+        print_error(f"Invalid data: {e}", console)
+        sys.exit(2)
+    except Exception as e:
+        print_error(f"Regression check failed: {e}", console)
+        if verbose:
+            raise
+        sys.exit(2)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,9 @@
+[
+  {
+    "role": "assistant",
+    "function_call": {
+      "name": "make_file",
+      "arguments": "{\"filename\": \"poem.txt\", \"lines_of_text\": [\"Roses are red,\", \"Violets are blue.\"]}"
+    }
+  }
+]

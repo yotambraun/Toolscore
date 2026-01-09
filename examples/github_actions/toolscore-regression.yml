@@ -1,0 +1,58 @@
+# Toolscore Regression Testing Workflow
+# Copy this file to .github/workflows/ in your repository
+
+name: Agent Regression Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  regression-check:
+    runs-on: ubuntu-latest
+    name: Check for Regressions
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Add your agent execution step here
+      # - name: Run Agent
+      #   run: python run_agent.py --output trace.json
+
+      - name: Run Regression Check
+        uses: yotambraun/toolscore@v1
+        id: regression
+        with:
+          gold-file: tests/gold_standard.json
+          trace-file: tests/agent_trace.json
+          baseline-file: tests/baseline.json
+          regression-threshold: '0.05'
+          fail-on-regression: 'true'
+          generate-report: 'true'
+
+      - name: Report Results
+        if: always()
+        run: |
+          echo "Regression Detected: ${{ steps.regression.outputs.regression-detected }}"
+          echo "Passed: ${{ steps.regression.outputs.passed }}"
+
+      # Optional: Update baseline on main branch after successful merge
+      - name: Update Baseline
+        if: github.ref == 'refs/heads/main' && steps.regression.outputs.passed == 'true'
+        run: |
+          # Install toolscore
+          pip install tool-scorer
+
+          # Re-evaluate and save new baseline
+          toolscore eval tests/gold_standard.json tests/agent_trace.json \
+            --save-baseline tests/baseline.json
+
+          # Commit updated baseline
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add tests/baseline.json
+          git diff --staged --quiet || git commit -m "chore: update evaluation baseline"
+          git push || echo "No changes to push"
