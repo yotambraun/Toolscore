@@ -3,7 +3,12 @@
 Deterministic, local, zero API cost evaluation of LLM tool-calling behavior.
 """
 
-__version__ = "1.4.1"
+from importlib.metadata import PackageNotFoundError, version as _version
+
+try:
+    __version__ = _version("tool-scorer")
+except PackageNotFoundError:
+    __version__ = _version("toolscore")
 
 from toolscore.capture import TraceCapture, capture_trace
 from toolscore.core import (
