@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "tool-scorer"
 version = "1.4.2"
-description = "Pytest for LLM agents. Self-explaining metrics show exactly WHY your agent failed. Regression testing catches degradation before deployment. GitHub Action for one-click CI/CD. Supports OpenAI, Anthropic, Gemini."
+description = "Lightweight tool-call testing for LLM agents. Deterministic, local, zero API cost. Compare expected vs actual tool calls in 3 lines of Python. Supports OpenAI, Anthropic, Gemini."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -18,49 +18,20 @@ keywords = [
     "evaluation",
     "tool-use",
     "function-calling",
-    "metrics",
+    "tool-calling",
     "ai-agents",
-    "benchmarking",
-    # Testing & QA
+    # Testing
     "testing",
     "pytest",
-    "quality-assurance",
-    "test-automation",
-    "ci-cd",
-    "regression-testing",
-    # Variations for discoverability
     "agent-testing",
-    "agent-evaluation",
     "llm-testing",
-    "llm-evaluation",
-    "llm-benchmark",
-    "agent-qa",
-    "ai-testing",
-    "function-calling-test",
-    "tool-calling",
+    "ci-cd",
     # Providers
     "openai",
-    "openai-functions",
     "anthropic",
-    "claude",
-    "claude-tools",
-    "gpt",
     "gemini",
-    "gemini-tools",
-    # Frameworks & integrations
     "langchain",
-    "model-comparison",
-    "prompt-engineering",
-    # Specific use cases
-    "accuracy",
-    "langsmith-alternative",
-    # v1.4 features
-    "self-explaining-metrics",
-    "baseline-comparison",
-    "github-action",
-    "quality-gates",
     "mcp",
-    "model-context-protocol",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -120,6 +91,7 @@ docs = [
 
 [project.scripts]
 tool-scorer = "toolscore.cli:main"
+toolscore = "toolscore.cli:main"
 
 [project.entry-points.pytest11]
 toolscore = "toolscore.pytest_plugin"

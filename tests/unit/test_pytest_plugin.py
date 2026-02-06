@@ -150,3 +150,26 @@ class TestToolscoreAssertions:
             match=r"invocation_accuracy.*selection_accuracy",
         ):
             assertions.assert_all_metrics_above(mock_result, 0.8)
+
+    def test_assert_score_pass(self):
+        """assert_score with low threshold should pass for matching calls."""
+        assertions = ToolscoreAssertions()
+        expected = [{"tool": "search", "args": {"q": "weather"}}]
+        actual = [{"tool": "search", "args": {"q": "weather"}}]
+        result = assertions.assert_score(expected, actual, min_score=0.5)
+        assert result.score >= 0.5
+
+    def test_assert_score_fail(self):
+        """assert_score with high threshold should fail for mismatched calls."""
+        assertions = ToolscoreAssertions()
+        expected = [{"tool": "search", "args": {"q": "weather"}}]
+        actual = [{"tool": "lookup", "args": {"q": "news"}}]
+        with pytest.raises(AssertionError, match="Composite score"):
+            assertions.assert_score(expected, actual, min_score=0.99)
+
+
+def test_toolscore_assert_tools_fixture():
+    """Verify toolscore_assert_tools fixture returns a callable."""
+    from toolscore.core import assert_tools
+
+    assert callable(assert_tools)

@@ -125,7 +125,10 @@ def print_evaluation_summary(
     verbose: bool = False,
     show_explanations: bool = True,
 ) -> None:
-    """Print a beautiful console summary of evaluation results.
+    """Print a console summary of evaluation results.
+
+    Default (non-verbose) shows: overall score, selection accuracy,
+    argument F1, and pass/fail verdict. Use --verbose for full detail.
 
     Args:
         result: Evaluation result to display
@@ -138,9 +141,6 @@ def print_evaluation_summary(
 
     metrics = result.metrics
 
-    # Generate explanations for all metrics
-    explanations = generate_explanations(result) if show_explanations else {}
-
     # Print header
     console.print()
     console.print(
@@ -151,17 +151,60 @@ def print_evaluation_summary(
     )
     console.print()
 
-    # Basic info
-    if verbose:
-        info_table = Table(show_header=False, box=None, padding=(0, 1))
-        info_table.add_column(style="dim")
-        info_table.add_column()
+    # --- Simplified default view ---
+    overall_score = result.score
+    sel_acc = result.selection_accuracy
+    arg_f1 = result.argument_f1
+    seq_acc = result.sequence_accuracy
 
-        info_table.add_row("Expected calls:", str(len(result.gold_calls)))
-        info_table.add_row("Actual calls:", str(len(result.trace_calls)))
+    if not verbose:
+        # Compact output: overall score + key metrics + verdict
+        metrics_table = Table(show_header=True, header_style="bold magenta")
+        metrics_table.add_column("Metric", style="cyan", no_wrap=True)
+        metrics_table.add_column("Score", justify="right")
 
-        console.print(info_table)
+        metrics_table.add_row("Overall Score", _format_percentage(overall_score))
+        metrics_table.add_row("Selection Accuracy", _format_percentage(sel_acc))
+        metrics_table.add_row("Argument F1", _format_percentage(arg_f1))
+        metrics_table.add_row("Sequence Accuracy", _format_percentage(seq_acc))
+
+        console.print(metrics_table)
         console.print()
+
+        # Pass/Fail verdict
+        verdict_color = _get_metric_color(overall_score)
+        if overall_score >= 0.9:
+            verdict = "PASS"
+        elif overall_score >= 0.7:
+            verdict = "WARN"
+        else:
+            verdict = "FAIL"
+
+        console.print(
+            Panel.fit(
+                Text(f"{verdict} ({overall_score:.1%})", style=f"bold {verdict_color}"),
+                border_style=verdict_color,
+            )
+        )
+        console.print()
+        console.print("[dim]Use --verbose for detailed metrics and failure analysis.[/dim]")
+        console.print()
+        return
+
+    # --- Verbose view (full detail) ---
+    # Generate explanations for all metrics
+    explanations = generate_explanations(result) if show_explanations else {}
+
+    # Basic info
+    info_table = Table(show_header=False, box=None, padding=(0, 1))
+    info_table.add_column(style="dim")
+    info_table.add_column()
+
+    info_table.add_row("Expected calls:", str(len(result.gold_calls)))
+    info_table.add_row("Actual calls:", str(len(result.trace_calls)))
+
+    console.print(info_table)
+    console.print()
 
     # Core metrics table
     metrics_table = Table(title="Core Metrics", show_header=True, header_style="bold magenta")
@@ -178,7 +221,6 @@ def print_evaluation_summary(
     )
 
     # Selection Accuracy
-    sel_acc = metrics.get("selection_accuracy", 0.0)
     sel_exp = explanations.get("selection_accuracy")
     sel_desc = sel_exp.score_description if sel_exp else "Did agent choose correct tools?"
     metrics_table.add_row(
@@ -197,10 +239,9 @@ def print_evaluation_summary(
     )
 
     # Sequence Accuracy
-    seq_metrics = metrics.get("sequence_metrics", {})
-    seq_acc = seq_metrics.get("sequence_accuracy", 0.0)
     seq_exp = explanations.get("sequence_metrics")
-    seq_desc = seq_exp.score_description if seq_exp else f"Edit distance: {seq_metrics.get('edit_distance', 0)}"
+    seq_metrics_data = metrics.get("sequence_metrics", {})
+    seq_desc = seq_exp.score_description if seq_exp else f"Edit distance: {seq_metrics_data.get('edit_distance', 0)}"
     metrics_table.add_row(
         "Sequence Accuracy",
         _format_percentage(seq_acc),
@@ -209,7 +250,6 @@ def print_evaluation_summary(
 
     # Argument F1
     arg_metrics = metrics.get("argument_metrics", {})
-    arg_f1 = arg_metrics.get("f1", 0.0)
     arg_exp = explanations.get("argument_metrics")
     arg_desc = arg_exp.score_description if arg_exp else f"P:{arg_metrics.get('precision', 0.0):.1%} R:{arg_metrics.get('recall', 0.0):.1%}"
     metrics_table.add_row(
@@ -223,7 +263,6 @@ def print_evaluation_summary(
     red_rate = eff_metrics.get("redundant_rate", 0.0)
     red_count = eff_metrics.get("redundant_count", 0)
     total_calls = eff_metrics.get("total_calls", 0)
-    # Lower is better for redundancy, so invert color
     red_color = "green" if red_rate < 0.1 else "yellow" if red_rate < 0.3 else "red"
     metrics_table.add_row(
         "Redundant Call Rate",
@@ -254,7 +293,7 @@ def print_evaluation_summary(
             console.print()
 
     # Show missing/extra tools in verbose mode
-    if verbose and tool_correctness_metrics:
+    if tool_correctness_metrics:
         missing_tools = tool_correctness_metrics.get("missing_tools", [])
         extra_tools = tool_correctness_metrics.get("extra_tools", [])
 
@@ -307,12 +346,11 @@ def print_evaluation_summary(
         console.print(schema_table)
         console.print()
 
-        # Show detailed errors in verbose mode
-        if verbose and total_errors > 0:
+        if total_errors > 0:
             error_details = schema_metrics.get("error_details", [])
             if error_details:
                 console.print("[bold red]Schema Validation Errors:[/bold red]")
-                for error in error_details[:10]:  # Limit to first 10 errors
+                for error in error_details[:10]:
                     console.print(f"  • [red]{error}[/red]")
                 if len(error_details) > 10:
                     console.print(f"  [dim]... and {len(error_details) - 10} more[/dim]")
@@ -344,8 +382,7 @@ def print_evaluation_summary(
                 "Semantic equivalence beyond exact matching",
             )
             sem_table.add_row("Model Used", model_used, "LLM judge model")
-            if verbose:
-                sem_table.add_row("Evaluated Calls", f"{min(gold_count, trace_count)}", "")
+            sem_table.add_row("Evaluated Calls", f"{min(gold_count, trace_count)}", "")
 
         console.print(sem_table)
         console.print()
@@ -374,7 +411,7 @@ def print_evaluation_summary(
 
     # Performance metrics if available
     lat_metrics = metrics.get("latency_metrics")
-    if lat_metrics and verbose:
+    if lat_metrics:
         perf_table = Table(
             title="Performance Metrics", show_header=True, header_style="bold magenta"
         )
@@ -390,14 +427,13 @@ def print_evaluation_summary(
         console.print()
 
     # Overall assessment
-    avg_score = (inv_acc + sel_acc + seq_acc + arg_f1) / 4
-    assessment_color = _get_metric_color(avg_score)
+    assessment_color = _get_metric_color(overall_score)
 
-    if avg_score >= 0.9:
+    if overall_score >= 0.9:
         assessment = "Excellent! Agent is performing very well."
-    elif avg_score >= 0.7:
+    elif overall_score >= 0.7:
         assessment = "Good performance with room for improvement."
-    elif avg_score >= 0.5:
+    elif overall_score >= 0.5:
         assessment = "Moderate performance. Consider reviewing prompts and tool definitions."
     else:
         assessment = "Poor performance. Significant improvements needed."
@@ -405,7 +441,7 @@ def print_evaluation_summary(
     console.print(
         Panel(
             Text(assessment, style=f"bold {assessment_color}"),
-            title=f"Overall Assessment: {avg_score:.1%}",
+            title=f"Overall Score: {overall_score:.1%}",
             border_style=assessment_color,
         )
     )
