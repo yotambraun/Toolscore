@@ -3,12 +3,10 @@
 Deterministic, local, zero API cost evaluation of LLM tool-calling behavior.
 """
 
-from importlib.metadata import PackageNotFoundError, version as _version
+from __future__ import annotations
 
-try:
-    __version__ = _version("tool-scorer")
-except PackageNotFoundError:
-    __version__ = _version("toolscore")
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 
 from toolscore.capture import TraceCapture, capture_trace
 from toolscore.core import (
@@ -18,6 +16,11 @@ from toolscore.core import (
     evaluate_trace,
 )
 from toolscore.integrations import from_anthropic, from_gemini, from_openai
+
+try:
+    __version__ = _version("tool-scorer")
+except PackageNotFoundError:
+    __version__ = _version("toolscore")
 
 __all__ = [
     "ToolScoreAssertionError",
