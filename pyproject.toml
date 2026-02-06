@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tool-scorer"
-version = "1.4.2"
+version = "1.5.0"
 description = "Lightweight tool-call testing for LLM agents. Deterministic, local, zero API cost. Compare expected vs actual tool calls in 3 lines of Python. Supports OpenAI, Anthropic, Gemini."
 readme = "README.md"
 requires-python = ">=3.10"
