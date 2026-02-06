@@ -69,7 +69,7 @@ class TestEvalCommand:
         )
 
         assert result.exit_code == 0
-        assert "Invocation Accuracy" in result.output
+        assert "Overall Score" in result.output
         assert "Selection Accuracy" in result.output
 
     def test_eval_with_html_output(self, runner, temp_files):
@@ -184,7 +184,7 @@ class TestEvalCommand:
         )
 
         assert result.exit_code == 0
-        assert "Invocation Accuracy" in result.output
+        assert "Overall Score" in result.output
 
 
 class TestValidateCommand:

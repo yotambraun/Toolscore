@@ -142,3 +142,18 @@ def test_multiple_formats(toolscore_eval, trace_file, format_type):
     # All formats should meet basic requirements
     assert result.metrics["invocation_accuracy"] >= 0.7
     assert result.metrics["selection_accuracy"] >= 0.7
+
+
+def test_in_memory_evaluation():
+    """Test using the new in-memory evaluate() API."""
+    from toolscore import assert_tools, evaluate
+
+    expected = [{"tool": "search", "args": {"q": "weather"}}]
+    actual = [{"tool": "search", "args": {"q": "weather"}}]
+
+    result = evaluate(expected, actual)
+    assert result.score >= 0.9
+    assert result.selection_accuracy == 1.0
+
+    # One-liner assertion
+    assert_tools(expected, actual, min_score=0.9)

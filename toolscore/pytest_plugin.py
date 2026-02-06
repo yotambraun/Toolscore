@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 
-from toolscore.core import EvaluationResult, evaluate_trace
+from toolscore.core import EvaluationResult, evaluate, evaluate_trace
 
 
 def pytest_addoption(parser: Any) -> None:
@@ -278,6 +278,36 @@ class ToolscoreAssertions:
         assert rate <= max_rate, msg
 
     @staticmethod
+    def assert_score(
+        expected: list[dict[str, Any]],
+        actual: list[dict[str, Any]],
+        min_score: float = 0.9,
+        weights: dict[str, float] | None = None,
+    ) -> EvaluationResult:
+        """Assert that actual tool calls meet a minimum composite score.
+
+        Delegates to toolscore.core.evaluate() and checks the composite score.
+
+        Args:
+            expected: List of expected tool calls (dicts with 'tool' and optional 'args').
+            actual: List of actual tool calls from the agent, same format.
+            min_score: Minimum composite score required (0.0 to 1.0).
+            weights: Optional custom weights for the composite score.
+
+        Returns:
+            EvaluationResult if assertion passes.
+
+        Raises:
+            AssertionError: If the composite score is below min_score.
+        """
+        result = evaluate(expected, actual, weights=weights)
+        score = result.score
+        assert score >= min_score, (
+            f"Composite score {score:.3f} below minimum {min_score:.3f}"
+        )
+        return result
+
+    @staticmethod
     def assert_all_metrics_above(
         result: EvaluationResult,
         min_accuracy: float,
@@ -332,3 +362,23 @@ def toolscore_assert() -> ToolscoreAssertions:
             toolscore_assert.assert_selection_accuracy(result, 0.9)
     """
     return ToolscoreAssertions()
+
+
+@pytest.fixture
+def toolscore_assert_tools() -> Any:
+    """Fixture that directly exposes the assert_tools one-liner.
+
+    Returns:
+        The toolscore.core.assert_tools function.
+
+    Example:
+        def test_agent(toolscore_assert_tools):
+            toolscore_assert_tools(
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+                actual=[{"tool": "search", "args": {"q": "test"}}],
+                min_score=0.9,
+            )
+    """
+    from toolscore.core import assert_tools
+
+    return assert_tools

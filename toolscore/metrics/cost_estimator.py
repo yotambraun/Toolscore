@@ -2,20 +2,21 @@
 
 from typing import Any
 
-# Pricing per 1M tokens (as of October 2025)
+# Pricing per 1M tokens (as of February 2026)
 # Format: (input_cost_per_1m, output_cost_per_1m)
 # Sources:
 # - OpenAI: https://openai.com/api/pricing/
 # - Anthropic: https://docs.claude.com/en/docs/about-claude/pricing
 # - Google: https://ai.google.dev/gemini-api/docs/pricing
 MODEL_PRICING = {
-    # OpenAI models (October 2025)
+    # OpenAI models (February 2026)
     "gpt-5": (1.25, 10.00),  # Released Aug 2025, flagship model
     "gpt-5-mini": (0.25, 2.00),
     "gpt-5-nano": (0.05, 0.40),
     "gpt-4o": (2.50, 10.00),  # Still available
     "gpt-4o-mini": (0.15, 0.60),
-    # Anthropic Claude models (October 2025)
+    # Anthropic Claude models (February 2026)
+    "claude-opus-4-6": (15.00, 75.00),  # Released Feb 2026
     "claude-sonnet-4-5": (3.00, 15.00),  # Released Sep 2025
     "claude-haiku-4-5": (1.00, 5.00),  # Released Oct 15, 2025
     "claude-opus-4-1": (15.00, 75.00),  # Released Aug 2025
@@ -24,7 +25,7 @@ MODEL_PRICING = {
     "claude-3-sonnet": (3.00, 15.00),
     "claude-3-opus": (15.00, 75.00),
     "claude-3-haiku": (0.25, 1.25),
-    # Google Gemini 2.x models (October 2025)
+    # Google Gemini 2.x models (February 2026)
     "gemini-2.5-pro": (1.25, 10.00),  # For prompts ≤200k tokens
     "gemini-2.5-flash": (0.30, 2.50),
     "gemini-2.5-flash-lite": (0.10, 0.40),

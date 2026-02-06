@@ -139,4 +139,9 @@ with open(output_file, "w") as f:
 
 print(f"\n✓ Trace saved to: {output_file}")
 print(f"\nTo evaluate this trace, run:")
-print(f"  tool-scorer eval examples/gold_calls.json {output_file} --format anthropic")
+print(f"  toolscore eval examples/gold_calls.json {output_file} --format anthropic")
+print(f"\nOr use the Python API directly (no file needed):")
+print(f"  from toolscore import evaluate")
+print(f"  from toolscore.integrations import from_anthropic")
+print(f"  actual = from_anthropic(message)")
+print(f"  result = evaluate(expected=[...], actual=actual)")

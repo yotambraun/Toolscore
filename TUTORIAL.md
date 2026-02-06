@@ -4,17 +4,18 @@ This tutorial walks you through the complete workflow of using Toolscore to eval
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Setup](#setup)
-3. [Step 1: Capture Tool Usage Traces](#step-1-capture-tool-usage-traces)
-4. [Step 2: Create Gold Standards](#step-2-create-gold-standards)
-5. [Step 3: Evaluate and Generate Reports](#step-3-evaluate-and-generate-reports)
-6. [Understanding the Metrics](#understanding-the-metrics)
-7. [Self-Explaining Metrics](#self-explaining-metrics)
-8. [Regression Testing](#regression-testing)
-9. [CI/CD Integration](#cicd-integration)
-10. [Advanced Usage](#advanced-usage)
+2. [Quick Start (3 Lines)](#quick-start-3-lines)
+3. [Setup](#setup)
+4. [Step 1: Capture Tool Usage Traces](#step-1-capture-tool-usage-traces)
+5. [Step 2: Create Gold Standards](#step-2-create-gold-standards)
+6. [Step 3: Evaluate and Generate Reports](#step-3-evaluate-and-generate-reports)
+7. [Understanding the Metrics](#understanding-the-metrics)
+8. [Self-Explaining Metrics](#self-explaining-metrics)
+9. [Regression Testing](#regression-testing)
+10. [CI/CD Integration](#cicd-integration)
+11. [Advanced Usage](#advanced-usage)
     - [Pytest Integration](#pytest-integration)
-    - [Interactive Tutorials](#interactive-tutorials)
+    - [Integration Helpers](#integration-helpers)
     - [LangChain Support](#langchain-support)
     - [Custom Trace Format](#custom-trace-format)
     - [Batch Evaluation](#batch-evaluation)
@@ -23,17 +24,53 @@ This tutorial walks you through the complete workflow of using Toolscore to eval
 
 **What is Toolscore?**
 
-Toolscore is an evaluation framework for LLM agents that use tools (function calling). It compares actual tool usage traces against expected behavior (gold standards) and produces detailed metrics.
+Toolscore is the simplest way to unit-test LLM tool calls. It compares actual tool calls against expected behavior and gives you a score - deterministically, locally, with zero API cost.
 
 **What Toolscore does:**
-- ✅ Evaluates existing tool usage traces
-- ✅ Compares against gold standard specifications
-- ✅ Generates detailed metrics and reports
+- Evaluates tool calling accuracy with a single composite score
+- Compares expected vs actual tool calls as Python objects (no files needed)
+- Integrates directly with OpenAI, Anthropic, and Gemini responses
 
 **What Toolscore does NOT do:**
-- ❌ Call LLM APIs directly (you capture traces separately)
-- ❌ Execute actual tool calls
-- ❌ Train or fine-tune models
+- Call LLM APIs directly (you capture traces separately)
+- Execute actual tool calls
+- Train or fine-tune models
+
+## Quick Start (3 Lines)
+
+The simplest way to use Toolscore - no files, no config:
+
+```python
+from toolscore import evaluate
+
+result = evaluate(
+    expected=[
+        {"tool": "get_weather", "args": {"city": "NYC"}},
+        {"tool": "send_email", "args": {"to": "user@example.com"}},
+    ],
+    actual=[
+        {"tool": "get_weather", "args": {"city": "New York"}},
+        {"tool": "send_email", "args": {"to": "user@example.com"}},
+    ],
+)
+
+print(result.score)              # 0.85 (composite score)
+print(result.selection_accuracy) # 1.0
+print(result.argument_f1)       # 0.7
+```
+
+For pytest, use the one-liner:
+
+```python
+from toolscore import assert_tools
+
+def test_my_agent():
+    assert_tools(
+        expected=[{"tool": "search", "args": {"q": "test"}}],
+        actual=my_agent_result,
+        min_score=0.9,
+    )
+```
 
 ## Setup
 
@@ -305,47 +342,60 @@ tool-scorer eval my_gold_standard.json my_trace_openai.json --html report.html
 tool-scorer eval my_gold_standard.json my_trace_openai.json --format openai
 ```
 
-### Python API Usage
+### Python API Usage (In-Memory)
 
-Create `evaluate.py`:
+The simplest approach - no files needed:
 
 ```python
-#!/usr/bin/env python3
-"""Evaluate LLM tool usage."""
+from toolscore import evaluate
+
+result = evaluate(
+    expected=[
+        {"tool": "make_file", "args": {"filename": "poem.txt", "lines_of_text": ["Roses are red"]}},
+    ],
+    actual=my_agent_tool_calls,  # list of dicts from your agent
+)
+
+print(f"Overall Score: {result.score:.1%}")
+print(f"Selection Accuracy: {result.selection_accuracy:.1%}")
+print(f"Argument F1: {result.argument_f1:.1%}")
+print(f"Sequence Accuracy: {result.sequence_accuracy:.1%}")
+```
+
+### With OpenAI / Anthropic Responses
+
+Use integration helpers to extract tool calls directly from API responses:
+
+```python
+from openai import OpenAI
+from toolscore import evaluate
+from toolscore.integrations import from_openai
+
+client = OpenAI()
+response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+
+actual = from_openai(response)
+result = evaluate(expected=[...], actual=actual)
+```
+
+Also available: `from_anthropic()` and `from_gemini()`.
+
+### Python API Usage (File-Based)
+
+The file-based API is still supported for existing workflows:
+
+```python
 from toolscore import evaluate_trace
 
-# Run evaluation
 result = evaluate_trace(
     gold_file="my_gold_standard.json",
     trace_file="my_trace_openai.json",
-    format="auto"  # auto-detect format
+    format="auto"
 )
 
-# Print summary
-print("\n=== Evaluation Results ===")
-print(f"Invocation Accuracy: {result.metrics['invocation_accuracy']:.1%}")
-print(f"Selection Accuracy: {result.metrics['selection_accuracy']:.1%}")
-
-# Sequence metrics
-seq = result.metrics['sequence_metrics']
-print(f"Sequence Accuracy: {seq['sequence_accuracy']:.1%}")
-print(f"Edit Distance: {seq['edit_distance']}")
-
-# Argument metrics
-args = result.metrics['argument_metrics']
-print(f"Argument F1 Score: {args['f1']:.1%}")
-print(f"Argument Precision: {args['precision']:.1%}")
-print(f"Argument Recall: {args['recall']:.1%}")
-
-# Efficiency metrics
-eff = result.metrics['efficiency_metrics']
-print(f"Redundant Call Rate: {eff['redundant_rate']:.1%}")
-print(f"Redundant Calls: {eff['redundant_count']}/{eff['total_calls']}")
-```
-
-Run it:
-```bash
-python evaluate.py
+print(f"Overall Score: {result.score:.1%}")
+print(f"Selection Accuracy: {result.selection_accuracy:.1%}")
+print(f"Argument F1: {result.argument_f1:.1%}")
 ```
 
 ## Understanding the Metrics
@@ -583,7 +633,21 @@ jobs:
 
 ### Pytest Integration
 
-Toolscore includes a pytest plugin for seamless test integration:
+The simplest way to test in pytest - use `assert_tools`:
+
+```python
+from toolscore import assert_tools
+
+def test_my_agent():
+    """One-liner agent test."""
+    assert_tools(
+        expected=[{"tool": "search", "args": {"q": "test"}}],
+        actual=my_agent_output,
+        min_score=0.9,
+    )
+```
+
+Toolscore also includes a pytest plugin with fixtures:
 
 ```python
 # test_my_agent.py
@@ -591,26 +655,35 @@ def test_agent_meets_accuracy_threshold(toolscore_eval, toolscore_assertions):
     """Verify agent achieves minimum accuracy requirements."""
     result = toolscore_eval("gold_calls.json", "trace.json")
 
-    # Use built-in assertions
     toolscore_assertions.assert_invocation_accuracy(result, min_accuracy=0.9)
     toolscore_assertions.assert_selection_accuracy(result, min_accuracy=0.9)
     toolscore_assertions.assert_argument_f1(result, min_f1=0.8)
     toolscore_assertions.assert_sequence_accuracy(result, min_accuracy=0.8)
-
-def test_agent_efficiency(toolscore_eval, toolscore_assertions):
-    """Verify agent doesn't make redundant calls."""
-    result = toolscore_eval("gold_calls.json", "trace.json")
-    toolscore_assertions.assert_redundancy_rate(result, max_rate=0.1)
-
-# Run with pytest
-# pytest test_my_agent.py -v
 ```
 
-The pytest plugin provides:
-- `toolscore_eval` fixture for running evaluations
-- `toolscore_assertions` fixture with pre-built assertion helpers
-- `toolscore_gold_dir` and `toolscore_trace_dir` fixtures for file organization
-- Automatic directory setup for gold standards and traces
+### Integration Helpers
+
+Extract tool calls directly from LLM provider responses:
+
+```python
+from toolscore.integrations import from_openai, from_anthropic, from_gemini
+
+# OpenAI
+response = openai_client.chat.completions.create(...)
+calls = from_openai(response)
+
+# Anthropic
+response = anthropic_client.messages.create(...)
+calls = from_anthropic(response)
+
+# Gemini
+response = gemini_model.generate_content(...)
+calls = from_gemini(response)
+
+# Then evaluate
+from toolscore import evaluate
+result = evaluate(expected=[...], actual=calls)
+```
 
 ### Interactive Tutorials
 

@@ -7,6 +7,54 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+### Added - Code Quality & Polish (Round 2)
+
+#### Input Validation
+- `evaluate()` now raises `TypeError` for non-list `expected`/`actual` arguments
+- `evaluate()` raises `ValueError` for unknown or negative weight keys
+- `assert_tools()` raises `ValueError` if `min_score` is outside 0.0–1.0
+
+#### Pytest Plugin Enhancements
+- New `assert_score()` static method on `ToolscoreAssertions` — bridges the plugin to the in-memory `evaluate()` API
+- New `toolscore_assert_tools` fixture — directly exposes `assert_tools` for one-liner tests
+
+#### PEP 561 Compliance
+- Added `py.typed` marker file — type checkers (mypy, pyright) now recognise inline annotations
+
+#### Cost Estimator Updates
+- Updated model pricing date to February 2026
+- Added `claude-opus-4-6` model entry
+
+### Added - In-Memory API, Integration Helpers & Simplified Output (Round 1)
+
+#### In-Memory Python API
+- **New `evaluate()` function** accepting Python dicts directly - no file I/O required
+- **New `assert_tools()` one-liner** for pytest: `assert_tools(expected, actual, min_score=0.9)`
+- **Composite `.score` property** on `EvaluationResult` (weighted average of key metrics)
+- **Convenience properties**: `.selection_accuracy`, `.argument_f1`, `.sequence_accuracy`
+- **Custom weights** support for composite score calculation
+- **`ToolScoreAssertionError`** with detailed failure messages
+
+#### Integration Helpers (`toolscore.integrations`)
+- **`from_openai(response)`** - extract tool calls from OpenAI ChatCompletion responses
+- **`from_anthropic(response)`** - extract tool calls from Anthropic Message responses
+- **`from_gemini(response)`** - extract tool calls from Google Gemini responses
+- Works with both response objects and plain dicts
+- Supports modern and legacy formats (e.g., `tool_calls` and `function_call` for OpenAI)
+
+#### Simplified CLI Output
+- Default output now shows 4 key metrics: Overall Score, Selection Accuracy, Argument F1, Sequence Accuracy
+- PASS/WARN/FAIL verdict with overall score
+- Full detailed output available with `--verbose` flag
+- Added `toolscore` as CLI alias alongside `tool-scorer`
+
+#### README & Positioning
+- New tagline: "Lightweight tool-call testing for LLM agents - deterministic, local, zero API cost"
+- Leads with 3-line Python API example
+- Honest comparison table including DeepEval, Ragas, and Inspect AI
+- "When to use Toolscore vs. alternatives" section
+- Advanced features moved to dedicated section
+
 ## [1.4.0] - 2026-01-09
 
 ### Added - Self-Explaining Metrics, Regression Testing & GitHub Action
