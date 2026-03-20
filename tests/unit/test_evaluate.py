@@ -8,6 +8,7 @@ from toolscore.core import (
     assert_tools,
     evaluate,
 )
+from toolscore.core import test_agent as run_test_agent
 
 
 class TestEvaluate:
@@ -100,8 +101,8 @@ class TestEvaluate:
             evaluate(expected="not a list", actual=[])  # type: ignore[arg-type]
 
     def test_evaluate_actual_not_list(self):
-        """Non-list actual should raise TypeError."""
-        with pytest.raises(TypeError, match="actual must be a list"):
+        """Non-list actual with unrecognized format should raise TypeError."""
+        with pytest.raises(TypeError, match="Cannot auto-detect"):
             evaluate(expected=[], actual="not a list")  # type: ignore[arg-type]
 
     def test_evaluate_invalid_weight_key(self):
@@ -246,3 +247,107 @@ class TestAssertTools:
             weights={"selection_accuracy": 1.0, "argument_f1": 0.0, "sequence_accuracy": 0.0, "redundant_rate": 0.0},
         )
         assert result.score >= 0.9
+
+
+class TestEvaluateAutoDetect:
+    """Tests for auto-detection in evaluate()."""
+
+    def test_evaluate_auto_detect_openai(self):
+        """Raw OpenAI response as actual should auto-detect."""
+        openai_response = {
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": "get_weather",
+                                    "arguments": '{"city": "NYC"}',
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        result = evaluate(
+            expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+            actual=openai_response,
+        )
+        assert result.score >= 0.99
+
+    def test_evaluate_auto_detect_anthropic(self):
+        """Raw Anthropic response as actual should auto-detect."""
+        anthropic_response = {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "web_search",
+                    "input": {"query": "python"},
+                }
+            ]
+        }
+        result = evaluate(
+            expected=[{"tool": "web_search", "args": {"query": "python"}}],
+            actual=anthropic_response,
+        )
+        assert result.score >= 0.99
+
+
+class TestTestAgent:
+    """Tests for the test_agent() helper."""
+
+    def test_test_agent_basic(self):
+        """Agent callable is called, result is evaluated."""
+
+        def mock_agent(prompt):  # type: ignore[no-untyped-def]
+            return [{"tool": "search", "args": {"q": prompt}}]
+
+        result = run_test_agent(
+            agent=mock_agent,
+            input="test",
+            expected=[{"tool": "search", "args": {"q": "test"}}],
+        )
+        assert result.score >= 0.99
+
+    def test_test_agent_min_score_fail(self):
+        """Agent below min_score raises ToolScoreAssertionError."""
+
+        def mock_agent(prompt):  # type: ignore[no-untyped-def]
+            return [{"tool": "wrong_tool", "args": {}}]
+
+        with pytest.raises(ToolScoreAssertionError, match="below minimum"):
+            run_test_agent(
+                agent=mock_agent,
+                input="test",
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+                min_score=0.9,
+            )
+
+    def test_test_agent_with_auto_detect(self):
+        """Agent returning raw OpenAI response works via auto-detect."""
+
+        def mock_openai_agent(prompt):  # type: ignore[no-untyped-def]
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "name": "search",
+                                        "arguments": '{"q": "test"}',
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+        result = run_test_agent(
+            agent=mock_openai_agent,
+            input="test",
+            expected=[{"tool": "search", "args": {"q": "test"}}],
+        )
+        assert result.score >= 0.99

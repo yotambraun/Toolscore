@@ -100,4 +100,40 @@ result_custom = evaluate(
 print("=== Custom weights ===")
 print(f"  Score (selection only): {result_custom.score:.3f}")
 
+# ---------------------------------------------------------------------------
+# 6. Auto-detect: pass raw provider responses directly to evaluate()
+# ---------------------------------------------------------------------------
+print("\n=== Auto-detect (no from_openai() needed) ===")
+result_auto = evaluate(
+    expected=[{"tool": "get_weather", "args": {"city": "San Francisco"}}],
+    actual=openai_response,  # raw OpenAI dict — auto-detected!
+)
+print(f"  Score: {result_auto.score:.3f}")
+
+result_auto_anthropic = evaluate(
+    expected=[{"tool": "get_weather", "args": {"city": "San Francisco"}}],
+    actual=anthropic_response,  # raw Anthropic dict — auto-detected!
+)
+print(f"  Anthropic auto-detect score: {result_auto_anthropic.score:.3f}")
+
+# ---------------------------------------------------------------------------
+# 7. test_agent() — end-to-end helper
+# ---------------------------------------------------------------------------
+from toolscore import test_agent
+
+
+def my_mock_agent(prompt):
+    """Simulate an agent that always calls get_weather."""
+    return [{"tool": "get_weather", "args": {"city": "San Francisco"}}]
+
+
+print("\n=== test_agent() ===")
+result_agent = test_agent(
+    agent=my_mock_agent,
+    input="What's the weather in SF?",
+    expected=[{"tool": "get_weather", "args": {"city": "San Francisco"}}],
+    min_score=0.9,
+)
+print(f"  Score: {result_agent.score:.3f}")
+
 print("\nAll examples completed successfully!")

@@ -1,6 +1,8 @@
-"""Tests for integration helpers (from_openai, from_anthropic, from_gemini)."""
+"""Tests for integration helpers (from_openai, from_anthropic, from_gemini, auto_extract)."""
 
-from toolscore.integrations import from_anthropic, from_gemini, from_openai
+import pytest
+
+from toolscore.integrations import auto_extract, from_anthropic, from_gemini, from_openai
 
 
 class TestFromOpenAI:
@@ -287,3 +289,113 @@ class TestFromGemini:
         response = {"candidates": []}
         calls = from_gemini(response)
         assert calls == []
+
+
+class TestAutoExtract:
+    """Tests for auto_extract()."""
+
+    def test_passthrough_list(self):
+        """Already-formatted list of dicts passes through unchanged."""
+        data = [{"tool": "search", "args": {"q": "test"}}]
+        result = auto_extract(data)
+        assert result == data
+
+    def test_passthrough_empty_list(self):
+        """Empty list passes through."""
+        assert auto_extract([]) == []
+
+    def test_openai_dict(self):
+        """Dict with 'choices' key is detected as OpenAI."""
+        response = {
+            "choices": [
+                {
+                    "message": {
+                        "tool_calls": [
+                            {
+                                "function": {
+                                    "name": "get_weather",
+                                    "arguments": '{"city": "NYC"}',
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        calls = auto_extract(response)
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "get_weather"
+        assert calls[0]["args"] == {"city": "NYC"}
+
+    def test_anthropic_dict(self):
+        """Dict with 'content' containing tool_use blocks is detected as Anthropic."""
+        response = {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "web_search",
+                    "input": {"query": "python"},
+                }
+            ]
+        }
+        calls = auto_extract(response)
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "web_search"
+
+    def test_gemini_dict(self):
+        """Dict with 'candidates' key is detected as Gemini."""
+        response = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "functionCall": {
+                                    "name": "get_weather",
+                                    "args": {"location": "NYC"},
+                                }
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+        calls = auto_extract(response)
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "get_weather"
+
+    def test_model_dump_object(self):
+        """Object with model_dump() is converted to dict and then detected."""
+
+        class FakeResponse:
+            def model_dump(self):  # type: ignore[no-untyped-def]
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "tool_calls": [
+                                    {
+                                        "function": {
+                                            "name": "ping",
+                                            "arguments": "{}",
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+
+        calls = auto_extract(FakeResponse())
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "ping"
+
+    def test_unrecognized_raises(self):
+        """Unrecognized input raises TypeError."""
+        with pytest.raises(TypeError, match="Cannot auto-detect"):
+            auto_extract({"random": "data"})
+
+    def test_unrecognized_string_raises(self):
+        """String input raises TypeError."""
+        with pytest.raises(TypeError, match="Cannot auto-detect"):
+            auto_extract("not a response")

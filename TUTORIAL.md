@@ -59,6 +59,19 @@ print(result.selection_accuracy) # 1.0
 print(result.argument_f1)       # 0.7
 ```
 
+**Auto-detect provider responses** — pass raw OpenAI/Anthropic/Gemini responses directly:
+
+```python
+from openai import OpenAI
+from toolscore import evaluate
+
+client = OpenAI()
+response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+
+# No from_openai() needed — auto-detected!
+result = evaluate(expected=[...], actual=response)
+```
+
 For pytest, use the one-liner:
 
 ```python
@@ -67,9 +80,22 @@ from toolscore import assert_tools
 def test_my_agent():
     assert_tools(
         expected=[{"tool": "search", "args": {"q": "test"}}],
-        actual=my_agent_result,
+        actual=my_agent_result,  # raw LLM response or list of dicts
         min_score=0.9,
     )
+```
+
+**End-to-end agent testing** with `test_agent()`:
+
+```python
+from toolscore import test_agent
+
+result = test_agent(
+    agent=my_agent_fn,          # any callable that returns an LLM response
+    input="What's the weather?",
+    expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+    min_score=0.9,              # optional: raises if below
+)
 ```
 
 ## Setup
@@ -362,23 +388,22 @@ print(f"Argument F1: {result.argument_f1:.1%}")
 print(f"Sequence Accuracy: {result.sequence_accuracy:.1%}")
 ```
 
-### With OpenAI / Anthropic Responses
+### With OpenAI / Anthropic / Gemini Responses
 
-Use integration helpers to extract tool calls directly from API responses:
+Pass raw API responses directly — Toolscore auto-detects the format:
 
 ```python
 from openai import OpenAI
 from toolscore import evaluate
-from toolscore.integrations import from_openai
 
 client = OpenAI()
 response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
 
-actual = from_openai(response)
-result = evaluate(expected=[...], actual=actual)
+# No from_openai() needed — auto-detected!
+result = evaluate(expected=[...], actual=response)
 ```
 
-Also available: `from_anthropic()` and `from_gemini()`.
+You can still use `from_openai()`, `from_anthropic()`, and `from_gemini()` explicitly if you prefer.
 
 ### Python API Usage (File-Based)
 
@@ -642,9 +667,23 @@ def test_my_agent():
     """One-liner agent test."""
     assert_tools(
         expected=[{"tool": "search", "args": {"q": "test"}}],
-        actual=my_agent_output,
+        actual=my_agent_output,  # raw LLM response or list of dicts
         min_score=0.9,
     )
+```
+
+Data-driven tests with `@toolscore.cases()`:
+
+```python
+import toolscore
+
+@toolscore.cases([
+    {"input": "weather NYC", "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}]},
+    {"input": "email bob",   "expected": [{"tool": "send_email", "args": {"to": "bob"}}]},
+])
+def test_my_agent(input, expected):
+    response = my_agent(input)
+    toolscore.assert_tools(expected=expected, actual=response, min_score=0.9)
 ```
 
 Toolscore also includes a pytest plugin with fixtures:

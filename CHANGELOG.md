@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [1.6.0]
+
+### Added - Instant Value: Zero-Friction API
+
+#### Auto-Detect Provider Responses
+- **`auto_extract()`** — auto-detect OpenAI, Anthropic, and Gemini responses and extract tool calls
+- **`evaluate()` and `assert_tools()` now accept raw provider responses** as the `actual` argument — no need to import or call `from_openai()` / `from_anthropic()` / `from_gemini()` manually
+- Supports response objects (with `model_dump()`), plain dicts, and already-formatted lists
+
+#### End-to-End Agent Testing
+- **`test_agent()`** — run an agent callable, extract tool calls, evaluate, and optionally assert a minimum score, all in one call
+- Accepts any callable that returns an LLM response (raw or pre-formatted)
+
+#### Data-Driven Pytest Decorator
+- **`@toolscore.cases()`** — parametrize pytest test functions with a list of test-case dicts
+- Thin wrapper around `pytest.mark.parametrize` with automatic key extraction and test IDs
+- Lazy pytest import avoids breaking non-pytest users
+
 ## [Unreleased]
 
 ### Added - Code Quality & Polish (Round 2)
@@ -377,6 +395,7 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 - API documentation
 - Usage examples
 
+[1.6.0]: https://github.com/yotambraun/Toolscore/compare/v1.5.0...v1.6.0
 [Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.4.0...HEAD
 [1.4.0]: https://github.com/yotambraun/Toolscore/compare/v1.2.0...v1.4.0
 [1.2.0]: https://github.com/yotambraun/Toolscore/compare/v1.1.0...v1.2.0

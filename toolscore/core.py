@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from toolscore.adapters import (
     AnthropicAdapter,
@@ -231,7 +234,11 @@ def _detect_format(data: Any) -> BaseAdapter:
             # Check for Gemini format (parts with functionCall)
             if "parts" in first_item:
                 parts = first_item["parts"]
-                if isinstance(parts, list) and parts and any("functionCall" in p for p in parts if isinstance(p, dict)):
+                if (
+                    isinstance(parts, list)
+                    and parts
+                    and any("functionCall" in p for p in parts if isinstance(p, dict))
+                ):
                     return GeminiAdapter()
 
             # Check for Anthropic format
@@ -285,9 +292,7 @@ def evaluate_trace(
     result.trace_calls = trace_calls
 
     # Calculate metrics
-    result.metrics["invocation_accuracy"] = calculate_invocation_accuracy(
-        gold_calls, trace_calls
-    )
+    result.metrics["invocation_accuracy"] = calculate_invocation_accuracy(gold_calls, trace_calls)
     result.metrics["selection_accuracy"] = calculate_selection_accuracy(gold_calls, trace_calls)
 
     tool_correctness_metrics = calculate_tool_correctness(gold_calls, trace_calls)
@@ -392,17 +397,19 @@ def _dicts_to_tool_calls(items: list[dict[str, Any]]) -> list[ToolCall]:
 
 def evaluate(
     expected: list[dict[str, Any]],
-    actual: list[dict[str, Any]],
+    actual: list[dict[str, Any]] | Any,
     weights: dict[str, float] | None = None,
 ) -> EvaluationResult:
     """Evaluate tool calls by comparing actual against expected (in-memory).
 
     This is the simplest way to use Toolscore - pass Python dicts directly,
-    no file I/O required.
+    no file I/O required. Raw OpenAI, Anthropic, and Gemini responses are
+    auto-detected and converted automatically.
 
     Args:
         expected: List of expected tool calls, each a dict with 'tool' and optional 'args'.
-        actual: List of actual tool calls from your agent, same format.
+        actual: List of actual tool calls from your agent, same format. Also accepts
+            raw OpenAI/Anthropic/Gemini response objects or dicts (auto-detected).
         weights: Optional custom weights for the composite score.
             Keys: 'selection_accuracy', 'argument_f1', 'sequence_accuracy', 'redundant_rate'.
 
@@ -421,7 +428,9 @@ def evaluate(
     if not isinstance(expected, list):
         raise TypeError("expected must be a list of dicts, got " + type(expected).__name__)
     if not isinstance(actual, list):
-        raise TypeError("actual must be a list of dicts, got " + type(actual).__name__)
+        from toolscore.integrations import auto_extract
+
+        actual = auto_extract(actual)
 
     if weights is not None:
         valid_keys = set(EvaluationResult.DEFAULT_WEIGHTS.keys())
@@ -443,9 +452,7 @@ def evaluate(
         result._weights = {**result.DEFAULT_WEIGHTS, **weights}
 
     # Calculate core metrics
-    result.metrics["invocation_accuracy"] = calculate_invocation_accuracy(
-        gold_calls, trace_calls
-    )
+    result.metrics["invocation_accuracy"] = calculate_invocation_accuracy(gold_calls, trace_calls)
     result.metrics["selection_accuracy"] = calculate_selection_accuracy(gold_calls, trace_calls)
 
     tool_correctness_metrics = calculate_tool_correctness(gold_calls, trace_calls)
@@ -472,7 +479,7 @@ class ToolScoreAssertionError(AssertionError):
 
 def assert_tools(
     expected: list[dict[str, Any]],
-    actual: list[dict[str, Any]],
+    actual: list[dict[str, Any]] | Any,
     min_score: float = 0.9,
     weights: dict[str, float] | None = None,
 ) -> EvaluationResult:
@@ -503,4 +510,46 @@ def assert_tools(
             f"Argument F1: {result.argument_f1:.3f}, "
             f"Sequence: {result.sequence_accuracy:.3f}"
         )
+    return result
+
+
+def test_agent(
+    agent: Callable[..., Any],
+    input: str,
+    expected: list[dict[str, Any]],
+    min_score: float | None = None,
+    weights: dict[str, float] | None = None,
+) -> EvaluationResult:
+    """End-to-end test helper: run an agent, extract tool calls, evaluate.
+
+    Calls ``agent(input)``, passes the response through auto-detection to
+    extract tool calls, and evaluates against *expected*.
+
+    Args:
+        agent: Any callable that accepts a string and returns an LLM response
+            (raw provider response or list of tool-call dicts).
+        input: The prompt / user message to send to the agent.
+        expected: List of expected tool calls.
+        min_score: If provided, raises ``ToolScoreAssertionError`` when the
+            composite score is below this threshold.
+        weights: Optional custom weights for the composite score.
+
+    Returns:
+        EvaluationResult with metrics and a composite ``.score`` property.
+
+    Raises:
+        ToolScoreAssertionError: If *min_score* is set and the score is below it.
+    """
+    response = agent(input)
+    result = evaluate(expected, response, weights=weights)
+    if min_score is not None:
+        if not (0.0 <= min_score <= 1.0):
+            raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
+        if result.score < min_score:
+            raise ToolScoreAssertionError(
+                f"Tool call score {result.score:.3f} is below minimum {min_score:.3f}. "
+                f"Selection: {result.selection_accuracy:.3f}, "
+                f"Argument F1: {result.argument_f1:.3f}, "
+                f"Sequence: {result.sequence_accuracy:.3f}"
+            )
     return result

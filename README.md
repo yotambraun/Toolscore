@@ -60,7 +60,10 @@ pip install tool-scorer
 | Feature | How |
 |---------|-----|
 | In-memory evaluation | `evaluate(expected, actual)` |
+| Auto-detect provider responses | `evaluate(expected, openai_response)` — no manual extraction |
+| End-to-end agent testing | `test_agent(agent=fn, input=..., expected=..., min_score=0.9)` |
 | One-liner test assertion | `assert_tools(expected, actual, min_score=0.9)` |
+| Data-driven pytest tests | `@toolscore.cases([...])` parametrize decorator |
 | OpenAI/Anthropic/Gemini extraction | `from_openai(response)`, `from_anthropic()`, `from_gemini()` |
 | 6 CLI commands | `toolscore eval`, `compare`, `regression`, `init`, `generate`, `validate` |
 | Self-explaining failures | Shows MISSING / EXTRA / MISMATCH with actionable tips |
@@ -85,14 +88,13 @@ result = evaluate(
 assert result.score == 1.0
 ```
 
-### With LLM provider responses
+### With LLM provider responses (auto-detected)
 
-No need to manually extract tool calls from API responses:
+Pass raw API responses directly — Toolscore auto-detects the format:
 
 ```python
 from openai import OpenAI
 from toolscore import evaluate
-from toolscore.integrations import from_openai
 
 client = OpenAI()
 response = client.chat.completions.create(
@@ -101,11 +103,24 @@ response = client.chat.completions.create(
     tools=[...],
 )
 
-actual = from_openai(response)
-result = evaluate(expected=[...], actual=actual)
+# No from_openai() needed — auto-detected!
+result = evaluate(expected=[...], actual=response)
 ```
 
-Also available: `from_anthropic()` and `from_gemini()`.
+Works with OpenAI, Anthropic, and Gemini responses. You can still use `from_openai()` / `from_anthropic()` / `from_gemini()` explicitly if you prefer.
+
+### End-to-end agent testing
+
+```python
+from toolscore import test_agent
+
+result = test_agent(
+    agent=my_agent_fn,          # any callable that returns an LLM response
+    input="What's the weather?",
+    expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+    min_score=0.9,              # optional: raises if below
+)
+```
 
 ### One-liner for tests
 
@@ -173,9 +188,23 @@ def test_my_agent():
     actual = my_agent("What's the weather in NYC?")
     assert_tools(
         expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
-        actual=actual,
+        actual=actual,  # raw LLM response or list of dicts — both work
         min_score=0.9,
     )
+```
+
+Data-driven tests with `@toolscore.cases()`:
+
+```python
+import toolscore
+
+@toolscore.cases([
+    {"input": "weather NYC", "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}]},
+    {"input": "email bob",   "expected": [{"tool": "send_email", "args": {"to": "bob"}}]},
+])
+def test_my_agent(input, expected):
+    response = my_agent(input)
+    toolscore.assert_tools(expected=expected, actual=response, min_score=0.9)
 ```
 
 For file-based workflows, use the built-in fixtures:

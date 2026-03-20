@@ -357,6 +357,39 @@ Evaluate multiple traces:
    best = max(results, key=lambda x: x['accuracy'])
    print(f"Best trace: {best['file']} ({best['accuracy']:.1%})")
 
+End-to-End Agent Testing
+------------------------
+
+Use ``test_agent()`` to run an agent, extract tool calls, and evaluate in one call:
+
+.. code-block:: python
+
+   from toolscore import test_agent
+
+   result = test_agent(
+       agent=my_agent_fn,          # any callable returning an LLM response
+       input="What's the weather?",
+       expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+       min_score=0.9,              # optional: raises if below
+   )
+
+Data-Driven Testing with ``@toolscore.cases()``
+------------------------------------------------
+
+Parametrize pytest tests with a list of test-case dicts:
+
+.. code-block:: python
+
+   import toolscore
+
+   @toolscore.cases([
+       {"input": "weather NYC", "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}]},
+       {"input": "email bob",   "expected": [{"tool": "send_email", "args": {"to": "bob"}}]},
+   ])
+   def test_my_agent(input, expected):
+       response = my_agent(input)
+       toolscore.assert_tools(expected=expected, actual=response, min_score=0.9)
+
 Pytest Integration
 ------------------
 

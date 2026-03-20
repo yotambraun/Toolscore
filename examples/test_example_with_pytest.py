@@ -157,3 +157,26 @@ def test_in_memory_evaluation():
 
     # One-liner assertion
     assert_tools(expected, actual, min_score=0.9)
+
+
+# ---------------------------------------------------------------------------
+# Data-driven testing with @toolscore.cases()
+# ---------------------------------------------------------------------------
+import toolscore
+
+
+@toolscore.cases([
+    {
+        "input": "weather NYC",
+        "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}],
+    },
+    {
+        "input": "weather SF",
+        "expected": [{"tool": "get_weather", "args": {"city": "SF"}}],
+    },
+])
+def test_weather_agent_cases(input, expected):
+    """Data-driven test using @toolscore.cases()."""
+    # Simulate an agent that always returns the expected call
+    actual = expected
+    toolscore.assert_tools(expected=expected, actual=actual, min_score=0.9)

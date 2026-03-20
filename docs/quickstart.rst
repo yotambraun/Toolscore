@@ -65,29 +65,45 @@ Validate trace file format:
 
    tool-scorer validate trace.json
 
-Python API
-^^^^^^^^^^
+Python API (In-Memory)
+^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: python
+
+   from toolscore import evaluate
+
+   result = evaluate(
+       expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+       actual=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+   )
+   print(result.score)  # 1.0
+
+Pass raw LLM provider responses directly — auto-detected:
+
+.. code-block:: python
+
+   from openai import OpenAI
+   from toolscore import evaluate
+
+   client = OpenAI()
+   response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+
+   # No from_openai() needed — auto-detected!
+   result = evaluate(expected=[...], actual=response)
+
+Python API (File-Based)
+^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: python
 
    from toolscore import evaluate_trace
 
-   # Run evaluation
    result = evaluate_trace(
        gold_file="gold_calls.json",
        trace_file="trace.json",
-       format="auto"  # auto-detect format
+       format="auto"
    )
-
-   # Access metrics
-   print(f"Invocation Accuracy: {result.metrics['invocation_accuracy']:.2%}")
    print(f"Selection Accuracy: {result.metrics['selection_accuracy']:.2%}")
-
-   sequence = result.metrics['sequence_metrics']
-   print(f"Sequence Accuracy: {sequence['sequence_accuracy']:.2%}")
-
-   arguments = result.metrics['argument_metrics']
-   print(f"Argument F1: {arguments['f1']:.2%}")
 
 Creating Gold Standards
 -----------------------

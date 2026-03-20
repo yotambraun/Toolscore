@@ -150,6 +150,66 @@ def from_gemini(response: Any) -> list[dict[str, Any]]:
     return calls
 
 
+def auto_extract(actual: Any) -> list[dict[str, Any]]:
+    """Auto-detect the provider format of a response and extract tool calls.
+
+    This allows passing raw OpenAI, Anthropic, or Gemini responses directly
+    to ``evaluate()`` without manually calling ``from_openai()`` etc.
+
+    Detection order:
+    1. Already a list of dicts with ``"tool"`` keys → pass through
+    2. Object with ``model_dump()`` → convert to dict, then re-detect
+    3. Dict with ``"choices"`` → OpenAI format
+    4. Dict with ``"content"`` list containing ``"type"`` keys → Anthropic format
+    5. Dict with ``"candidates"`` → Gemini format
+
+    Args:
+        actual: A raw LLM provider response (object or dict), or an
+            already-formatted list of tool-call dicts.
+
+    Returns:
+        List of dicts with 'tool' and 'args' keys.
+
+    Raises:
+        TypeError: If the format cannot be detected.
+    """
+    # 1. Already formatted
+    if isinstance(actual, list) and (
+        not actual or (isinstance(actual[0], dict) and "tool" in actual[0])
+    ):
+        return actual
+
+    # 2. Pydantic / SDK object → convert to dict first
+    if hasattr(actual, "model_dump"):
+        actual = actual.model_dump()
+    elif hasattr(actual, "__dict__") and not isinstance(actual, dict):
+        actual = _object_to_dict(actual)
+
+    if isinstance(actual, dict):
+        # 3. OpenAI
+        if "choices" in actual:
+            return from_openai(actual)
+
+        # 4. Anthropic
+        content = actual.get("content")
+        if (
+            isinstance(content, list)
+            and content
+            and any(isinstance(b, dict) and "type" in b for b in content)
+        ):
+            return from_anthropic(actual)
+
+        # 5. Gemini
+        if "candidates" in actual:
+            return from_gemini(actual)
+
+    raise TypeError(
+        f"Cannot auto-detect provider format from {type(actual).__name__}. "
+        "Pass a raw OpenAI/Anthropic/Gemini response, or a list of "
+        "dicts with 'tool' and 'args' keys."
+    )
+
+
 def _object_to_dict(obj: Any) -> dict[str, Any]:
     """Recursively convert an object to a dict.
 
