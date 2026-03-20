@@ -26,6 +26,8 @@ Toolscore gives you a deterministic score for that — no API calls, no cloud, n
 - **Switched from GPT-4o to Claude** — same behavior?
 - **CI/CD** — catch regressions before production
 
+Read the full story in the [Medium article](https://medium.com/@yotambraun/stop-shipping-broken-llm-agents-toolscore-for-reliable-tool-using-ai-now-with-ci-cd-462913cf99e2).
+
 ## Quick Start
 
 ```python
