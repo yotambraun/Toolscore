@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Rounded-square tile background: indigo #1E1B4B, corner radius 56 -->
+  <rect x="0" y="0" width="256" height="256" rx="56" ry="56" fill="#1E1B4B"/>
+
+  <!-- Gauge arc: circular dial open at bottom, center (128,120), radius 72 -->
+  <!-- Arc from 210deg to 330deg (open at bottom), white stroke, round caps -->
+  <!-- 210deg => x=128+72*cos(210)=128-62.35=65.65, y=120+72*sin(210)=120-36=84 -->
+  <!-- 330deg => x=128+72*cos(330)=128+62.35=190.35, y=120+72*sin(330)=120-36=84 -->
+  <!-- Using: cos(210)=-0.866, sin(210)=-0.5; cos(330)=0.866, sin(330)=-0.5 -->
+  <!-- start: (65.65, 84), end: (190.35, 84), large-arc=1 (going the long way around the top) -->
+  <path d="M 65.6 84 A 72 72 0 1 1 190.4 84"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="20"
+        stroke-linecap="round"/>
+
+  <!-- Checkmark: bold, teal #22D3A0, breaking through dial's right side -->
+  <!-- Check starts lower-left, goes to mid point, then up-right past the arc -->
+  <!-- Left foot: (84, 128), knee: (112, 156), tip: (172, 92) -->
+  <path d="M 84 128 L 112 156 L 172 92"
+        fill="none"
+        stroke="#22D3A0"
+        stroke-width="28"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Score bar ticks: bottom-right area, ascending heights 24/40/56, width 14, rounded -->
+  <!-- Positioned at x: 160, 180, 200; bottom anchored at y=212 -->
+  <!-- Opacity 0.45, 0.7, 1.0 -->
+  <rect x="156" y="188" width="14" height="24" rx="4" ry="4" fill="#22D3A0" opacity="0.45"/>
+  <rect x="176" y="172" width="14" height="40" rx="4" ry="4" fill="#22D3A0" opacity="0.7"/>
+  <rect x="196" y="156" width="14" height="56" rx="4" ry="4" fill="#22D3A0" opacity="1.0"/>
+</svg>
