@@ -29,6 +29,7 @@ from toolscore.integrations import (
     from_pydantic_ai,
 )
 from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
+from toolscore.snapshots import Snapshot, SnapshotStore, snapshot_check
 
 try:
     __version__ = _version("tool-scorer")
@@ -79,6 +80,8 @@ __all__ = [
     "Matcher",
     "OneOf",
     "Regex",
+    "Snapshot",
+    "SnapshotStore",
     "ToolScoreAssertionError",
     "TraceCapture",
     "__version__",
@@ -96,6 +99,7 @@ __all__ = [
     "from_openai",
     "from_openai_agents",
     "from_pydantic_ai",
+    "snapshot_check",
     "test_agent",
     "test_agent_async",
 ]

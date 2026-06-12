@@ -136,6 +136,11 @@ def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
     with path.open() as f:
         data = json.load(f)
 
+    # Accept a snapshot file (top-level dict with a "calls" list) in addition to
+    # a bare JSON array of tool calls.
+    if isinstance(data, dict) and isinstance(data.get("calls"), list):
+        data = data["calls"]
+
     if not isinstance(data, list):
         raise ValueError("Gold standard must be a JSON array of tool calls")
 
