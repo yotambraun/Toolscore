@@ -141,6 +141,44 @@ def test_store_path_unique_per_name(tmp_path) -> None:
     assert p1 != p2
 
 
+def test_store_long_name_records_without_oserror(tmp_path) -> None:
+    # A 300-char name (e.g. a pytest nodeid from a long @cases prompt) must not
+    # blow the filesystem's per-component name limit on first record.
+    store = SnapshotStore(tmp_path)
+    name = "x" * 300
+    path = store.save(Snapshot(name=name, calls=[{"tool": "t", "args": {}}]))
+    # Stem is truncated to 100 chars + "-" + 8-char sha1 + ".json".
+    assert len(path.stem) <= 109
+    loaded = store.load(name)
+    assert loaded is not None
+    assert loaded.name == name
+
+
+def test_store_long_names_sharing_prefix_map_to_distinct_files(tmp_path) -> None:
+    # Two distinct 300-char names whose first 100 chars are identical must still
+    # map to different files (the sha1 of the full name disambiguates them).
+    store = SnapshotStore(tmp_path)
+    n1 = "a" * 300
+    n2 = "a" * 250 + "DIFFERENT" + "a" * 50
+    assert store.path_for(n1) != store.path_for(n2)
+
+
+def test_store_short_name_path_unchanged_by_truncation(tmp_path) -> None:
+    # Truncation must only affect names longer than 100 chars: an existing
+    # short snapshot keeps the exact same path (users' snapshots stay valid).
+    import hashlib
+
+    from toolscore.snapshots import _sanitize_name
+
+    store = SnapshotStore(tmp_path)
+    name = "tests/test_agent.py::test_booking[NYC]"
+    sanitized = _sanitize_name(name)
+    assert len(sanitized) <= 100  # short name: truncation is a no-op here
+    digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
+    expected = store.root / f"{sanitized}-{digest}.json"
+    assert store.path_for(name) == expected
+
+
 def test_store_save_non_serializable_arg_raises_valueerror(tmp_path) -> None:
     # A non-JSON-serializable arg value (datetime/Decimal/numpy scalar from
     # auto_extract) must raise a helpful ValueError and leave NO file behind.

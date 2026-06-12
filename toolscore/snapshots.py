@@ -166,7 +166,12 @@ class SnapshotStore:
         path-traversal sequences in the name.
         """
         digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
-        stem = f"{_sanitize_name(name)}-{digest}"
+        # Truncate the sanitized stem so very long names (e.g. pytest nodeids
+        # built from long ``@toolscore.cases`` prompts) cannot exceed the
+        # filesystem's per-component name limit.  The sha1 suffix below already
+        # guarantees uniqueness, so truncation never collides distinct names.
+        sanitized = _sanitize_name(name)[:100]
+        stem = f"{sanitized}-{digest}"
         return self.root / f"{stem}.json"
 
     def exists(self, name: str) -> bool:
