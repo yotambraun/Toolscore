@@ -351,6 +351,50 @@ class TestEvaluateAutoDetect:
         )
         assert result.score >= 0.99
 
+    def test_evaluate_auto_detect_claude_agent_sdk_list(self):
+        """List-shaped Claude Agent SDK messages auto-detect through evaluate()."""
+        messages = [
+            {"role": "user", "content": "weather in NYC?"},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "get_weather",
+                        "input": {"city": "NYC"},
+                    }
+                ],
+            },
+        ]
+        result = evaluate(
+            expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+            actual=messages,
+        )
+        assert result.score >= 0.99
+
+    def test_evaluate_auto_detect_bare_langgraph_list(self):
+        """A bare [human_msg, ai_msg_with_tool_calls] list auto-detects."""
+        messages = [
+            {"role": "user", "content": "search please"},
+            {
+                "role": "assistant",
+                "tool_calls": [{"name": "search", "args": {"q": "test"}}],
+            },
+        ]
+        result = evaluate(
+            expected=[{"tool": "search", "args": {"q": "test"}}],
+            actual=messages,
+        )
+        assert result.score >= 0.99
+
+    def test_evaluate_empty_list_passthrough(self):
+        """An empty actual list still routes through auto_extract cleanly."""
+        result = evaluate(
+            expected=[{"tool": "search", "args": {"q": "test"}}],
+            actual=[],
+        )
+        assert result.score < 0.5
+
 
 class TestTestAgent:
     """Tests for the test_agent() helper."""
@@ -409,6 +453,42 @@ class TestTestAgent:
             expected=[{"tool": "search", "args": {"q": "test"}}],
         )
         assert result.score >= 0.99
+
+    def test_test_agent_with_claude_agent_sdk_list(self):
+        """Agent returning a list-shaped Claude Agent SDK response works."""
+
+        def mock_claude_agent(prompt):  # type: ignore[no-untyped-def]
+            return [
+                {"role": "user", "content": prompt},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "tool_use", "name": "search", "input": {"q": "test"}}],
+                },
+            ]
+
+        result = run_test_agent(
+            agent=mock_claude_agent,
+            input="test",
+            expected=[{"tool": "search", "args": {"q": "test"}}],
+        )
+        assert result.score >= 0.99
+
+    def test_test_agent_validates_min_score_before_invoking(self):
+        """An out-of-range min_score is rejected before the agent runs."""
+        calls: list[str] = []
+
+        def tracking_agent(prompt):  # type: ignore[no-untyped-def]
+            calls.append(prompt)
+            return [{"tool": "search", "args": {"q": prompt}}]
+
+        with pytest.raises(ValueError, match="min_score"):
+            run_test_agent(
+                agent=tracking_agent,
+                input="test",
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+                min_score=1.5,
+            )
+        assert calls == []
 
     def test_test_agent_raises_on_async_function(self):
         """test_agent raises TypeError when given an async agent function."""
@@ -522,6 +602,25 @@ class TestTestAgentAsync:
             )
         )
         assert result.score >= 0.99
+
+    def test_async_agent_validates_min_score_before_invoking(self):
+        """An out-of-range min_score is rejected before the async agent runs."""
+        calls: list[str] = []
+
+        async def tracking_agent(prompt: str) -> list:
+            calls.append(prompt)
+            return [{"tool": "search", "args": {"q": prompt}}]
+
+        with pytest.raises(ValueError, match="min_score"):
+            asyncio.run(
+                test_agent_async(
+                    agent=tracking_agent,
+                    input="test",
+                    expected=[{"tool": "search", "args": {"q": "test"}}],
+                    min_score=1.5,
+                )
+            )
+        assert calls == []
 
     def test_test_agent_async_not_collected_by_pytest(self):
         """test_agent_async has __test__ = False."""

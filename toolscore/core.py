@@ -418,8 +418,10 @@ def evaluate(
     """Evaluate tool calls by comparing actual against expected (in-memory).
 
     This is the simplest way to use Toolscore - pass Python dicts directly,
-    no file I/O required. Raw OpenAI, Anthropic, and Gemini responses are
-    auto-detected and converted automatically.
+    no file I/O required. Raw OpenAI, Anthropic, Gemini, LangGraph, Pydantic AI,
+    OpenAI Agents SDK, and Claude Agent SDK responses are auto-detected and
+    converted automatically, including list-shaped formats (Claude Agent SDK
+    message lists and bare LangGraph message lists).
 
     Args:
         expected: List of expected tool calls, each a dict with 'tool' and optional 'args'.
@@ -446,10 +448,12 @@ def evaluate(
     """
     if not isinstance(expected, list):
         raise TypeError("expected must be a list of dicts, got " + type(expected).__name__)
-    if not isinstance(actual, list):
-        from toolscore.integrations import auto_extract
+    # Always route through auto_extract: already-normalized [{"tool": ...}] lists
+    # pass through unchanged, while list-shaped raw formats (Claude Agent SDK
+    # message lists, bare LangGraph message lists) are detected and converted.
+    from toolscore.integrations import auto_extract
 
-        actual = auto_extract(actual)
+    actual = auto_extract(actual)
 
     merged_weights: dict[str, float] | None = None
     if weights is not None:
@@ -571,7 +575,7 @@ def _check_min_score(result: EvaluationResult, min_score: float | None) -> None:
             if sys.stderr.isatty():
                 colored_msg = render_failure(result, min_score, color=True)
                 sys.stderr.write(colored_msg)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         raise ToolScoreAssertionError(plain_msg)
 
@@ -605,8 +609,11 @@ def test_agent(
 
     Raises:
         TypeError: If *agent* is an async function or returns an awaitable.
+        ValueError: If *min_score* is outside [0.0, 1.0].
         ToolScoreAssertionError: If *min_score* is set and the score is below it.
     """
+    if min_score is not None and not (0.0 <= min_score <= 1.0):
+        raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
     if inspect.iscoroutinefunction(agent):
         raise TypeError("agent is async — use `await toolscore.test_agent_async(...)` instead.")
     response = agent(input)
@@ -652,8 +659,11 @@ async def test_agent_async(
         EvaluationResult with metrics and a composite ``.score`` property.
 
     Raises:
+        ValueError: If *min_score* is outside [0.0, 1.0].
         ToolScoreAssertionError: If *min_score* is set and the score is below it.
     """
+    if min_score is not None and not (0.0 <= min_score <= 1.0):
+        raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
     response = agent(input)
     if inspect.isawaitable(response):
         response = await response
