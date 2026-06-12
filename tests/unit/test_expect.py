@@ -476,19 +476,41 @@ def test_regex_matcher_in_calls() -> None:
 
 
 def test_calls_no_kwargs_does_not_check_args() -> None:
-    """calls() with no kwargs: args={} gold → tool name matched; test just verifies run() works."""
+    """calls() with no kwargs → "do not check arguments".
+
+    Under the v1.7 contract, ``.calls("tool")`` omits args entirely (gold
+    args=None), so arg-bearing actual calls pass at the default min_score of
+    0.9 instead of scoring 0 on argument F1.
+    """
     from toolscore import expect
 
-    # Only declare one call with no args so actual (2 calls) is partially matched.
-    # Just verify it runs and returns a result (score may be < 0.9 due to extra call).
     actual = [{"tool": "search_flights", "args": {"origin": "JFK", "destination": "NYC"}}]
     result = (
         expect(actual)
-        .calls("search_flights")  # no args specified → empty gold args
-        .with_score(0.0)  # 0.0 means no enforcement
-        .run()
+        .calls("search_flights")  # no kwargs → do not check args
+        .run()  # default min_score = 0.9, enforced
     )
     assert isinstance(result, EvaluationResult)
+    assert result.argument_f1 == 1.0
+    assert result.score >= 0.9
+
+
+def test_calls_no_kwargs_omits_args_in_expected() -> None:
+    """`.calls("t")` must build a gold entry WITHOUT an "args" key (args=None)."""
+    from toolscore import expect
+
+    exp = expect([]).calls("t").then_calls("u", x=1)
+    assert exp._expected[0] == {"tool": "t"}
+    assert exp._expected[1] == {"tool": "u", "args": {"x": 1}}
+
+
+def test_calls_with_kwargs_still_checked() -> None:
+    """`.calls("t", k=v)` with a wrong actual value still fails enforcement."""
+    from toolscore import expect
+
+    actual = [{"tool": "search", "args": {"q": "wrong"}}]
+    with pytest.raises(ToolScoreAssertionError):
+        expect(actual).calls("search", q="right").run()
 
 
 # ---------------------------------------------------------------------------
