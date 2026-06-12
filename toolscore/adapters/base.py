@@ -11,7 +11,13 @@ class ToolCall:
 
     Attributes:
         tool: Name of the tool/function called.
-        args: Arguments provided to the tool (dict or None).
+        args: Arguments provided to the tool.  ``None`` carries a specific
+            meaning for **gold/expected** calls: "do not check arguments" —
+            the tool name must match but its arguments are ignored.  For
+            **actual/trace** calls, ``None`` simply means no arguments were
+            recorded and is treated as an empty mapping.  Adapters that parse
+            real traces always set a concrete dict, so ``None`` in practice
+            only originates from gold specifications that omit ``args``.
         result: Result returned by the tool (optional).
         timestamp: Unix timestamp of when the call was made (optional).
         duration: Duration of the call in seconds (optional).
@@ -28,11 +34,15 @@ class ToolCall:
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        """Validate tool call data after initialization."""
+        """Validate tool call data after initialization.
+
+        ``args`` is intentionally **not** coerced from ``None`` to ``{}`` so
+        that gold calls can express "do not check arguments" (``args is None``)
+        distinctly from "expect exactly zero arguments" (``args == {}``).
+        Consumers that need a concrete mapping use ``call.args or {}``.
+        """
         if not self.tool:
             raise ValueError("Tool name cannot be empty")
-        if self.args is None:
-            self.args = {}
 
 
 class BaseAdapter(ABC):

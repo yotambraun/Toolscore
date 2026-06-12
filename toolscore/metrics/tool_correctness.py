@@ -153,7 +153,11 @@ def calculate_tool_correctness_with_args(
     for gold_call in gold_calls:
         found_match = False
         for i, trace_call in enumerate(remaining_trace):
-            if gold_call.tool == trace_call.tool and gold_call.args == trace_call.args:
+            # A gold call whose args is None means "do not check arguments":
+            # a matching tool name is sufficient.  Otherwise require exact
+            # argument equality (an explicit {} demands zero actual args).
+            args_match = gold_call.args is None or gold_call.args == trace_call.args
+            if gold_call.tool == trace_call.tool and args_match:
                 matches.append((gold_call, trace_call))
                 remaining_trace.pop(i)
                 found_match = True

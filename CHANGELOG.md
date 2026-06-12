@@ -25,6 +25,24 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+### Changed - Argument-checking semantics
+
+- **Omitted gold arguments now mean "do not check arguments".** A gold/expected
+  call with `args` omitted (or set to `null`/`None`) is now a tool-name-only
+  expectation: the tool must be called, but whatever arguments the agent passed
+  are accepted. This affects `argument_f1`, `tool_correctness`, `trajectory`,
+  the composite `score`, the fluent `expect().calls("tool")` API, gold-file
+  loading via `load_gold_standard`, and the failure-diff rendering.
+- An explicit `"args": {}` keeps its strict meaning: "expect the tool to be
+  called with **no** arguments" (unchanged).
+- The fluent `.calls("tool")` (no kwargs) now omits argument checking, so casual
+  assertions like `.calls("search_flights").then_calls("book_flight")` pass even
+  when the agent supplies arguments. Pass kwargs — `.calls("tool", q="x")` — to
+  check specific arguments. For the rare "exactly zero args" expectation, use
+  `evaluate([{"tool": "t", "args": {}}], ...)` directly.
+- `ToolCall.args` is no longer coerced from `None` to `{}` on construction, so
+  the "do not check" (`None`) and "expect zero args" (`{}`) cases stay distinct.
+
 ### Added - Code Quality & Polish (Round 2)
 
 #### Input Validation

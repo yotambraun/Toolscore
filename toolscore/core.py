@@ -153,7 +153,11 @@ def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
         if not tool_name:
             continue
 
-        args = item.get("args", {})
+        # Preserve None (args key absent or explicit null) so that a gold file
+        # which omits "args" expresses "do not check arguments" rather than
+        # "expect zero arguments".  An explicit "args": {} still means
+        # "expect the tool to be called with no arguments".
+        args = item.get("args")
         side_effects = item.get("side_effects", {})
         description = item.get("description", "")
 
@@ -379,7 +383,18 @@ def evaluate_trace(
 def _dicts_to_tool_calls(items: list[dict[str, Any]]) -> list[ToolCall]:
     """Convert a list of dicts to ToolCall objects.
 
-    Each dict should have at least a 'tool' key and optionally 'args'.
+    Each dict should have at least a ``'tool'`` key and optionally ``'args'``.
+
+    Argument handling follows the gold-side contract:
+
+    * ``'args'`` **present and a dict** (including ``{}``) → kept as-is.  An
+      explicit ``{}`` means "expect this tool to be called with no arguments".
+    * ``'args'`` **omitted** or set to ``None`` → ``ToolCall.args`` is left as
+      ``None``, which downstream metrics interpret as "do not check arguments"
+      for that call (a tool-name-only expectation).
+
+    For actual/trace dicts the same mapping applies, but a ``None`` there is
+    harmless: trace-side metrics treat missing args as an empty mapping.
 
     Args:
         items: List of dicts with tool call data.
@@ -400,10 +415,12 @@ def _dicts_to_tool_calls(items: list[dict[str, Any]]) -> list[ToolCall]:
         tool_name = item.get("tool")
         if not tool_name:
             raise ValueError(f"Item at index {i} is missing 'tool' key")
+        # Preserve None (omitted / explicit null) instead of substituting {} so
+        # that "args omitted" stays distinct from "expect zero args" ({}).
         calls.append(
             ToolCall(
                 tool=tool_name,
-                args=item.get("args", {}),
+                args=item.get("args"),
             )
         )
     return calls
