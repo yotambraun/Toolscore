@@ -41,10 +41,6 @@ class TraceCapture:
         self.auto_save = auto_save
         self.captured_traces: list[dict[str, Any]] = []
 
-        # Create dataset directory if it doesn't exist
-        if self.auto_save:
-            self.dataset_dir.mkdir(parents=True, exist_ok=True)
-
     def trace(
         self,
         name: str | None = None,
@@ -218,6 +214,7 @@ class TraceCapture:
         Returns:
             Path to saved file.
         """
+        self.dataset_dir.mkdir(parents=True, exist_ok=True)
         filename = f"{trace_data['id']}.json"
         file_path = self.dataset_dir / filename
 
@@ -304,7 +301,9 @@ class TraceCapture:
 _default_capture = TraceCapture()
 
 
-def capture_trace(name: str | None = None, save_on_error: bool = True) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+def capture_trace(
+    name: str | None = None, save_on_error: bool = True
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Convenience decorator using default capture instance.
 
     Args:
