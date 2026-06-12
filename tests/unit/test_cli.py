@@ -237,6 +237,75 @@ class TestValidateCommand:
         assert result.exit_code == 2  # Click error for missing file
 
 
+class TestMCPFormatChoice:
+    """Verify that --format mcp is accepted by all relevant subcommands."""
+
+    def test_eval_accepts_mcp_format(self, runner, temp_files, tmp_path):
+        """eval command must accept --format mcp without a 'invalid choice' error."""
+        # Create a minimal MCP trace file
+        import json as _json
+
+        mcp_trace = tmp_path / "mcp_trace.json"
+        mcp_data = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": "test_tool", "arguments": {"x": 1, "y": 2}},
+            "id": 1,
+        }
+        mcp_trace.write_text(_json.dumps(mcp_data))
+
+        result = runner.invoke(
+            main,
+            [
+                "eval",
+                str(temp_files["gold"]),
+                str(mcp_trace),
+                "--format",
+                "mcp",
+            ],
+        )
+        # Exit code 0 = success; exit code 2 would mean Click rejected the choice
+        assert result.exit_code != 2, f"'mcp' rejected as format choice:\n{result.output}"
+
+    def test_validate_accepts_mcp_format(self, runner, tmp_path):
+        """validate command must accept --format mcp."""
+        import json as _json
+
+        mcp_trace = tmp_path / "mcp_trace.json"
+        mcp_data = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": "test_tool", "arguments": {"x": 1}},
+            "id": 1,
+        }
+        mcp_trace.write_text(_json.dumps(mcp_data))
+
+        result = runner.invoke(main, ["validate", str(mcp_trace), "--format", "mcp"])
+        assert result.exit_code != 2, f"'mcp' rejected as format choice:\n{result.output}"
+
+    def test_compare_accepts_mcp_format(self, runner, temp_files):
+        """compare command must accept --format mcp."""
+        result = runner.invoke(
+            main,
+            [
+                "compare",
+                str(temp_files["gold"]),
+                str(temp_files["trace"]),
+                "--format",
+                "mcp",
+                "--help",
+            ],
+        )
+        # --help always exits 0 and we just need the choice to be accepted
+        assert result.exit_code == 0
+
+    def test_regression_accepts_mcp_format(self, runner):
+        """regression command must accept --format mcp (via --help introspection)."""
+        result = runner.invoke(main, ["regression", "--help"])
+        assert result.exit_code == 0
+        assert "mcp" in result.output
+
+
 class TestMainCommand:
     """Tests for main command group."""
 

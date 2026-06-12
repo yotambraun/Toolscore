@@ -58,7 +58,7 @@ def main() -> None:
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -226,7 +226,7 @@ def eval(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -356,9 +356,9 @@ def init(output_dir: Path | None) -> None:
         # Create README
         readme_content = f"""# Toolscore Evaluation Project
 
-## Agent Type: {selected['name']}
-**Complexity:** {selected['complexity']}
-**Description:** {selected['desc']}
+## Agent Type: {selected["name"]}
+**Complexity:** {selected["complexity"]}
+**Description:** {selected["desc"]}
 
 ## Quick Start
 
@@ -579,7 +579,7 @@ def generate(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -712,7 +712,7 @@ def compare(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "langchain", "custom"]),
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
