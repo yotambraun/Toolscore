@@ -5,11 +5,14 @@ from __future__ import annotations
 import inspect
 import json
 import math
+import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from toolscore.metrics.llm_judge import JudgeConfig
 
 from toolscore.adapters import (
     AnthropicAdapter,
@@ -262,9 +265,7 @@ def evaluate_trace(
     trace_file: str | Path,
     format: str = "auto",
     validate_side_effects: bool = True,
-    use_llm_judge: bool = False,
-    llm_judge_model: str = "gpt-4o-mini",
-    llm_judge_api_key: str | None = None,
+    judge: JudgeConfig | str | bool = False,
 ) -> EvaluationResult:
     """Evaluate an agent's trace against gold standard.
 
@@ -273,9 +274,13 @@ def evaluate_trace(
         trace_file: Path to agent trace.
         format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'custom').
         validate_side_effects: Whether to validate side effects.
-        use_llm_judge: Whether to use LLM-as-a-judge for semantic evaluation.
-        llm_judge_model: Model to use for LLM judge (default: gpt-4o-mini).
-        llm_judge_api_key: OpenAI API key (defaults to OPENAI_API_KEY env var).
+        judge: LLM-as-a-judge configuration for semantic evaluation. ``False``
+            (default) disables it. ``True`` uses a default ``JudgeConfig()``.
+            A string is treated as a model-name shorthand. A ``JudgeConfig`` is
+            used as given. Provider is inferred from the model name (or set
+            explicitly via ``JudgeConfig``): ``claude-*`` -> Anthropic,
+            ``gemini-*`` -> Gemini, a ``base_url`` -> any OpenAI-compatible
+            endpoint (Ollama/vLLM/Groq), otherwise OpenAI.
 
     Returns:
         EvaluationResult containing all computed metrics.
@@ -342,18 +347,19 @@ def evaluate_trace(
         result.metrics["side_effect_metrics"] = side_effect_metrics
 
     # LLM-as-a-judge semantic evaluation
-    if use_llm_judge:
+    if judge is not False:
+        judge_config: JudgeConfig | str | None
+        judge_config = None if judge is True else judge
         try:
             semantic_metrics = calculate_semantic_correctness(
                 gold_calls,
                 trace_calls,
-                api_key=llm_judge_api_key,
-                model=llm_judge_model,
+                judge=judge_config,
             )
             result.metrics["semantic_metrics"] = semantic_metrics
-        except ImportError:
-            # If openai not installed, skip silently
-            pass
+        except ImportError as e:
+            # Provider SDK not installed: warn but continue gracefully.
+            warnings.warn(str(e), UserWarning, stacklevel=2)
         except ValueError as e:
             # If API key missing, add warning to metrics
             result.metrics["semantic_metrics"] = {

@@ -29,6 +29,7 @@ from toolscore.core import evaluate_trace
 from toolscore.debug import run_interactive_debug
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
+from toolscore.metrics.llm_judge import JudgeConfig, Provider
 from toolscore.reports import (
     generate_csv_report,
     generate_html_report,
@@ -97,13 +98,33 @@ def main() -> None:
     "--llm-judge",
     is_flag=True,
     default=False,
-    help="Use LLM-as-a-judge for semantic evaluation (requires OpenAI API key)",
+    help="Use LLM-as-a-judge for semantic evaluation (requires a provider API key)",
 )
 @click.option(
     "--llm-model",
     type=str,
     default="gpt-4o-mini",
-    help="Model to use for LLM judge (default: gpt-4o-mini)",
+    help=(
+        "Model for the LLM judge (default: gpt-4o-mini). Provider is inferred "
+        "from the name (claude-* -> Anthropic, gemini-* -> Gemini). "
+        "For a local OpenAI-compatible server: "
+        "--llm-model llama3.1 --llm-base-url http://localhost:11434/v1"
+    ),
+)
+@click.option(
+    "--llm-provider",
+    type=click.Choice(["openai", "anthropic", "gemini", "openai_compatible"]),
+    default=None,
+    help="Force the LLM judge provider (default: inferred from --llm-model)",
+)
+@click.option(
+    "--llm-base-url",
+    type=str,
+    default=None,
+    help=(
+        "Custom OpenAI-compatible endpoint for the LLM judge "
+        "(e.g. Ollama: http://localhost:11434/v1). Forces openai_compatible."
+    ),
 )
 @click.option(
     "--verbose",
@@ -136,6 +157,8 @@ def eval(
     no_side_effects: bool,
     llm_judge: bool,
     llm_model: str,
+    llm_provider: str | None,
+    llm_base_url: str | None,
     verbose: bool,
     debug: bool,
     save_baseline: Path | None,
@@ -155,13 +178,26 @@ def eval(
             print_progress(f"Loading trace from: {trace_file}", console)
             print_progress(f"Format: {format}", console)
 
+        judge: JudgeConfig | bool
+        if llm_judge:
+            provider: Provider | None = None
+            if llm_provider is not None:
+                # Choice() restricts values to the Provider literals.
+                provider = llm_provider  # type: ignore[assignment]
+            judge = JudgeConfig(
+                model=llm_model,
+                provider=provider,
+                base_url=llm_base_url,
+            )
+        else:
+            judge = False
+
         result = evaluate_trace(
             gold_file,
             trace_file,
             format=format,
             validate_side_effects=not no_side_effects,
-            use_llm_judge=llm_judge,
-            llm_judge_model=llm_model,
+            judge=judge,
         )
 
         # Generate reports
@@ -654,7 +690,7 @@ def compare(
                 trace_file,
                 format=format,
                 validate_side_effects=False,  # Skip side effects for comparison
-                use_llm_judge=False,  # Skip LLM judge for speed
+                judge=False,  # Skip LLM judge for speed
             )
             model_results[model_name] = result
 
@@ -779,7 +815,7 @@ def regression(
             trace_file,
             format=format,
             validate_side_effects=False,  # Skip for speed in CI
-            use_llm_judge=False,  # Skip for consistency
+            judge=False,  # Skip for consistency
         )
 
         # Compare against baseline
