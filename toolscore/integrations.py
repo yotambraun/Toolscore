@@ -150,11 +150,322 @@ def from_gemini(response: Any) -> list[dict[str, Any]]:
     return calls
 
 
+def from_langgraph(result: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from a LangGraph agent result.
+
+    Accepts a LangGraph final state (dict or object with ``"messages"``) or a
+    plain list of messages.  For each message that has non-empty ``tool_calls``
+    (attribute or dict key), collects each entry's ``name`` / ``args``.
+
+    This mirrors the LangChain AIMessage.tool_calls format::
+
+        {"name": ..., "args": {...}, "id": ...}
+
+    Order across messages is preserved.
+
+    Args:
+        result: A LangGraph final state dict/object or a list of messages.
+
+    Returns:
+        List of dicts with 'tool' and 'args' keys.
+    """
+    calls: list[dict[str, Any]] = []
+
+    # Resolve messages list
+    if isinstance(result, list):
+        messages = result
+    else:
+        # dict or object with "messages"
+        if isinstance(result, dict):
+            messages = result.get("messages", [])
+        else:
+            messages = getattr(result, "messages", []) or []
+
+    for msg in messages:
+        # Support both attribute and dict access
+        if isinstance(msg, dict):
+            tool_calls = msg.get("tool_calls") or []
+        else:
+            tool_calls = getattr(msg, "tool_calls", None) or []
+
+        for tc in tool_calls:
+            if isinstance(tc, dict):
+                name = tc.get("name", "")
+                args = tc.get("args", {})
+            else:
+                name = getattr(tc, "name", "")
+                args = getattr(tc, "args", {})
+
+            # Parse JSON-string args
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+
+            if name:
+                calls.append({"tool": name, "args": args if args is not None else {}})
+
+    return calls
+
+
+def from_pydantic_ai(result: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from a Pydantic AI agent result.
+
+    Accepts an ``AgentRunResult`` (duck: has callable ``all_messages``) or a
+    list of messages.  Walks each message's ``parts``; takes parts with
+    ``part_kind == "tool-call"`` (attribute or key; also accepts class name
+    ``ToolCallPart``).  Tool name from ``tool_name``; args from
+    ``args_as_dict()`` if present, else ``args`` (JSON-string → json.loads,
+    dict → as-is).
+
+    Args:
+        result: A Pydantic AI AgentRunResult or a list of messages.
+
+    Returns:
+        List of dicts with 'tool' and 'args' keys.
+    """
+    calls: list[dict[str, Any]] = []
+
+    # Resolve messages list
+    if isinstance(result, list):
+        messages = result
+    elif callable(getattr(result, "all_messages", None)):
+        messages = result.all_messages()
+    else:
+        messages = []
+
+    for msg in messages:
+        # Support both attribute and dict access for parts
+        parts = msg.get("parts", []) if isinstance(msg, dict) else getattr(msg, "parts", []) or []
+
+        for part in parts:
+            # Detect tool-call parts
+            if isinstance(part, dict):
+                part_kind = part.get("part_kind", "")
+                is_tool_call = part_kind == "tool-call"
+                tool_name = part.get("tool_name", "")
+                raw_args = part.get("args", {})
+            else:
+                part_kind = getattr(part, "part_kind", "")
+                class_name = type(part).__name__
+                is_tool_call = part_kind == "tool-call" or class_name == "ToolCallPart"
+                tool_name = getattr(part, "tool_name", "")
+                # Prefer args_as_dict() if available
+                if callable(getattr(part, "args_as_dict", None)):
+                    raw_args = part.args_as_dict()
+                else:
+                    raw_args = getattr(part, "args", {})
+
+            if not is_tool_call:
+                continue
+
+            # Normalise args
+            if isinstance(raw_args, str):
+                try:
+                    args: dict[str, Any] = json.loads(raw_args)
+                except (json.JSONDecodeError, TypeError):
+                    args = {}
+            elif isinstance(raw_args, dict):
+                args = raw_args
+            else:
+                args = {}
+
+            if tool_name:
+                calls.append({"tool": tool_name, "args": args})
+
+    return calls
+
+
+def from_openai_agents(result: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from an OpenAI Agents SDK RunResult.
+
+    Accepts an ``RunResult`` (duck: has ``new_items``) or a list of items.
+    Takes items with ``type == "tool_call_item"`` (attribute or key); for each,
+    the underlying ``raw_item`` has ``name`` and ``arguments`` (JSON string →
+    parsed).
+
+    Args:
+        result: An OpenAI Agents SDK RunResult or a list of items.
+
+    Returns:
+        List of dicts with 'tool' and 'args' keys.
+    """
+    calls: list[dict[str, Any]] = []
+
+    # Resolve items list
+    if isinstance(result, list):
+        items = result
+    else:
+        if isinstance(result, dict):
+            items = result.get("new_items", [])
+        else:
+            items = getattr(result, "new_items", []) or []
+
+    for item in items:
+        if isinstance(item, dict):
+            item_type = item.get("type", "")
+            raw_item = item.get("raw_item", {})
+        else:
+            item_type = getattr(item, "type", "")
+            raw_item = getattr(item, "raw_item", {})
+
+        if item_type != "tool_call_item":
+            continue
+
+        if isinstance(raw_item, dict):
+            name = raw_item.get("name", "")
+            arguments = raw_item.get("arguments", "{}")
+        else:
+            name = getattr(raw_item, "name", "")
+            arguments = getattr(raw_item, "arguments", "{}")
+
+        if isinstance(arguments, str):
+            try:
+                arguments = json.loads(arguments)
+            except (json.JSONDecodeError, TypeError):
+                arguments = {}
+
+        if name:
+            calls.append({"tool": name, "args": arguments if arguments is not None else {}})
+
+    return calls
+
+
+def from_claude_agent_sdk(result: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from a Claude Agent SDK message list.
+
+    Accepts a list of messages (dicts or objects); for each, walks ``content``
+    blocks; blocks with ``type == "tool_use"`` give ``name`` + ``input`` dict.
+
+    Args:
+        result: A list of Claude Agent SDK messages (dicts or objects).
+
+    Returns:
+        List of dicts with 'tool' and 'args' keys.
+    """
+    calls: list[dict[str, Any]] = []
+
+    if not isinstance(result, list):
+        return calls
+
+    for msg in result:
+        if isinstance(msg, dict):
+            content = msg.get("content", [])
+        else:
+            content = getattr(msg, "content", []) or []
+
+        if isinstance(content, str):
+            # Plain text content — no tool calls
+            continue
+
+        for block in content:
+            if isinstance(block, dict):
+                block_type = block.get("type", "")
+                name = block.get("name", "")
+                args = block.get("input", {})
+            else:
+                block_type = getattr(block, "type", "")
+                name = getattr(block, "name", "")
+                args = getattr(block, "input", {})
+
+            if block_type == "tool_use" and name:
+                calls.append({"tool": name, "args": args if args is not None else {}})
+
+    return calls
+
+
+def from_crewai(result: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from a CrewAI result (experimental).
+
+    Best-effort extraction. Accepts objects/dicts exposing ``tool_name`` +
+    ``tool_args`` entries (e.g. a list like agent ``tools_results``), or an
+    object with a ``tools_results`` list.
+
+    .. note::
+        This extractor is **experimental** — CrewAI does not expose a stable
+        structured trace API.  The extraction is best-effort and may not cover
+        all CrewAI versions or configurations.
+
+    Args:
+        result: A list of tool-result entries, or an object/dict with a
+            ``tools_results`` attribute/key.
+
+    Returns:
+        List of dicts with 'tool' and 'args' keys.
+    """
+    calls: list[dict[str, Any]] = []
+
+    # Resolve to a list of entries
+    if isinstance(result, list):
+        entries = result
+    elif isinstance(result, dict):
+        entries = result.get("tools_results", [])
+    else:
+        entries = getattr(result, "tools_results", []) or []
+
+    for entry in entries:
+        if isinstance(entry, dict):
+            name = entry.get("tool_name", "")
+            args = entry.get("tool_args", {})
+        else:
+            name = getattr(entry, "tool_name", "")
+            args = getattr(entry, "tool_args", {})
+
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+
+        if name:
+            calls.append({"tool": name, "args": args if args is not None else {}})
+
+    return calls
+
+
+def _is_langgraph_result(actual: Any) -> bool:
+    """Return True if *actual* looks like a LangGraph state with tool_calls."""
+    # Must be a dict/object with "messages", not an Anthropic raw message
+    if isinstance(actual, dict):
+        messages = actual.get("messages")
+    else:
+        messages = getattr(actual, "messages", None)
+
+    if not isinstance(messages, list) or not messages:
+        return False
+
+    # Check that at least one message has non-empty tool_calls
+    for msg in messages:
+        tc = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", None)
+        if tc:
+            return True
+    return False
+
+
+def _is_claude_agent_sdk_list(actual: Any) -> bool:
+    """Return True if *actual* looks like a list of Claude Agent SDK messages."""
+    if not isinstance(actual, list) or not actual:
+        return False
+    for item in actual:
+        content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "tool_use":
+                        return True
+                else:
+                    if getattr(block, "type", None) == "tool_use":
+                        return True
+    return False
+
+
 def auto_extract(actual: Any) -> list[dict[str, Any]]:
     """Auto-detect the provider format of a response and extract tool calls.
 
-    This allows passing raw OpenAI, Anthropic, or Gemini responses directly
-    to ``evaluate()`` without manually calling ``from_openai()`` etc.
+    This allows passing raw OpenAI, Anthropic, Gemini, LangGraph,
+    Pydantic AI, OpenAI Agents SDK, or Claude Agent SDK responses directly
+    to ``evaluate()`` without manually calling the framework-specific helper.
 
     Detection order:
     1. Already a list of dicts with ``"tool"`` keys → pass through
@@ -162,6 +473,10 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     3. Dict with ``"choices"`` → OpenAI format
     4. Dict with ``"content"`` list containing ``"type"`` keys → Anthropic format
     5. Dict with ``"candidates"`` → Gemini format
+    6. Dict/object with ``"messages"`` where some message has ``tool_calls`` → LangGraph
+    7. Object with callable ``all_messages`` → Pydantic AI
+    8. Object/dict with ``new_items`` → OpenAI Agents SDK
+    9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK
 
     Args:
         actual: A raw LLM provider response (object or dict), or an
@@ -183,6 +498,21 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     if hasattr(actual, "model_dump"):
         actual = actual.model_dump()
     elif hasattr(actual, "__dict__") and not isinstance(actual, dict):
+        # Before converting, check for framework-specific duck-typed objects
+        # that would lose their callable methods after _object_to_dict().
+
+        # 7. Pydantic AI: callable all_messages
+        if callable(getattr(actual, "all_messages", None)):
+            return from_pydantic_ai(actual)
+
+        # 8. OpenAI Agents SDK: new_items attribute
+        if hasattr(actual, "new_items"):
+            return from_openai_agents(actual)
+
+        # 6. LangGraph: messages attribute with tool_calls
+        if _is_langgraph_result(actual):
+            return from_langgraph(actual)
+
         actual = _object_to_dict(actual)
 
     if isinstance(actual, dict):
@@ -190,7 +520,7 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
         if "choices" in actual:
             return from_openai(actual)
 
-        # 4. Anthropic
+        # 4. Anthropic (single message — NOT a list of Claude Agent SDK messages)
         content = actual.get("content")
         if (
             isinstance(content, list)
@@ -203,10 +533,39 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
         if "candidates" in actual:
             return from_gemini(actual)
 
+        # 6. LangGraph state dict
+        if _is_langgraph_result(actual):
+            return from_langgraph(actual)
+
+        # 8. OpenAI Agents SDK dict
+        if "new_items" in actual:
+            return from_openai_agents(actual)
+
+    # Handle list inputs that aren't already-formatted tool dicts
+    if isinstance(actual, list) and actual:
+        # 9. Claude Agent SDK: list of messages with tool_use content blocks
+        if _is_claude_agent_sdk_list(actual):
+            return from_claude_agent_sdk(actual)
+
+        # 6. LangGraph: list of messages with tool_calls
+        first = actual[0]
+        has_tool_calls = False
+        if isinstance(first, dict):
+            has_tool_calls = bool(first.get("tool_calls"))
+        else:
+            has_tool_calls = bool(getattr(first, "tool_calls", None))
+        if has_tool_calls:
+            return from_langgraph(actual)
+
+    # 7. Pydantic AI on a plain object (after __dict__ path above, but dict
+    #    conversion might have happened — check the original)
+    if callable(getattr(actual, "all_messages", None)):
+        return from_pydantic_ai(actual)
+
     raise TypeError(
         f"Cannot auto-detect provider format from {type(actual).__name__}. "
-        "Pass a raw OpenAI/Anthropic/Gemini response, or a list of "
-        "dicts with 'tool' and 'args' keys."
+        "Pass a raw OpenAI/Anthropic/Gemini/LangGraph/PydanticAI/OpenAIAgents/"
+        "ClaudeAgentSDK response, or a list of dicts with 'tool' and 'args' keys."
     )
 
 

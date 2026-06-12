@@ -15,8 +15,19 @@ from toolscore.core import (
     evaluate,
     evaluate_trace,
     test_agent,
+    test_agent_async,
 )
-from toolscore.integrations import auto_extract, from_anthropic, from_gemini, from_openai
+from toolscore.integrations import (
+    auto_extract,
+    from_anthropic,
+    from_claude_agent_sdk,
+    from_crewai,
+    from_gemini,
+    from_langgraph,
+    from_openai,
+    from_openai_agents,
+    from_pydantic_ai,
+)
 
 try:
     __version__ = _version("tool-scorer")
@@ -70,7 +81,13 @@ __all__ = [
     "evaluate",
     "evaluate_trace",
     "from_anthropic",
+    "from_claude_agent_sdk",
+    "from_crewai",
     "from_gemini",
+    "from_langgraph",
     "from_openai",
+    "from_openai_agents",
+    "from_pydantic_ai",
     "test_agent",
+    "test_agent_async",
 ]
