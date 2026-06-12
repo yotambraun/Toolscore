@@ -53,8 +53,8 @@ Core Functions
    :nosignatures:
 
    evaluate_trace
-   load_gold_standard
-   load_trace
+   ~core.load_gold_standard
+   ~core.load_trace
 
 Adapters
 ^^^^^^^^

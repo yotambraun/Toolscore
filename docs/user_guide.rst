@@ -265,8 +265,8 @@ Validate HTTP requests succeeded:
      "tool": "make_request",
      "args": {"url": "https://api.example.com"},
      "side_effects": {
-       "http_ok": true,           # Any 2xx status
-       "http_status": 200         # Specific status code
+       "http_ok": true,
+       "http_status": 200
      }
    }
 
@@ -296,7 +296,7 @@ Validate database operations:
      "tool": "insert_user",
      "args": {"name": "John", "email": "john@example.com"},
      "side_effects": {
-       "sql_rows": 1              # Expected rows affected
+       "sql_rows": 1
      }
    }
 

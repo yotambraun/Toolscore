@@ -9,8 +9,6 @@ Base Classes
 ------------
 
 .. autoclass:: ToolCall
-   :members:
-   :undoc-members:
 
 .. autoclass:: BaseAdapter
    :members:

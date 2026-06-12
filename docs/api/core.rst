@@ -24,6 +24,8 @@ Main Functions
 
 .. autofunction:: auto_extract
 
+.. currentmodule:: toolscore.core
+
 Result Container
 ----------------
 

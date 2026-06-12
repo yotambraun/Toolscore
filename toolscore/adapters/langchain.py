@@ -22,27 +22,25 @@ class LangChainAdapter(BaseAdapter):
 
     Example LangChain trace formats:
 
-    Legacy format (AgentAction):
-    ```python
-    [
-        {
-            "tool": "search",
-            "tool_input": {"query": "Python"},
-            "log": "Invoking search..."
-        }
-    ]
-    ```
+    Legacy format (AgentAction)::
 
-    Modern format (ToolCall):
-    ```python
-    [
-        {
-            "name": "search",
-            "args": {"query": "Python"},
-            "id": "call_123"
-        }
-    ]
-    ```
+        [
+            {
+                "tool": "search",
+                "tool_input": {"query": "Python"},
+                "log": "Invoking search..."
+            }
+        ]
+
+    Modern format (ToolCall)::
+
+        [
+            {
+                "name": "search",
+                "args": {"query": "Python"},
+                "id": "call_123"
+            }
+        ]
     """
 
     def parse(self, data: Any) -> list[ToolCall]:
