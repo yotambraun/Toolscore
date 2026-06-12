@@ -1,6 +1,7 @@
 """Unit tests for core evaluation logic."""
 
 import json
+from typing import ClassVar
 
 import pytest
 
@@ -387,3 +388,53 @@ class TestEvaluateTrace:
         assert result.metrics["invocation_accuracy"] == 1.0
         assert len(result.gold_calls) == 0
         assert len(result.trace_calls) == 0
+
+
+class TestEvaluateNonFiniteWeights:
+    """Non-finite weight values (inf/nan) must be rejected before scoring."""
+
+    _CALLS: ClassVar[list[dict[str, object]]] = [{"tool": "t", "args": {"x": 1}}]
+
+    def test_inf_weight_raises(self) -> None:
+        """float('inf') weight must raise ValueError."""
+        from toolscore.core import evaluate
+
+        with pytest.raises(ValueError, match="finite"):
+            evaluate(
+                expected=self._CALLS,
+                actual=self._CALLS,
+                weights={"selection_accuracy": float("inf")},
+            )
+
+    def test_neg_inf_weight_raises(self) -> None:
+        """float('-inf') weight must raise ValueError (non-finite, also negative)."""
+        from toolscore.core import evaluate
+
+        with pytest.raises(ValueError):
+            evaluate(
+                expected=self._CALLS,
+                actual=self._CALLS,
+                weights={"selection_accuracy": float("-inf")},
+            )
+
+    def test_nan_weight_raises(self) -> None:
+        """float('nan') weight must raise ValueError."""
+        from toolscore.core import evaluate
+
+        with pytest.raises(ValueError, match="finite"):
+            evaluate(
+                expected=self._CALLS,
+                actual=self._CALLS,
+                weights={"selection_accuracy": float("nan")},
+            )
+
+    def test_valid_weight_does_not_raise(self) -> None:
+        """A normal positive weight must be accepted without error."""
+        from toolscore.core import evaluate
+
+        result = evaluate(
+            expected=self._CALLS,
+            actual=self._CALLS,
+            weights={"selection_accuracy": 0.5},
+        )
+        assert result.score >= 0.0

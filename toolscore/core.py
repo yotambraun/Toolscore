@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -269,7 +270,7 @@ def evaluate_trace(
     Args:
         gold_file: Path to gold standard specification.
         trace_file: Path to agent trace.
-        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'langchain', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'custom').
         validate_side_effects: Whether to validate side effects.
         use_llm_judge: Whether to use LLM-as-a-judge for semantic evaluation.
         llm_judge_model: Model to use for LLM judge (default: gpt-4o-mini).
@@ -413,6 +414,8 @@ def evaluate(
             raw OpenAI/Anthropic/Gemini response objects or dicts (auto-detected).
         weights: Optional custom weights for the composite score.
             Keys: 'selection_accuracy', 'argument_f1', 'sequence_accuracy', 'redundant_rate'.
+            Provided values are merged with the defaults then renormalized so that all
+            weights sum to 1.0 before computing the composite score.
         strict: When True, argument comparison uses pure equality (no int/float
             coercion, no string strip).  Default is False (lenient matching).
 
@@ -442,6 +445,8 @@ def evaluate(
         if unknown:
             raise ValueError(f"Unknown weight keys: {unknown}. Valid keys: {valid_keys}")
         for key, value in weights.items():
+            if not math.isfinite(value):
+                raise ValueError(f"Weight for '{key}' must be a finite number, got {value}")
             if value < 0:
                 raise ValueError(f"Weight for '{key}' must be non-negative, got {value}")
         merged_weights = {**EvaluationResult.DEFAULT_WEIGHTS, **weights}
