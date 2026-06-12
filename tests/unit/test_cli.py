@@ -315,6 +315,8 @@ class TestMCPFormatChoice:
                 str(mcp_trace),
                 "--format",
                 "mcp",
+                "--output",
+                str(tmp_path / "comparison.json"),
             ],
         )
         # Exit code 2 means Click rejected 'mcp' as an invalid choice value

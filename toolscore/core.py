@@ -571,7 +571,7 @@ def _check_min_score(result: EvaluationResult, min_score: float | None) -> None:
             if sys.stderr.isatty():
                 colored_msg = render_failure(result, min_score, color=True)
                 sys.stderr.write(colored_msg)
-        except Exception:  # noqa: BLE001
+        except Exception:
             pass
         raise ToolScoreAssertionError(plain_msg)
 
