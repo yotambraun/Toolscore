@@ -58,6 +58,7 @@ Contents
    quickstart
    user_guide
    frameworks
+   fluent_api
 
 .. toctree::
    :maxdepth: 2

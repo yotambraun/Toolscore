@@ -17,6 +17,7 @@ from toolscore.core import (
     test_agent,
     test_agent_async,
 )
+from toolscore.expect import Expectation, expect
 from toolscore.integrations import (
     auto_extract,
     from_anthropic,
@@ -75,6 +76,7 @@ __all__ = [
     "ANY",
     "Approx",
     "Contains",
+    "Expectation",
     "IsType",
     "Matcher",
     "OneOf",
@@ -88,6 +90,7 @@ __all__ = [
     "cases",
     "evaluate",
     "evaluate_trace",
+    "expect",
     "from_anthropic",
     "from_claude_agent_sdk",
     "from_crewai",
