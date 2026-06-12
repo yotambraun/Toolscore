@@ -1,0 +1,78 @@
+name: Adapter / Framework Support Request
+description: Request support for a new framework or trace format — help us expand the ecosystem!
+labels: ["adapter-request", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Request a new framework extractor
+
+        Toolscore already parses tool-call traces from **OpenAI Agents SDK**, **LangGraph**,
+        **Pydantic AI**, **Claude Agent SDK**, and **CrewAI**.
+
+        Want to add another? Open this request — the most impactful additions get prioritised.
+
+        The single most useful thing you can provide is a **raw response payload** (see below).
+        Everything else can be inferred from that.
+
+  - type: input
+    id: framework-name
+    attributes:
+      label: Framework / library name
+      placeholder: "e.g. AutoGen, Haystack, Semantic Kernel, LlamaIndex..."
+    validations:
+      required: true
+
+  - type: input
+    id: framework-link
+    attributes:
+      label: Framework homepage or repo URL
+      placeholder: "https://github.com/..."
+    validations:
+      required: true
+
+  - type: input
+    id: framework-version
+    attributes:
+      label: Framework version you are using
+      placeholder: "e.g. 0.4.0"
+
+  - type: textarea
+    id: raw-payload
+    attributes:
+      label: Sample raw response payload
+      description: |
+        Paste a real (or anonymised) JSON/dict response that contains at least one tool call.
+        This is the single most helpful piece of information — it lets us write the extractor
+        without needing access to the framework ourselves.
+
+        You can redact sensitive values (API keys, PII) but **keep the structural shape intact**.
+      render: json
+      placeholder: |
+        {
+          "messages": [
+            {
+              "role": "assistant",
+              "tool_calls": [
+                {
+                  "id": "call_abc123",
+                  "function": { "name": "get_weather", "arguments": "{\"city\": \"Tel Aviv\"}" }
+                }
+              ]
+            }
+          ]
+        }
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Your use-case
+      description: Briefly describe what you are building and why Toolscore + this framework matters to you.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Links to framework docs, existing issues, or anything else that would help.
