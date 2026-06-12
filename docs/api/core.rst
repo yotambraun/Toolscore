@@ -14,6 +14,8 @@ Main Functions
 
 .. autofunction:: test_agent
 
+.. autofunction:: test_agent_async
+
 .. autofunction:: evaluate_trace
 
 .. autofunction:: load_gold_standard
@@ -24,14 +26,11 @@ Main Functions
 
 .. autofunction:: auto_extract
 
+.. currentmodule:: toolscore.core
+
 Result Container
 ----------------
 
 .. autoclass:: EvaluationResult
    :members:
    :undoc-members:
-
-Internal Functions
-------------------
-
-.. autofunction:: _detect_format
