@@ -17,6 +17,7 @@ from toolscore.core import (
     test_agent,
 )
 from toolscore.integrations import auto_extract, from_anthropic, from_gemini, from_openai
+from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
 
 try:
     __version__ = _version("tool-scorer")
@@ -60,6 +61,13 @@ def cases(
 
 
 __all__ = [
+    "ANY",
+    "Approx",
+    "Contains",
+    "IsType",
+    "Matcher",
+    "OneOf",
+    "Regex",
     "ToolScoreAssertionError",
     "TraceCapture",
     "__version__",
