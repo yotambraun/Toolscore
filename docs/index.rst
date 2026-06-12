@@ -57,6 +57,7 @@ Contents
    installation
    quickstart
    user_guide
+   mcp_testing
    frameworks
 
 .. toctree::
