@@ -5,16 +5,22 @@ from typing import Any
 from toolscore.adapters.base import ToolCall
 
 
-def _compare_values(expected: Any, actual: Any) -> bool:
-    """Compare two values for equality with type flexibility.
+def _compare_values(expected: Any, actual: Any, strict: bool = False) -> bool:
+    """Compare two values for equality with optional type flexibility.
 
     Args:
         expected: Expected value.
         actual: Actual value.
+        strict: When True, use pure ``==`` only (no int/float coercion, no
+            string strip).  When False (default), int/float pairs are compared
+            as floats and strings are stripped before comparison.
 
     Returns:
         True if values match, False otherwise.
     """
+    if strict:
+        return type(expected) is type(actual) and expected == actual
+
     # Direct equality
     if expected == actual:
         return True
@@ -32,12 +38,14 @@ def _compare_values(expected: Any, actual: Any) -> bool:
 def _calculate_argument_match(
     expected_args: dict[str, Any] | None,
     actual_args: dict[str, Any] | None,
+    strict: bool = False,
 ) -> tuple[int, int, int]:
     """Calculate argument matching statistics.
 
     Args:
         expected_args: Expected arguments.
         actual_args: Actual arguments.
+        strict: Passed through to :func:`_compare_values`.
 
     Returns:
         Tuple of (correct_count, expected_count, actual_count).
@@ -52,7 +60,7 @@ def _calculate_argument_match(
     correct_count = 0
 
     for key, expected_val in expected_args.items():
-        if key in actual_args and _compare_values(expected_val, actual_args[key]):
+        if key in actual_args and _compare_values(expected_val, actual_args[key], strict=strict):
             correct_count += 1
 
     return correct_count, expected_count, actual_count
@@ -61,6 +69,7 @@ def _calculate_argument_match(
 def calculate_argument_f1(
     gold_calls: list[ToolCall],
     trace_calls: list[ToolCall],
+    strict: bool = False,
 ) -> dict[str, float]:
     """Calculate F1 score for argument matching.
 
@@ -70,6 +79,8 @@ def calculate_argument_f1(
     Args:
         gold_calls: Expected tool calls from gold standard.
         trace_calls: Actual tool calls from agent trace.
+        strict: When True, disable int/float coercion and string stripping.
+            Passed through to :func:`_compare_values`.
 
     Returns:
         Dictionary containing:
@@ -95,7 +106,7 @@ def calculate_argument_f1(
 
         if trace_call:
             correct, expected, actual = _calculate_argument_match(
-                gold_call.args, trace_call.args
+                gold_call.args, trace_call.args, strict=strict
             )
             total_correct += correct
             total_expected += expected
