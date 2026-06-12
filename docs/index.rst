@@ -52,14 +52,24 @@ Contents
 
 .. toctree::
    :maxdepth: 2
-   :caption: User Guide
+   :caption: Getting Started
 
    installation
    quickstart
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Guides
+
    user_guide
-   mcp_testing
+   snapshot_testing
+   matchers
    frameworks
    fluent_api
+   llm_judge
+   mcp_testing
+   extending
+   comparison
 
 .. toctree::
    :maxdepth: 2
@@ -68,7 +78,10 @@ Contents
    api/index
    api/core
    api/adapters
+   api/matchers
    api/metrics
+   api/snapshots
+   api/mcp
    api/validators
    api/reports
 

@@ -1,39 +1,88 @@
 Quick Start
 ===========
 
-This guide will get you started with Toolscore in 5 minutes.
+This guide gets you to a green tool-call test in about 60 seconds, then covers
+the rest of the API.
 
-5-Minute Tutorial
+Install Toolscore
 -----------------
-
-1. Install Toolscore
-^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
    pip install tool-scorer
 
-2. Run Your First Evaluation
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+The fastest path: ``toolscore init`` + snapshots
+------------------------------------------------
 
-Use the included example files:
+``toolscore init`` detects your agent framework and scaffolds a working pytest
+suite plus an optional CI workflow — so your first run records a snapshot and
+passes immediately.
+
+1. Scaffold a test suite
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   toolscore init                 # auto-detects your framework, prompts to confirm
+   toolscore init --yes           # accept the detected framework non-interactively
+   toolscore init --framework langgraph   # or pick one explicitly
+
+This writes ``tests/test_agent_tools.py`` (a passing suite wired to a snapshot),
+``.toolscore/snapshots/`` (your reviewed baselines live here), and
+``.github/workflows/toolscore.yml`` (unless ``--no-ci``).
+
+2. Run pytest — the first run records a snapshot
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Edit the ``# TODO: import your agent`` block to call your real agent, then:
+
+.. code-block:: bash
+
+   pytest
+
+The ``toolscore_snapshot`` fixture records the agent's tool calls into a
+*pending* snapshot and warns. Nothing is asserted yet — there is no baseline to
+compare against.
+
+3. Review and approve the snapshot
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. code-block:: bash
+
+   toolscore snapshots list          # see what was recorded
+   toolscore snapshots show <name>   # inspect the tool calls
+   toolscore approve --all           # lock them in as the baseline
+
+From now on every run replays against the approved baseline and **fails on
+drift**. When the behavior changes on purpose, re-record with
+``pytest --toolscore-update`` (or ``toolscore record --update -- pytest``) and
+commit the updated snapshot file. See :doc:`snapshot_testing` for the full story.
+
+The one-line assertion
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+If you would rather assert against an explicit spec than a recorded snapshot:
+
+.. code-block:: python
+
+   import toolscore
+
+   toolscore.assert_tools(
+       expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+       actual=my_agent("weather in NYC"),   # raw provider response — auto-detected
+       min_score=0.9,
+   )
+
+Evaluating captured traces
+--------------------------
+
+Toolscore can also score pre-captured trace files from the command line:
 
 .. code-block:: bash
 
    tool-scorer eval examples/gold_calls.json examples/trace_openai.json --html report.html
 
-3. View Results
-^^^^^^^^^^^^^^^
-
-The console output shows:
-
-.. code-block:: text
-
-   Invocation Accuracy: 100.00%
-   Selection Accuracy: 100.00%
-   Sequence Accuracy: 100.00%
-
-Open ``report.html`` in your browser for detailed analysis.
+Console output shows the metrics; open ``report.html`` for a detailed breakdown.
 
 Basic Usage
 -----------
@@ -110,6 +159,14 @@ Creating Gold Standards
 
 A gold standard defines the expected tool calls for a task. Create a ``gold_calls.json`` file:
 
+.. note::
+   **Omitting ``args`` means "do not check arguments"** — the tool must be
+   called, but any arguments are accepted. An explicit ``"args": {}`` means
+   "expect the tool to be called with **no** arguments." See
+   :doc:`matchers` for the full contract and for matchers like ``ANY`` and
+   ``Regex`` that assert on argument *shape* instead of exact values.
+
+
 .. code-block:: json
 
    [
@@ -182,6 +239,11 @@ Next Steps
 ----------
 
 * Read the :doc:`user_guide` for detailed usage
+* Lock in behavior with :doc:`snapshot_testing`
+* Assert on argument shape with :doc:`matchers`
+* Pass raw framework responses with the :doc:`frameworks` extractors
+* Test an MCP server with :doc:`mcp_testing`
+* Add semantic scoring with the :doc:`llm_judge`
 * Explore example scripts in the `examples/ directory <https://github.com/yotambraun/Toolscore/tree/main/examples>`_
 * Check out the complete :doc:`api/index`
 * Learn how to :doc:`contributing` to Toolscore
