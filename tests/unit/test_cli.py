@@ -283,27 +283,76 @@ class TestMCPFormatChoice:
         result = runner.invoke(main, ["validate", str(mcp_trace), "--format", "mcp"])
         assert result.exit_code != 2, f"'mcp' rejected as format choice:\n{result.output}"
 
-    def test_compare_accepts_mcp_format(self, runner, temp_files):
-        """compare command must accept --format mcp."""
+    def test_compare_accepts_mcp_format(self, runner, temp_files, tmp_path):
+        """compare command must accept --format mcp without a 'invalid choice' error."""
+        import json as _json
+
+        mcp_trace = tmp_path / "mcp_trace.json"
+        mcp_data = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": "test_tool", "arguments": {"x": 1, "y": 2}},
+            "id": 1,
+        }
+        mcp_trace.write_text(_json.dumps(mcp_data))
+
         result = runner.invoke(
             main,
             [
                 "compare",
                 str(temp_files["gold"]),
-                str(temp_files["trace"]),
+                str(mcp_trace),
                 "--format",
                 "mcp",
-                "--help",
             ],
         )
-        # --help always exits 0 and we just need the choice to be accepted
-        assert result.exit_code == 0
+        # Exit code 2 means Click rejected 'mcp' as an invalid choice value
+        assert result.exit_code != 2, f"'mcp' rejected as format choice:\n{result.output}"
 
-    def test_regression_accepts_mcp_format(self, runner):
-        """regression command must accept --format mcp (via --help introspection)."""
-        result = runner.invoke(main, ["regression", "--help"])
-        assert result.exit_code == 0
-        assert "mcp" in result.output
+    def test_regression_accepts_mcp_format(self, runner, temp_files, tmp_path):
+        """regression command must accept --format mcp without a 'invalid choice' error."""
+        import json as _json
+
+        # Build a minimal valid baseline file
+        baseline_file = tmp_path / "baseline.json"
+        baseline_data = {
+            "version": "1.0.0",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "gold_file_hash": "",
+            "metrics": {
+                "invocation_accuracy": 1.0,
+                "selection_accuracy": 1.0,
+                "sequence_accuracy": 1.0,
+                "argument_f1": 1.0,
+                "redundant_rate": 0.0,
+            },
+            "metadata": {"gold_calls_count": 1, "trace_calls_count": 1},
+        }
+        baseline_file.write_text(_json.dumps(baseline_data))
+
+        mcp_trace = tmp_path / "mcp_trace.json"
+        mcp_data = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {"name": "test_tool", "arguments": {"x": 1, "y": 2}},
+            "id": 1,
+        }
+        mcp_trace.write_text(_json.dumps(mcp_data))
+
+        result = runner.invoke(
+            main,
+            [
+                "regression",
+                str(baseline_file),
+                str(mcp_trace),
+                "--gold-file",
+                str(temp_files["gold"]),
+                "--format",
+                "mcp",
+            ],
+        )
+        # Exit code 2 means Click rejected 'mcp' as an invalid choice value
+        assert result.exit_code != 2, f"'mcp' rejected as format choice:\n{result.output}"
 
 
 class TestMainCommand:

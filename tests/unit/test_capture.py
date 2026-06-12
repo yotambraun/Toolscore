@@ -19,6 +19,7 @@ class TestLazyTracesDirectory:
             cwd=str(tmp_path),
             capture_output=True,
             text=True,
+            timeout=60,
         )
         assert result.returncode == 0, f"import failed: {result.stderr}"
         assert not (tmp_path / "traces").exists(), (
