@@ -8,7 +8,7 @@
 <h1 align="center">Toolscore</h1>
 
 <p align="center">
-  <em>Lightweight tool-call testing for LLM agents &mdash; deterministic, local, zero API cost</em>
+  <em>The pytest of tool-calling &mdash; deterministic, local, zero API cost</em>
 </p>
 
 [![PyPI version](https://badge.fury.io/py/tool-scorer.svg)](https://badge.fury.io/py/tool-scorer)
@@ -19,19 +19,116 @@
 
 ---
 
-## Why Toolscore?
+Your agent calls tools — search APIs, databases, bookings, file ops. A prompt tweak or a model upgrade can silently change *which* tools it calls, with *which* arguments, in *which* order. Observability platforms tell you how your agent behaves in production; **Toolscore fails your CI build before the regression ships.** No LLM judge required, no cloud, no per-test API bill — just deterministic scores, snapshot baselines, and readable diffs, the way pytest does it.
 
-You ship an LLM agent. It calls tools — search APIs, databases, file ops. But after a prompt tweak or model upgrade, how do you know it still calls the *right* tools with the *right* arguments in the *right* order?
+```python
+from toolscore import expect, ANY, Regex
 
-Toolscore gives you a deterministic score for that — no API calls, no cloud, no cost.
+expect(agent).on("book me a flight to NYC") \
+    .calls("search_flights", origin=ANY, destination="NYC") \
+    .then_calls("book_flight", flight_id=Regex(r"FL-\d+")) \
+    .does_not_call("cancel_booking") \
+    .with_score(0.9) \
+    .run()
+```
 
-- **Prompt changed** — did tool calls break?
-- **Switched from GPT-4o to Claude** — same behavior?
-- **CI/CD** — catch regressions before production
+## 60-Second Quickstart
 
-Read the full story in the [Medium article](https://medium.com/@yotambraun/stop-shipping-broken-llm-agents-toolscore-for-reliable-tool-using-ai-now-with-ci-cd-462913cf99e2).
+```bash
+pip install tool-scorer
+toolscore init          # detects your framework, scaffolds a passing pytest suite
+pytest                  # first run RECORDS your agent's tool calls as snapshots
+toolscore approve --all # review, then approve them as the baseline
+pytest                  # every run after this REPLAYS — and fails on drift
+```
 
-## Quick Start
+That's the whole loop. No hand-written expected-call files, no YAML. Your agent's own behavior becomes the regression test.
+
+## Snapshot Testing — Jest for Agents
+
+Stop hand-writing expected tool calls. Record them once, approve them, replay them forever.
+
+```python
+def test_books_a_flight(toolscore_snapshot):
+    toolscore_snapshot(my_agent("book a flight to NYC"))
+    # First run: records a pending snapshot and warns.
+    # After `toolscore approve`: replays against the baseline, fails on drift.
+```
+
+The fixture ships with the package — no plugin install, no registration. Snapshots are plain JSON files under `.toolscore/snapshots/`, named after the pytest node id, so they review cleanly in PRs.
+
+The workflow:
+
+1. **Record** — the first `pytest` run captures your agent's tool calls into *unapproved* snapshots (a terminal summary tells you: `toolscore: 1 snapshot created (pending approval)`).
+2. **Approve** — review with `toolscore snapshots show <name>`, then `toolscore approve --all` (or approve by name).
+3. **Replay** — every subsequent run evaluates the agent against the approved baseline. Drift fails the test with a full expected-vs-actual diff.
+
+Intentional behavior change? Re-record:
+
+```bash
+pytest --toolscore-update     # overwrite + re-approve baselines
+```
+
+CI is strict by design: snapshots are never created or auto-approved in CI — a missing or pending snapshot fails the build (downgrade to a warning with `--toolscore-allow-pending` for staged rollouts). You can also record outside pytest with `toolscore record -- <any command>` or from an existing trace file with `toolscore record --from-trace trace.json --name my_snap`.
+
+## MCP Scorecard — Grade Any MCP Server
+
+The first standard testing tool for MCP servers. Point it at any server — it auto-generates happy-path and edge-case scenarios from each tool's schema, executes them, lints the tool definitions, and prints an A–F grade:
+
+```bash
+toolscore mcp test "python my_server.py"
+
+# or straight from your Claude Desktop config, zero install:
+uvx tool-scorer mcp test --config claude_desktop_config.json --server my-server
+```
+
+```
+╭─────────────────────────────────────╮
+│ MCP Scorecard: fake-mcp 0.1.0       │
+│ Grade F   Score 47%                 │
+│ happy 43%  |  edge 20%  |  lint 85% │
+╰─────────────────────────────────────╯
+                 Tools
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Tool       ┃ Scenarios ┃ Avg latency ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ add        │       4/6 │      0.1 ms │
+│ flaky      │       0/5 │      0.0 ms │
+│ bad_schema │       0/1 │      0.0 ms │
+└────────────┴───────────┴─────────────┘
+```
+
+Export a Markdown scorecard for your server's README with `--report md --output SCORECARD.md`. Here is the real output for the deliberately broken demo server above:
+
+```markdown
+# MCP Scorecard: fake-mcp 0.1.0
+
+**Grade: F** &middot; Score 47%
+
+- Happy-path pass rate: 43%
+- Edge-case resilience: 20%
+- Lint score: 85% (1 errors, 2 warnings)
+
+## Tools
+
+| Tool | Scenarios | Avg latency |
+| --- | --- | --- |
+| `add` | 4/6 | 0.1 ms |
+| `flaky` | 0/5 | 0.0 ms |
+| `bad_schema` | 0/1 | 0.0 ms |
+
+## Lint
+
+- warning &middot; `flaky`: properties defined but no 'required' list declared
+- warning &middot; `bad_schema`: missing description
+- **error** &middot; `bad_schema`: missing or empty inputSchema
+```
+
+Gate CI on quality with `--fail-under B` (exit code 1 below the bar). `toolscore mcp list` and `toolscore mcp lint` are also available standalone.
+
+## Fluent Assertions and a Plain Score
+
+Prefer a score over a chain? The core API is three lines:
 
 ```python
 from toolscore import evaluate
@@ -47,373 +144,176 @@ result = evaluate(
     ],
 )
 
-print(result.score)              # 0.85 — overall quality (weighted composite)
+print(result.score)              # 0.85 — weighted composite
 print(result.selection_accuracy) # 1.0  — right tools picked
-print(result.argument_f1)        # 0.7  — 70% of arguments correct
+print(result.argument_f1)        # 0.5  — argument match quality
 ```
 
-No files, no config, no API keys. Just Python objects in, score out.
-
-## Installation
-
-```bash
-pip install tool-scorer
-```
-
-## What You Get
-
-| Feature | How |
-|---------|-----|
-| In-memory evaluation | `evaluate(expected, actual)` |
-| Auto-detect provider responses | `evaluate(expected, openai_response)` — no manual extraction |
-| End-to-end agent testing | `test_agent(agent=fn, input=..., expected=..., min_score=0.9)` |
-| One-liner test assertion | `assert_tools(expected, actual, min_score=0.9)` |
-| Data-driven pytest tests | `@toolscore.cases([...])` parametrize decorator |
-| OpenAI/Anthropic/Gemini extraction | `from_openai(response)`, `from_anthropic()`, `from_gemini()` |
-| 6 CLI commands | `toolscore eval`, `compare`, `regression`, `init`, `generate`, `validate` |
-| Self-explaining failures | Shows MISSING / EXTRA / MISMATCH with actionable tips |
-| Regression testing | Save baselines, catch degradation in CI |
-| Pytest plugin | Fixtures, markers, assertion helpers |
-| GitHub Action | One-click CI/CD setup |
-| 4 report formats | HTML, JSON, CSV, Markdown |
-| 6 trace formats | OpenAI, Anthropic, Gemini, LangChain, MCP, Custom (auto-detected) |
-
-## Python API
-
-### Basic evaluation
-
-```python
-from toolscore import evaluate, assert_tools
-
-# Get a detailed result
-result = evaluate(
-    expected=[{"tool": "search", "args": {"q": "test"}}],
-    actual=[{"tool": "search", "args": {"q": "test"}}],
-)
-assert result.score == 1.0
-```
-
-### With LLM provider responses (auto-detected)
-
-Pass raw API responses directly — Toolscore auto-detects the format:
-
-```python
-from openai import OpenAI
-from toolscore import evaluate
-
-client = OpenAI()
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=[...],
-    tools=[...],
-)
-
-# No from_openai() needed — auto-detected!
-result = evaluate(expected=[...], actual=response)
-```
-
-Works with OpenAI, Anthropic, and Gemini responses. You can still use `from_openai()` / `from_anthropic()` / `from_gemini()` explicitly if you prefer.
-
-### End-to-end agent testing
+One-liner for any test framework — `assert_tools(expected, actual, min_score=0.9)`. End-to-end in one call:
 
 ```python
 from toolscore import test_agent
 
-result = test_agent(
-    agent=my_agent_fn,          # any callable that returns an LLM response
-    input="What's the weather?",
+test_agent(
+    agent=my_agent,                 # any callable: prompt in, response out
+    input="What's the weather in NYC?",
     expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
-    min_score=0.9,              # optional: raises if below
+    min_score=0.9,
 )
 ```
 
-### One-liner for tests
+Async agents are first-class: `await test_agent_async(...)`, or `await expect(my_async_agent).on(prompt).calls(...).run_async()`.
+
+Omit `args` in an expected call (or use `.calls("tool")` with no kwargs) to assert the tool was called *without* checking its arguments. An explicit `"args": {}` means "expect zero arguments".
+
+## Native Everywhere — Zero Glue
+
+Pass raw responses straight into `evaluate()`, `expect()`, `test_agent()`, or the snapshot fixture. Toolscore auto-detects the format — no manual extraction:
+
+| Source | Auto-detected | Explicit helper |
+|--------|:---:|---------------|
+| OpenAI (Chat Completions, legacy `function_call`) | Yes | `from_openai` |
+| Anthropic (`tool_use` blocks) | Yes | `from_anthropic` |
+| Google Gemini (`functionCall` parts) | Yes | `from_gemini` |
+| LangGraph (state / message lists) | Yes | `from_langgraph` |
+| Pydantic AI (run results) | Yes | `from_pydantic_ai` |
+| OpenAI Agents SDK (run results) | Yes | `from_openai_agents` |
+| Claude Agent SDK (message lists) | Yes | `from_claude_agent_sdk` |
+| CrewAI (experimental) | Yes | `from_crewai` |
+| MCP (JSON-RPC 2.0 traces) | Yes | file-based `format="mcp"` |
+| LangChain / custom trace files | Yes | file-based `format="auto"` |
 
 ```python
-from toolscore import assert_tools
+response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+result = evaluate(expected=[...], actual=response)   # just works
+```
 
-assert_tools(
-    expected=[{"tool": "search", "args": {"q": "test"}}],
-    actual=[{"tool": "search", "args": {"q": "test"}}],
-    min_score=0.9,  # raises ToolScoreAssertionError if below
+## Matchers — Flexible Where It Matters
+
+Exact equality is the default; matchers loosen exactly the arguments you choose:
+
+| Matcher | Matches | Example |
+|---------|---------|---------|
+| `ANY` | anything | `calls("search", q=ANY)` |
+| `Regex(pattern)` | full string match | `Regex(r"FL-\d+")` |
+| `Approx(value, rel, abs)` | numbers within tolerance | `Approx(40.71, rel=1e-2)` |
+| `Contains(item)` | membership in str/list/dict | `Contains("metric")` |
+| `OneOf(*values)` | any of the candidates | `OneOf("NYC", "New York")` |
+| `IsType(*types)` | isinstance check (bool-safe) | `IsType(int)` |
+
+```python
+from toolscore import evaluate, Approx, Contains, IsType, OneOf
+
+evaluate(
+    expected=[{"tool": "get_weather", "args": {
+        "city": OneOf("NYC", "New York"),
+        "units": Contains("metric"),
+        "lat": Approx(40.71, rel=1e-2),
+        "days": IsType(int),
+    }}],
+    actual=[{"tool": "get_weather", "args": {
+        "city": "NYC", "units": ["metric", "extended"], "lat": 40.7128, "days": 5,
+    }}],
 )
 ```
 
-## When Things Go Wrong
+Matchers work everywhere expected args do: `evaluate`, `assert_tools`, `expect().calls(...)`, gold files.
 
-Toolscore doesn't just give you a number — it tells you *what* went wrong and *how* to fix it. Here's a failing evaluation:
+## Failures You Can Actually Read
 
-```python
-result = evaluate(
-    expected=[
-        {"tool": "search_web", "args": {"query": "Python tutorials"}},
-        {"tool": "summarize", "args": {"text": "..."}},
-    ],
-    actual=[
-        {"tool": "web_search", "args": {"query": "Python tutorials"}},
-        {"tool": "send_email", "args": {"to": "user@example.com"}},
-    ],
-)
-print(result.score)  # 0.35
-```
-
-Run the CLI with `--verbose` to see exactly what happened:
+When a threshold is missed, Toolscore renders an aligned expected-vs-actual table with per-argument mismatches and targeted tips — in the exception message itself, so it lands directly in your pytest output:
 
 ```
-toolscore eval gold.json trace.json --verbose
+                                   Expected vs Actual Tool Calls
+┏━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃   # ┃ Expected                     ┃ Actual                       ┃ Status                       ┃
+┡━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│   1 │ search_flights(origin='SFO', │ search_flights(origin='SFO', │ destination: 'NYC' ≠ 'BOS'   │
+│     │ destination='NYC')           │ destination='BOS')           │                              │
+├─────┼──────────────────────────────┼──────────────────────────────┼──────────────────────────────┤
+│   2 │ book_flight(flight_id='FL-1… │ cancel_booking(booking_id='… │ tool: 'book_flight' ≠        │
+│     │                              │                              │ 'cancel_booking'             │
+└─────┴──────────────────────────────┴──────────────────────────────┴──────────────────────────────┘
+score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
 
-  Toolscore Evaluation Results
-
-  Expected calls: 2
-  Actual calls:   2
-
-  Metric              Score     Details
-  Selection Accuracy  0.0%      0 of 2 correct
-  Argument F1         50.0%     P:100.0% R:50.0%
-  Sequence Accuracy   0.0%      Edit distance: 2
-
-  What Went Wrong:
-    MISSING: Expected tool 'search_web' was never called
-    MISMATCH: Position 0 — expected 'search_web', got 'web_search' (similar name?)
-    EXTRA: Tool 'send_email' was called but not expected
-
-  Tips:
-    TIP: 'search_web' and 'web_search' look similar — use --llm-judge to check semantic equivalence
-    TIP: Review prompt instructions for tool naming conventions
+Tips:
+  • Use --llm-judge flag to catch semantic equivalence
+  • Check that your agent has access to all required tools
+  • Verify tool names match exactly (case-sensitive)
 ```
 
-## Pytest Integration
+(That is real output from a deliberately failing `assert_tools` — color in a TTY, plain text in CI logs.)
 
-The simplest approach — `assert_tools` works anywhere:
+The composite `result.score` weighs selection accuracy (40%), argument F1 (30%), sequence accuracy (20%), and redundancy (10%); pass `weights={...}` to re-balance (weights are renormalized to sum to 1.0).
 
-```python
-from toolscore import assert_tools
+## Optional: LLM Judge for Every Provider
 
-def test_my_agent():
-    actual = my_agent("What's the weather in NYC?")
-    assert_tools(
-        expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
-        actual=actual,  # raw LLM response or list of dicts — both work
-        min_score=0.9,
-    )
-```
-
-Data-driven tests with `@toolscore.cases()`:
-
-```python
-import toolscore
-
-@toolscore.cases([
-    {"input": "weather NYC", "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}]},
-    {"input": "email bob",   "expected": [{"tool": "send_email", "args": {"to": "bob"}}]},
-])
-def test_my_agent(input, expected):
-    response = my_agent(input)
-    toolscore.assert_tools(expected=expected, actual=response, min_score=0.9)
-```
-
-For file-based workflows, use the built-in fixtures:
-
-```python
-def test_agent_accuracy(toolscore_eval, toolscore_assert):
-    """Test that agent achieves high accuracy."""
-    result = toolscore_eval("gold_calls.json", "trace.json")
-    toolscore_assert.assert_selection_accuracy(result, threshold=0.9)
-    toolscore_assert.assert_argument_f1(result, min_f1=0.8)
-```
-
-Configure directories via CLI options:
+When `search_web` vs `web_search` is a semantic question, opt into an LLM judge — via OpenAI, Anthropic, Gemini, or any OpenAI-compatible endpoint (Ollama, vLLM, Groq):
 
 ```bash
-pytest --toolscore-gold-dir tests/gold_standards --toolscore-trace-dir tests/traces
+toolscore eval gold.json trace.json --llm-judge                                  # OpenAI default
+toolscore eval gold.json trace.json --llm-judge --llm-model claude-3-5-haiku-latest
+toolscore eval gold.json trace.json --llm-judge --llm-model llama3.1 \
+    --llm-base-url http://localhost:11434/v1                                     # local Ollama
 ```
-
-## CLI
-
-Six commands cover the full workflow:
-
-```bash
-toolscore eval gold.json trace.json              # Evaluate
-toolscore eval gold.json trace.json --verbose     # Full detail + failure analysis
-toolscore eval gold.json trace.json --html report.html  # HTML report
-toolscore compare gold.json gpt4.json claude.json # Side-by-side model comparison
-toolscore regression baseline.json trace.json -g gold.json  # CI regression check
-toolscore init                                    # Scaffold a new project
-toolscore generate --from-openai funcs.json       # Synthetic test data from schemas
-toolscore validate trace.json                     # Check trace format
-```
-
-## Metrics Deep Dive
-
-The composite `result.score` is a weighted average of four core metrics:
-
-| Metric | Weight | Plain English |
-|--------|--------|---------------|
-| **Selection Accuracy** | 40% | Did it pick the right tools? |
-| **Argument F1** | 30% | Did it pass the right arguments? |
-| **Sequence Accuracy** | 20% | Did it call them in the right order? |
-| **Redundancy** (inverted) | 10% | Did it avoid unnecessary repeat calls? |
-
-Custom weights are supported:
 
 ```python
-result = evaluate(
-    expected=[...],
-    actual=[...],
-    weights={
-        "selection_accuracy": 0.5,
-        "argument_f1": 0.5,
-        "sequence_accuracy": 0.0,
-        "redundant_rate": 0.0,
-    },
-)
+from toolscore import evaluate_trace, JudgeConfig
+
+result = evaluate_trace("gold.json", "trace.json",
+                        judge=JudgeConfig(model="gemini-2.0-flash"))
 ```
 
-Additional metrics available in verbose mode: invocation accuracy, tool correctness, trajectory accuracy, cost tracking, latency.
+The provider is inferred from the model name. Install extras as needed: `tool-scorer[llm]` (OpenAI/compatible), `[anthropic]`, `[gemini]`. Everything else in Toolscore stays deterministic and offline.
 
-## CI/CD & Regression Testing
+## CI/CD
 
-### GitHub Action
+`toolscore init` writes a GitHub Actions workflow that replays your approved snapshots on every push. Or use the official action directly:
 
 ```yaml
+# Gold-standard evaluation with a threshold
 - uses: yotambraun/toolscore@v1
   with:
     gold-file: tests/gold_standard.json
     trace-file: tests/agent_trace.json
     threshold: '0.90'
+
+# MCP scorecard mode — grade your MCP server on every PR
+- uses: yotambraun/toolscore@v1
+  with:
+    mcp-command: 'uvx my-mcp-server'
+    mcp-fail-under: 'B'
 ```
 
-### Regression testing
-
-Save a baseline, then check for regressions on every run:
+Baseline regression checks catch slow degradation:
 
 ```bash
-# Save a baseline
-toolscore eval gold.json trace.json --save-baseline baseline.json
-
-# Check for regressions (fails if accuracy drops >5%)
+toolscore eval gold.json trace.json --save-baseline baseline.json   # once
 toolscore regression baseline.json new_trace.json --gold-file gold.json
+# exit codes: 0 = PASS, 1 = regression detected, 2 = error
 ```
 
-Exit codes: `0` = PASS, `1` = FAIL (regression detected), `2` = ERROR — plug directly into CI.
+## When to Use Toolscore vs. the Platforms
 
-## Supported Formats
+Toolscore is the pytest of tool-calling: it runs in your test suite, deterministically, for free. Observability and eval platforms watch your agent in production. Use both.
 
-| Provider | Format | Auto-detected |
-|----------|--------|---------------|
-| OpenAI | `tool_calls` / `function_call` | Yes |
-| Anthropic | `tool_use` content blocks | Yes |
-| Google Gemini | `functionCall` parts | Yes |
-| MCP | JSON-RPC 2.0 | Yes |
-| LangChain | `tool` / `tool_input` | Yes |
-| Custom | `{"calls": [{"tool": ..., "args": ...}]}` | Yes |
+| You want to... | Use |
+|----------------|-----|
+| Fail the CI build when tool calls drift, deterministically, $0 per run | **Toolscore** |
+| Grade and lint an MCP server | **Toolscore** (`toolscore mcp test`) |
+| Score production traces across many quality dimensions (hallucination, toxicity, RAG) | [DeepEval](https://github.com/confident-ai/deepeval), [MLflow](https://mlflow.org/) |
+| Trace, monitor, and debug agents in production | [LangSmith](https://smith.langchain.com/), [Arize Phoenix](https://phoenix.arize.com/) |
+| Evaluate RAG retrieval/faithfulness | [Ragas](https://github.com/explodinggradients/ragas) |
+| Safety-focused evaluation harnesses | [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) |
 
-## Advanced Features
+Toolscore does one thing well: it verifies your agent calls the right tools, with the right arguments, in the right order — before you ship.
 
-### LLM-as-a-Judge
+## Learn More
 
-Semantic tool name matching when exact names don't line up (requires OpenAI API key):
-
-```bash
-toolscore eval gold.json trace.json --llm-judge
-```
-
-### Cost Tracking
-
-Token usage and pricing estimation for OpenAI, Anthropic, and Gemini models:
-
-```python
-from toolscore.metrics.cost_estimator import calculate_llm_cost, estimate_trace_cost
-
-cost = calculate_llm_cost("gpt-4o", input_tokens=1000, output_tokens=500)
-trace_cost = estimate_trace_cost("gpt-4o", trace_calls)
-```
-
-### Schema Validation
-
-Validate argument types, ranges, and patterns against JSON schemas:
-
-```python
-from toolscore.validators.schema import validate_argument_schema
-
-valid, errors = validate_argument_schema(call, schema={
-    "query": {"type": "string", "minLength": 1},
-    "limit": {"type": "integer", "minimum": 1, "maximum": 100},
-})
-```
-
-### Side-Effect Validation
-
-Verify HTTP responses, files created, and database rows after tool execution:
-
-```bash
-toolscore eval gold.json trace.json  # side-effect validation is on by default
-```
-
-### Trace Capture
-
-Record production tool calls with the `@capture_trace` decorator:
-
-```python
-from toolscore import capture_trace
-
-@capture_trace(name="my-agent")
-def run_agent(prompt):
-    # ... your agent code ...
-    return result
-```
-
-### Synthetic Test Generation
-
-Generate gold-standard test cases from OpenAI function schemas:
-
-```bash
-toolscore generate --from-openai functions.json -n 10 --output gold.json
-```
-
-### Interactive Debug
-
-Step through mismatches one by one:
-
-```bash
-toolscore eval gold.json trace.json --debug
-```
-
-### Multi-Model Comparison
-
-Compare two or more models side by side:
-
-```bash
-toolscore compare gold.json gpt4.json claude.json -n gpt-4 -n claude-3
-```
-
-## When to Use Toolscore vs. Alternatives
-
-| Use case | Recommendation |
-|----------|---------------|
-| **Fast, deterministic tool-call checks in CI without API costs** | **Toolscore** |
-| **Comprehensive LLM evaluation across multiple dimensions** (hallucination, toxicity, RAG, tool calls, etc.) | [DeepEval](https://github.com/confident-ai/deepeval) |
-| **RAG pipeline evaluation** (retrieval quality, answer faithfulness) | [Ragas](https://github.com/explodinggradients/ragas) |
-| **Government/safety-focused AI evaluation** | [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) |
-| **Tracing and observability for LangChain apps** | [LangSmith](https://smith.langchain.com/) |
-
-Toolscore does **one thing well**: it checks whether your agent called the right tools with the right arguments, deterministically, with zero cost. If you need broader LLM evaluation, the tools above are excellent choices.
-
-## File-Based API
-
-The original file-based API is still fully supported:
-
-```python
-from toolscore import evaluate_trace
-
-result = evaluate_trace(
-    gold_file="gold_calls.json",
-    trace_file="trace.json",
-    format="auto",
-)
-print(result.score)
-print(result.selection_accuracy)
-```
+- [Documentation](https://tool-scorer.readthedocs.io) — full API reference and guides
+- [TUTORIAL.md](TUTORIAL.md) — step-by-step walkthrough, from first score to CI
+- [CHANGELOG.md](CHANGELOG.md) — what's new
+- [Medium article](https://medium.com/@yotambraun/stop-shipping-broken-llm-agents-toolscore-for-reliable-tool-using-ai-now-with-ci-cd-462913cf99e2) — the story behind Toolscore
 
 ## Development
 
