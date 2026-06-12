@@ -179,6 +179,19 @@ def test_process_crash_raises_with_diagnostics() -> None:
         c.close()
 
 
+def test_stderr_buffer_is_bounded() -> None:
+    """The in-memory stderr buffer caps retained lines so a chatty server
+    cannot grow it without bound; only the most recent lines are kept."""
+    c = MCPStdioClient(_server_command())
+    for i in range(700):
+        c._stderr_lines.append(f"line{i}\n")
+    assert len(c._stderr_lines) == 500
+    # The oldest lines were dropped; the most recent ones remain in the tail.
+    tail = c._stderr_tail()
+    assert "line0\n" not in tail
+    assert "line699\n" in tail
+
+
 # -- context manager ------------------------------------------------------
 
 

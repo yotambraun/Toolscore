@@ -141,6 +141,41 @@ def test_store_path_unique_per_name(tmp_path) -> None:
     assert p1 != p2
 
 
+def test_store_save_non_serializable_arg_raises_valueerror(tmp_path) -> None:
+    # A non-JSON-serializable arg value (datetime/Decimal/numpy scalar from
+    # auto_extract) must raise a helpful ValueError and leave NO file behind.
+    from datetime import datetime, timezone
+
+    store = SnapshotStore(tmp_path)
+    bad = Snapshot(
+        name="bad",
+        calls=[{"tool": "t", "args": {"when": datetime(2020, 1, 1, tzinfo=timezone.utc)}}],
+    )
+    with pytest.raises(ValueError, match="JSON-serializable") as exc:
+        store.save(bad)
+    assert "bad" in str(exc.value)
+    # No partial/temp file is left on disk.
+    assert list(tmp_path.glob("*")) == []
+
+
+def test_store_failed_resave_leaves_existing_file_unchanged(tmp_path) -> None:
+    # A failed atomic re-save (non-serializable arg) must not corrupt or replace
+    # the previously approved baseline on disk.
+    from datetime import datetime, timezone
+
+    store = SnapshotStore(tmp_path)
+    good = Snapshot(name="g", calls=[{"tool": "t", "args": {"q": "y"}}], approved=True)
+    path = store.save(good)
+    before = path.read_text(encoding="utf-8")
+    bad = Snapshot(
+        name="g",
+        calls=[{"tool": "t", "args": {"d": datetime(2020, 1, 1, tzinfo=timezone.utc)}}],
+    )
+    with pytest.raises(ValueError):
+        store.save(bad)
+    assert path.read_text(encoding="utf-8") == before
+
+
 def test_store_traversal_name_round_trips(tmp_path) -> None:
     store = SnapshotStore(tmp_path)
     snap = Snapshot(name="../../evil", calls=[{"tool": "x", "args": {}}])

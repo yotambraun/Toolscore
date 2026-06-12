@@ -23,10 +23,12 @@ Example::
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import re
+import tempfile
 import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -203,10 +205,33 @@ class SnapshotStore:
         """
         snapshot.updated_at = _utcnow()
         path = self.path_for(snapshot.name)
+        # Serialize fully *before* touching the destination so a non-serializable
+        # value never leaves a truncated file behind (which would make every later
+        # run fail with "Corrupt snapshot file").
+        try:
+            payload = json.dumps(snapshot.to_dict(), indent=2, ensure_ascii=False) + "\n"
+        except TypeError as e:
+            raise ValueError(
+                f"Cannot save snapshot {snapshot.name!r}: tool-call arguments must "
+                f"be JSON-serializable (got {e}). Convert non-serializable values "
+                "(e.g. datetime, Decimal, numpy scalars) to plain JSON types — "
+                "strings, numbers, booleans, lists, or dicts — before recording."
+            ) from e
         path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("w", encoding="utf-8") as f:
-            json.dump(snapshot.to_dict(), f, indent=2, ensure_ascii=False)
-            f.write("\n")
+        # Write atomically: a temp file in the same directory + os.replace so a
+        # crash mid-write can never corrupt an existing (possibly approved) baseline.
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
+        )
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(payload)
+            tmp_path.replace(path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
+            raise
         return path
 
     def approve(self, name: str) -> Snapshot:

@@ -24,6 +24,7 @@ Typical usage::
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import json
 import os
@@ -148,7 +149,9 @@ class MCPStdioClient:
         self._stdout_queue: queue.Queue[dict[str, Any] | None] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
-        self._stderr_lines: list[str] = []
+        # Bounded buffer: verbose servers can emit unlimited stderr, so cap the
+        # retained lines to the most recent 500 (only the tail is ever surfaced).
+        self._stderr_lines: collections.deque[str] = collections.deque(maxlen=500)
         self._stderr_lock = threading.Lock()
 
         self._next_id = 0
