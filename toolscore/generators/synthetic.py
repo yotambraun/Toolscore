@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-def _generate_value_from_schema(
+def generate_value_from_schema(
     param_name: str, param_schema: dict[str, Any], variation: str = "normal"
 ) -> Any:
     """Generate a value based on parameter schema and variation type.
@@ -117,7 +117,7 @@ def _generate_value_from_schema(
             count = random.randint(min_items, min(max_items, 3))
 
         return [
-            _generate_value_from_schema(f"{param_name}_item", items_schema, "normal")
+            generate_value_from_schema(f"{param_name}_item", items_schema, "normal")
             for _ in range(count)
         ]
 
@@ -125,11 +125,19 @@ def _generate_value_from_schema(
     elif param_type == "object":
         properties = param_schema.get("properties", {})
         return {
-            key: _generate_value_from_schema(key, value, variation)
+            key: generate_value_from_schema(key, value, variation)
             for key, value in properties.items()
         }
 
     return None
+
+
+#: Backwards-compatible private alias for :func:`generate_value_from_schema`.
+#:
+#: The helper was originally private; it is now part of the public API so the
+#: MCP harness can reuse it, but this alias is retained for any existing
+#: callers that imported the underscore-prefixed name.
+_generate_value_from_schema = generate_value_from_schema
 
 
 def _create_test_case(function_def: dict[str, Any], variation: str = "normal") -> dict[str, Any]:
@@ -154,7 +162,7 @@ def _create_test_case(function_def: dict[str, Any], variation: str = "normal") -
         if variation == "normal" and param_name not in required and random.random() > 0.5:
             continue
 
-        args[param_name] = _generate_value_from_schema(param_name, param_schema, variation)
+        args[param_name] = generate_value_from_schema(param_name, param_schema, variation)
 
     # Build metadata with schema
     metadata: dict[str, Any] = {

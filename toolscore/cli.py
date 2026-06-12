@@ -1,6 +1,7 @@
 """Command-line interface for Toolscore."""
 
 import json
+import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -849,6 +850,285 @@ def regression(
         if verbose:
             raise
         sys.exit(2)
+
+
+def _resolve_mcp_command(
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    console: Console,
+) -> tuple[list[str], dict[str, str]]:
+    """Resolve an MCP launch command from a positional string or a config file.
+
+    Exactly one source must be supplied: either a single shell-quoted command
+    string (positional argument) or a ``--config`` path. Supplying both or
+    neither is an error.
+
+    Args:
+        command: The positional command tokens as Click parsed them (Click
+            splits on whitespace, so this is re-joined and ``shlex``-split).
+        config: Path to a Claude Desktop style config file, or ``None``.
+        server: The server name to select from the config, or ``None``.
+        console: Console for printing error output.
+
+    Returns:
+        A tuple of ``(command_vector, env_overrides)``.
+
+    Raises:
+        SystemExit: With code 2 if the inputs are ambiguous, missing, or the
+            config cannot be loaded.
+    """
+    from toolscore.mcp import load_mcp_config
+
+    positional = " ".join(command).strip()
+
+    if positional and config is not None:
+        print_error("Provide exactly one of a server command or --config, not both.", console)
+        sys.exit(2)
+    if not positional and config is None:
+        print_error(
+            "Provide an MCP server command (quoted) or --config PATH [--server NAME].",
+            console,
+        )
+        sys.exit(2)
+
+    if positional:
+        return shlex.split(positional), {}
+
+    assert config is not None  # narrowed by the checks above
+    try:
+        spec = load_mcp_config(config, server=server)
+    except (FileNotFoundError, ValueError) as exc:
+        print_error(f"Failed to load MCP config: {exc}", console)
+        sys.exit(2)
+    return spec.command, spec.env
+
+
+@main.group()
+def mcp() -> None:
+    """Test, lint, and score MCP servers.
+
+    Point these commands at any MCP server -- either by passing its launch
+    command as a single quoted string, or via a Claude Desktop style config
+    file with --config/--server.
+    """
+
+
+@mcp.command("list")
+@click.argument("command", nargs=-1)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Claude Desktop style MCP config file (alternative to a command).",
+)
+@click.option("--server", default=None, help="Server name to select from --config.")
+@click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
+def mcp_list(
+    command: tuple[str, ...], config: Path | None, server: str | None, timeout: float
+) -> None:
+    """List the tools advertised by an MCP server.
+
+    COMMAND: the server launch command as a single quoted string,
+    e.g. "python server.py" (omit when using --config).
+    """
+    from toolscore.mcp import MCPStdioClient
+
+    console = Console()
+    cmd, env = _resolve_mcp_command(command, config, server, console)
+
+    try:
+        with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
+            info = client.server_info
+            tools = client.list_tools()
+    except Exception as exc:  # surface any launch/protocol failure to the user
+        print_error(f"Failed to query MCP server: {exc}", console)
+        sys.exit(1)
+
+    name = str(info.get("name", "unknown server"))
+    version = str(info.get("version", ""))
+    console.print(f"\n[bold]{name}[/bold] [dim]{version}[/dim]  ({len(tools)} tools)\n")
+
+    table = Table(header_style="bold magenta")
+    table.add_column("Tool", style="cyan")
+    table.add_column("Params", justify="right")
+    table.add_column("Description", style="dim")
+    for tool in tools:
+        params = (
+            tool.input_schema.get("properties", {}) if isinstance(tool.input_schema, dict) else {}
+        )
+        description = tool.description or "[red](no description)[/red]"
+        table.add_row(tool.name, str(len(params)), description)
+    console.print(table)
+    console.print()
+
+
+@mcp.command("lint")
+@click.argument("command", nargs=-1)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Claude Desktop style MCP config file (alternative to a command).",
+)
+@click.option("--server", default=None, help="Server name to select from --config.")
+@click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
+def mcp_lint(
+    command: tuple[str, ...], config: Path | None, server: str | None, timeout: float
+) -> None:
+    """Statically lint an MCP server's tool schemas.
+
+    Exits 1 if any error-severity issue is found.
+
+    COMMAND: the server launch command as a single quoted string
+    (omit when using --config).
+    """
+    from toolscore.mcp import MCPStdioClient, lint_tools
+
+    console = Console()
+    cmd, env = _resolve_mcp_command(command, config, server, console)
+
+    try:
+        with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
+            tools = client.list_tools()
+    except Exception as exc:  # surface any launch/protocol failure to the user
+        print_error(f"Failed to query MCP server: {exc}", console)
+        sys.exit(1)
+
+    issues = lint_tools(tools)
+    errors = sum(1 for i in issues if i.severity == "error")
+    warnings = sum(1 for i in issues if i.severity == "warning")
+
+    if not issues:
+        console.print(f"\n[green]OK[/green] No lint issues across {len(tools)} tools.\n")
+        return
+
+    console.print(f"\n[bold]Lint:[/bold] {errors} errors, {warnings} warnings\n")
+    table = Table(header_style="bold magenta")
+    table.add_column("Severity")
+    table.add_column("Tool", style="cyan")
+    table.add_column("Message")
+    for issue in issues:
+        color = "red" if issue.severity == "error" else "yellow"
+        table.add_row(f"[{color}]{issue.severity}[/{color}]", issue.tool, issue.message)
+    console.print(table)
+    console.print()
+
+    if errors:
+        sys.exit(1)
+
+
+@mcp.command("test")
+@click.argument("command", nargs=-1)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Claude Desktop style MCP config file (alternative to a command).",
+)
+@click.option("--server", default=None, help="Server name to select from --config.")
+@click.option("--cases", type=int, default=3, help="Happy-path scenarios per tool (default: 3).")
+@click.option("--no-edge-cases", is_flag=True, default=False, help="Skip edge-case scenarios.")
+@click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
+@click.option(
+    "--report",
+    type=click.Choice(["md", "json"]),
+    default=None,
+    help="Write a Markdown or JSON report (in addition to the console summary).",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Path for the --report file.",
+)
+@click.option(
+    "--fail-under",
+    default=None,
+    help="Minimum acceptable grade (A-F); exit 1 if the scorecard grade is below it.",
+)
+def mcp_test(
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    cases: int,
+    no_edge_cases: bool,
+    timeout: float,
+    report: str | None,
+    output: Path | None,
+    fail_under: str | None,
+) -> None:
+    """Run the full scorecard against an MCP server.
+
+    Spins up the server, generates happy-path and edge-case scenarios from each
+    tool's schema, executes them, lints the schemas, and prints an A-F
+    scorecard.
+
+    COMMAND: the server launch command as a single quoted string,
+    e.g. "python server.py" (omit when using --config).
+    """
+    from toolscore.mcp import (
+        MCPScorecard,
+        MCPStdioClient,
+        generate_scenarios,
+        grade_meets,
+        lint_tools,
+        print_scorecard,
+        run_scenarios,
+        scorecard_to_json,
+        scorecard_to_markdown,
+    )
+
+    console = Console()
+
+    valid_grades = {"A", "B", "C", "D", "F"}
+    if fail_under is not None and fail_under.upper() not in valid_grades:
+        print_error(f"--fail-under must be one of A-F, got {fail_under!r}.", console)
+        sys.exit(2)
+
+    if report is not None and output is None:
+        print_error("--report requires --output PATH.", console)
+        sys.exit(2)
+
+    cmd, env = _resolve_mcp_command(command, config, server, console)
+
+    try:
+        with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
+            tools = client.list_tools()
+            scenarios = generate_scenarios(
+                tools, cases_per_tool=cases, include_edge_cases=not no_edge_cases
+            )
+            results = run_scenarios(client, scenarios)
+            server_info = client.server_info
+    except Exception as exc:  # surface any launch/protocol failure to the user
+        print_error(f"Failed to test MCP server: {exc}", console)
+        sys.exit(1)
+
+    card = MCPScorecard(
+        server_info=server_info,
+        tools=tools,
+        results=results,
+        lint=lint_tools(tools),
+    )
+
+    if report is not None and output is not None:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        if report == "json":
+            output.write_text(json.dumps(scorecard_to_json(card), indent=2), encoding="utf-8")
+        else:
+            output.write_text(scorecard_to_markdown(card), encoding="utf-8")
+        name = str(server_info.get("name", "server"))
+        console.print(
+            f"[bold]{name}[/bold] -> Grade [bold]{card.grade}[/bold] "
+            f"(score {card.score:.0%}). Report written to [cyan]{output}[/cyan]."
+        )
+    else:
+        print_scorecard(card, console=console)
+
+    if fail_under is not None and not grade_meets(card.grade, fail_under):
+        console.print(f"[red]Grade {card.grade} is below the required {fail_under.upper()}.[/red]")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
