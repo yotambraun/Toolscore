@@ -60,25 +60,102 @@ Only applicable if you specify ``side_effects`` in your gold standard.
 LLM-as-a-judge Semantic Correctness (Optional)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Uses OpenAI API to evaluate semantic equivalence beyond exact string matching.
-
-Great for catching cases where tool names differ but intentions match (e.g., ``search_web`` vs ``web_search``).
+An optional LLM judge scores *semantic* equivalence beyond exact string
+matching — great for catching cases where tool names differ but intentions match
+(``search_web`` vs ``web_search``). It supports OpenAI, Anthropic, Gemini, and any
+OpenAI-compatible endpoint (Ollama/vLLM/Groq).
 
 .. code-block:: python
 
-   # Requires: pip install tool-scorer[llm]
-   # Set OPENAI_API_KEY environment variable
-   from toolscore.metrics import calculate_semantic_correctness
+   # Requires the provider's extra, e.g. pip install tool-scorer[llm]
+   # and the matching API-key env var (OPENAI_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY)
+   from toolscore.metrics.llm_judge import calculate_semantic_correctness, JudgeConfig
 
+   # A bare model-name string is shorthand for JudgeConfig(model=...).
+   result = calculate_semantic_correctness(gold_calls, trace_calls, judge="gpt-4o-mini")
+
+   # Or full control via JudgeConfig (provider inferred from the model name):
    result = calculate_semantic_correctness(
-       gold_calls,
-       trace_calls,
-       model="gpt-4o-mini"  # or "gpt-4" for better accuracy
+       gold_calls, trace_calls,
+       judge=JudgeConfig(model="claude-3-5-haiku-latest"),
    )
 
    print(f"Semantic Score: {result['semantic_score']:.2%}")
    print(f"Per-call scores: {result['per_call_scores']}")
    print(f"Explanations: {result['explanations']}")
+
+.. note::
+   The judge is now configured through a single ``judge=`` argument (a
+   :class:`~toolscore.metrics.llm_judge.JudgeConfig`, a model-name string, or
+   ``None``). The older ``model=`` / ``use_llm_judge=...`` keyword arguments have
+   been removed. The file-based :func:`toolscore.evaluate_trace` also takes
+   ``judge=`` (``True`` for the default config). See the :doc:`llm_judge` guide
+   for provider inference, env-var keys, local endpoints, and CLI flags.
+
+Scoring Semantics
+-----------------
+
+The in-memory :func:`toolscore.evaluate` (and ``assert_tools``, the snapshot
+fixture, and the fluent ``expect()`` API) share three behaviors worth
+understanding.
+
+Omitted args vs ``{}``
+^^^^^^^^^^^^^^^^^^^^^^^
+
+**Omitting ``args`` means "do not check arguments"** — the tool must be called,
+but whatever arguments the agent passed are accepted. An explicit ``"args": {}``
+means "expect the tool to be called with **no** arguments."
+
+.. code-block:: python
+
+   from toolscore import evaluate
+
+   # Omitted args — tool-name-only. Any arguments are fine.
+   evaluate(expected=[{"tool": "search"}],
+            actual=[{"tool": "search", "args": {"q": "x"}}]).argument_f1   # 1.0
+
+   # Explicit {} — "expect no arguments". The agent passed one → mismatch.
+   evaluate(expected=[{"tool": "search", "args": {}}],
+            actual=[{"tool": "search", "args": {"q": "x"}}]).argument_f1   # 0.0
+
+See :doc:`matchers` for argument *shape* matchers (``ANY``, ``Regex``, …) and the
+full contract.
+
+Custom weights are renormalized
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The composite ``score`` is a weighted blend of ``selection_accuracy``,
+``argument_f1``, ``sequence_accuracy``, and ``redundant_rate``. When you pass
+``weights=``, your values are **merged with the defaults and then renormalized so
+they sum to 1.0** before scoring — you do not have to make them add up yourself.
+
+.. code-block:: python
+
+   # Score on tool selection alone (other weights zeroed, then renormalized to 1.0).
+   evaluate(
+       expected=[{"tool": "search"}],
+       actual=[{"tool": "search"}],
+       weights={"selection_accuracy": 1.0, "argument_f1": 0.0,
+                "sequence_accuracy": 0.0, "redundant_rate": 0.0},
+   )
+
+Unknown weight keys, negative/non-finite values, and an all-zero total are
+rejected with a ``ValueError``.
+
+Strict mode
+^^^^^^^^^^^
+
+By default argument comparison is lenient: ``1`` matches ``1.0`` and ``"NYC"``
+matches ``" NYC "``. Pass ``strict=True`` to require pure equality (no int/float
+coercion, no string stripping). Matchers run their own logic and are unaffected
+by ``strict``.
+
+.. code-block:: python
+
+   evaluate(expected=[{"tool": "f", "args": {"n": 1}}],
+            actual=[{"tool": "f", "args": {"n": 1.0}}]).argument_f1                 # 1.0
+   evaluate(expected=[{"tool": "f", "args": {"n": 1}}],
+            actual=[{"tool": "f", "args": {"n": 1.0}}], strict=True).argument_f1    # 0.0
 
 Working with Trace Formats
 ---------------------------
@@ -401,27 +478,29 @@ Using Fixtures
 .. code-block:: python
 
    # test_my_agent.py
-   def test_agent_accuracy(toolscore_eval, toolscore_assertions):
+   def test_agent_accuracy(toolscore_eval, toolscore_assert):
        """Test that agent achieves minimum accuracy."""
        result = toolscore_eval("gold_calls.json", "trace.json")
 
        # Use built-in assertions
-       toolscore_assertions.assert_invocation_accuracy(result, threshold=0.9)
-       toolscore_assertions.assert_selection_accuracy(result, threshold=0.9)
-       toolscore_assertions.assert_argument_f1(result, min_f1=0.8)
+       toolscore_assert.assert_invocation_accuracy(result, threshold=0.9)
+       toolscore_assert.assert_selection_accuracy(result, threshold=0.9)
+       toolscore_assert.assert_argument_f1(result, min_f1=0.8)
 
 Available Fixtures
 ^^^^^^^^^^^^^^^^^^
 
 * ``toolscore_eval``: Run evaluations with automatic path resolution
-* ``toolscore_assertions``: Pre-built assertion helpers
+* ``toolscore_assert``: Pre-built assertion helpers
+* ``toolscore_assert_tools``: The ``assert_tools`` one-liner as a fixture
+* ``toolscore_snapshot``: Record/approve/replay snapshots (see :doc:`snapshot_testing`)
 * ``toolscore_gold_dir``: Path to gold standards directory
 * ``toolscore_trace_dir``: Path to traces directory
 
 Assertion Helpers
 ^^^^^^^^^^^^^^^^^
 
-The ``toolscore_assertions`` fixture provides:
+The ``toolscore_assert`` fixture provides:
 
 * ``assert_invocation_accuracy(result, threshold, msg=None)``
 * ``assert_selection_accuracy(result, threshold, msg=None)``
@@ -437,21 +516,21 @@ Example Test Suite
    # tests/test_agent_performance.py
    import pytest
 
-   def test_agent_meets_requirements(toolscore_eval, toolscore_assertions):
+   def test_agent_meets_requirements(toolscore_eval, toolscore_assert):
        """Verify agent meets all accuracy requirements."""
        result = toolscore_eval("gold_standard.json", "agent_trace.json")
 
        # Multiple assertions
-       toolscore_assertions.assert_invocation_accuracy(result, 0.9)
-       toolscore_assertions.assert_selection_accuracy(result, 0.9)
-       toolscore_assertions.assert_argument_f1(result, 0.8)
+       toolscore_assert.assert_invocation_accuracy(result, 0.9)
+       toolscore_assert.assert_selection_accuracy(result, 0.9)
+       toolscore_assert.assert_argument_f1(result, 0.8)
 
-   def test_agent_efficiency(toolscore_eval, toolscore_assertions):
+   def test_agent_efficiency(toolscore_eval, toolscore_assert):
        """Verify agent doesn't make redundant calls."""
        result = toolscore_eval("gold_standard.json", "agent_trace.json")
-       toolscore_assertions.assert_redundancy_below(result, max_rate=0.1)
+       toolscore_assert.assert_redundancy_below(result, max_rate=0.1)
 
-   def test_multiple_scenarios(toolscore_eval, toolscore_assertions):
+   def test_multiple_scenarios(toolscore_eval, toolscore_assert):
        """Test agent across multiple scenarios."""
        scenarios = [
            ("scenario1_gold.json", "scenario1_trace.json", 0.95),
@@ -461,7 +540,7 @@ Example Test Suite
 
        for gold, trace, min_acc in scenarios:
            result = toolscore_eval(gold, trace)
-           toolscore_assertions.assert_selection_accuracy(
+           toolscore_assert.assert_selection_accuracy(
                result, min_acc, f"Failed for {gold}"
            )
 

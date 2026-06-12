@@ -42,8 +42,11 @@ Performance Metrics
 LLM-as-a-judge Metrics (Optional)
 ----------------------------------
 
-These metrics require the ``llm`` optional dependency (``pip install tool-scorer[llm]``)
-and an OpenAI API key.
+These metrics use an optional LLM judge that supports OpenAI, Anthropic, Gemini,
+and any OpenAI-compatible endpoint. Configure it with a
+:class:`~toolscore.metrics.llm_judge.JudgeConfig` (or a model-name string). See
+the :doc:`../llm_judge` guide for provider inference, env-var keys, and install
+extras.
 
 .. autofunction:: toolscore.metrics.llm_judge.calculate_semantic_correctness
 

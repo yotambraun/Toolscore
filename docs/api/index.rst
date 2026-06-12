@@ -8,7 +8,10 @@ This section contains the complete API documentation for Toolscore.
 
    core
    adapters
+   matchers
    metrics
+   snapshots
+   mcp
    validators
    reports
 
