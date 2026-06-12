@@ -406,8 +406,8 @@ Using Fixtures
        result = toolscore_eval("gold_calls.json", "trace.json")
 
        # Use built-in assertions
-       toolscore_assertions.assert_invocation_accuracy(result, min_accuracy=0.9)
-       toolscore_assertions.assert_selection_accuracy(result, min_accuracy=0.9)
+       toolscore_assertions.assert_invocation_accuracy(result, threshold=0.9)
+       toolscore_assertions.assert_selection_accuracy(result, threshold=0.9)
        toolscore_assertions.assert_argument_f1(result, min_f1=0.8)
 
 Available Fixtures
@@ -423,11 +423,11 @@ Assertion Helpers
 
 The ``toolscore_assertions`` fixture provides:
 
-* ``assert_invocation_accuracy(result, min_accuracy, msg=None)``
-* ``assert_selection_accuracy(result, min_accuracy, msg=None)``
-* ``assert_sequence_accuracy(result, min_accuracy, msg=None)``
+* ``assert_invocation_accuracy(result, threshold, msg=None)``
+* ``assert_selection_accuracy(result, threshold, msg=None)``
+* ``assert_sequence_accuracy(result, threshold, msg=None)``
 * ``assert_argument_f1(result, min_f1, msg=None)``
-* ``assert_redundancy_rate(result, max_rate, msg=None)``
+* ``assert_redundancy_below(result, max_rate, msg=None)``
 
 Example Test Suite
 ^^^^^^^^^^^^^^^^^^

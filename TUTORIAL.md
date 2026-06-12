@@ -694,10 +694,10 @@ def test_agent_meets_accuracy_threshold(toolscore_eval, toolscore_assertions):
     """Verify agent achieves minimum accuracy requirements."""
     result = toolscore_eval("gold_calls.json", "trace.json")
 
-    toolscore_assertions.assert_invocation_accuracy(result, min_accuracy=0.9)
-    toolscore_assertions.assert_selection_accuracy(result, min_accuracy=0.9)
+    toolscore_assertions.assert_invocation_accuracy(result, threshold=0.9)
+    toolscore_assertions.assert_selection_accuracy(result, threshold=0.9)
     toolscore_assertions.assert_argument_f1(result, min_f1=0.8)
-    toolscore_assertions.assert_sequence_accuracy(result, min_accuracy=0.8)
+    toolscore_assertions.assert_sequence_accuracy(result, threshold=0.8)
 ```
 
 ### Integration Helpers

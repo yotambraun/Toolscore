@@ -215,7 +215,7 @@ For file-based workflows, use the built-in fixtures:
 def test_agent_accuracy(toolscore_eval, toolscore_assert):
     """Test that agent achieves high accuracy."""
     result = toolscore_eval("gold_calls.json", "trace.json")
-    toolscore_assert.assert_selection_accuracy(result, min_accuracy=0.9)
+    toolscore_assert.assert_selection_accuracy(result, threshold=0.9)
     toolscore_assert.assert_argument_f1(result, min_f1=0.8)
 ```
 

@@ -65,7 +65,6 @@ def test_agent_efficiency(toolscore_eval, toolscore_assert):
 
 
 @pytest.mark.toolscore
-@pytest.mark.min_accuracy(0.95)
 def test_high_precision_agent(toolscore_eval):
     """Test agent meets high precision requirements."""
     result = toolscore_eval(
