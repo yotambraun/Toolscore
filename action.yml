@@ -41,6 +41,14 @@ inputs:
     description: 'Python version to use'
     required: false
     default: '3.11'
+  mcp-command:
+    description: 'MCP server command to test (e.g. "uvx my-mcp-server"). When set, the action runs `toolscore mcp test <command>` instead of the eval/regression path.'
+    required: false
+    default: ''
+  mcp-fail-under:
+    description: 'Minimum MCP scorecard grade (A-F or 0.0-1.0). Only used with mcp-command.'
+    required: false
+    default: 'B'
 
 outputs:
   selection-accuracy:
@@ -71,8 +79,20 @@ runs:
       shell: bash
       run: pip install tool-scorer
 
+    - name: Run MCP Scorecard
+      id: mcp-test
+      if: inputs.mcp-command != ''
+      shell: bash
+      env:
+        INPUT_MCP_COMMAND: ${{ inputs.mcp-command }}
+        INPUT_MCP_FAIL_UNDER: ${{ inputs.mcp-fail-under }}
+      run: |
+        echo "Running Toolscore MCP scorecard for: $INPUT_MCP_COMMAND"
+        toolscore mcp test "$INPUT_MCP_COMMAND" --fail-under "$INPUT_MCP_FAIL_UNDER"
+
     - name: Run Evaluation
       id: eval
+      if: inputs.mcp-command == ''
       shell: bash
       env:
         INPUT_GOLD_FILE: ${{ inputs.gold-file }}
@@ -163,7 +183,7 @@ runs:
         PYTHON_SCRIPT
 
     - name: Run Regression Check
-      if: inputs.baseline-file != ''
+      if: inputs.mcp-command == '' && inputs.baseline-file != ''
       id: regression
       shell: bash
       env:
@@ -201,7 +221,7 @@ runs:
         fi
 
     - name: Upload HTML Report
-      if: inputs.generate-report == 'true' && always()
+      if: inputs.mcp-command == '' && inputs.generate-report == 'true' && always()
       uses: actions/upload-artifact@v4
       with:
         name: toolscore-report
