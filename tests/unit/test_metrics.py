@@ -335,3 +335,43 @@ class TestNoneArgsContract:
         trace = [ToolCall(tool="t", args={"x": 12345})]
         result = calculate_argument_f1(gold, trace)
         assert result["f1"] == 1.0
+
+
+class TestZeroArgsVacuousMatch:
+    """'Expect zero args' met with zero args is a perfect match, not 0/0 -> 0."""
+
+    def test_empty_vs_empty_is_perfect(self) -> None:
+        gold = [ToolCall(tool="get_time", args={})]
+        trace = [ToolCall(tool="get_time", args={})]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 1.0
+        assert result["precision"] == 1.0
+        assert result["recall"] == 1.0
+
+    def test_empty_vs_populated_still_fails(self) -> None:
+        gold = [ToolCall(tool="get_time", args={})]
+        trace = [ToolCall(tool="get_time", args={"tz": "UTC"})]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 0.0
+
+    def test_composite_score_for_correct_no_arg_tool(self) -> None:
+        from toolscore import evaluate
+
+        result = evaluate(
+            [{"tool": "get_time", "args": {}}],
+            [{"tool": "get_time", "args": {}}],
+        )
+        assert result.argument_f1 == 1.0
+        assert result.score > 0.99
+
+    def test_mixed_empty_and_concrete_args(self) -> None:
+        gold = [
+            ToolCall(tool="get_time", args={}),
+            ToolCall(tool="search", args={"q": "x"}),
+        ]
+        trace = [
+            ToolCall(tool="get_time", args={}),
+            ToolCall(tool="search", args={"q": "x"}),
+        ]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 1.0

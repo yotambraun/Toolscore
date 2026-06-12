@@ -130,11 +130,12 @@ def calculate_argument_f1(
     total_correct = 0
     total_expected = 0
     total_actual = 0
-    # Number of gold calls that were skipped from arg scoring because they said
-    # "do not check arguments" (args is None) yet matched a trace call.  These
-    # count as perfect matches; we use them to resolve the all-skipped case
-    # (everything opted out) into f1 == 1.0 rather than an undefined 0/0 -> 0.
-    skipped_dont_check = 0
+    # Number of gold calls that matched a trace call but contributed nothing to
+    # the argument counts: either "do not check arguments" (args is None), or a
+    # genuinely argument-less pair ({} expected, {} provided).  Both are perfect
+    # (vacuous) matches; we use them to resolve the nothing-counted case into
+    # f1 == 1.0 rather than an undefined 0/0 -> 0.
+    vacuous_matches = 0
 
     # Match calls by tool name and position
     for i, gold_call in enumerate(gold_calls):
@@ -150,7 +151,7 @@ def calculate_argument_f1(
         # (vacuous) arg match and must never lower precision or recall.
         if gold_call.args is None:
             if trace_call is not None:
-                skipped_dont_check += 1
+                vacuous_matches += 1
             continue
 
         if trace_call:
@@ -160,18 +161,21 @@ def calculate_argument_f1(
             total_correct += correct
             total_expected += expected
             total_actual += actual
+            # "Expect zero args" met with zero args is a perfect match, not a
+            # 0/0 hole (e.g. a correctly-called get_time()).
+            if expected == 0 and actual == 0:
+                vacuous_matches += 1
         else:
             # Call was missing, count expected args as missed
             if gold_call.args:
                 total_expected += len(gold_call.args)
 
-    # When the only gold calls that matched a trace call all opted out of
-    # argument checking (args is None) and nothing concrete was counted, the
-    # arguments are vacuously perfect.  Without this, an all-None gold set would
-    # fall through to the 0/0 -> 0 division below and score f1 == 0.0, defeating
-    # the whole "do not check arguments" contract (e.g. the fluent-API hero case
-    # `.calls("a").then_calls("b")`).
-    if total_expected == 0 and total_actual == 0 and skipped_dont_check > 0:
+    # When every matched gold call was a vacuous arg match (opted out via
+    # args=None, or zero-args expected and provided) and nothing concrete was
+    # counted, the arguments are vacuously perfect.  Without this, an all-None
+    # gold set — or an agent correctly calling no-argument tools — would fall
+    # through to the 0/0 -> 0 division below and score f1 == 0.0.
+    if total_expected == 0 and total_actual == 0 and vacuous_matches > 0:
         return {"precision": 1.0, "recall": 1.0, "f1": 1.0}
 
     # Calculate precision and recall
