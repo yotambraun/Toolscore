@@ -446,8 +446,9 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 - API documentation
 - Usage examples
 
+[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.6.0...HEAD
 [1.6.0]: https://github.com/yotambraun/Toolscore/compare/v1.5.0...v1.6.0
-[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.4.0...HEAD
+[1.5.0]: https://github.com/yotambraun/toolscore/compare/v1.4.2...v1.5.0
 [1.4.0]: https://github.com/yotambraun/Toolscore/compare/v1.2.0...v1.4.0
 [1.2.0]: https://github.com/yotambraun/Toolscore/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/yotambraun/Toolscore/compare/v0.1.0...v1.1.0
