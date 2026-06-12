@@ -1131,5 +1131,372 @@ def mcp_test(
         sys.exit(1)
 
 
+# ---------------------------------------------------------------------------
+# record command
+# ---------------------------------------------------------------------------
+
+_DEFAULT_SNAP_DIR = ".toolscore/snapshots"
+
+
+@main.command(context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@click.option(
+    "--update",
+    is_flag=True,
+    default=False,
+    help="Overwrite an existing snapshot and approve it.",
+)
+@click.option(
+    "--from-trace",
+    "from_trace",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Load calls from a trace file instead of running a subprocess.",
+)
+@click.option(
+    "--name",
+    default=None,
+    help="Snapshot name (required with --from-trace).",
+)
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
+    default="auto",
+    help="Trace format (auto-detect by default); only used with --from-trace.",
+)
+@click.option(
+    "--dir",
+    "snap_dir",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=_DEFAULT_SNAP_DIR,
+    help=f"Snapshot store directory (default: {_DEFAULT_SNAP_DIR}).",
+)
+@click.argument("cmd", nargs=-1, type=click.UNPROCESSED)
+def record(
+    update: bool,
+    from_trace: Path | None,
+    name: str | None,
+    fmt: str,
+    snap_dir: Path,
+    cmd: tuple[str, ...],
+) -> None:
+    """Record tool-call snapshots.
+
+    Two modes:
+
+    \b
+    Subprocess mode — run pytest (or any command) and capture snapshots:
+      toolscore record [--update] -- pytest tests/ -k my_test
+
+    \b
+    Trace mode — load calls from an existing trace file:
+      toolscore record --from-trace trace.json --name my_snap [--format auto]
+
+    After recording, approve snapshots with `toolscore approve`.
+    """
+    import os
+    import subprocess
+
+    from toolscore.snapshots import Snapshot, SnapshotStore
+
+    console = Console()
+
+    # --- validate mutual exclusivity ---
+    if from_trace is not None and cmd:
+        print_error(
+            "--from-trace and a trailing command are mutually exclusive; use one or the other.",
+            console,
+        )
+        sys.exit(2)
+
+    if from_trace is None and not cmd:
+        print_error(
+            "Provide either --from-trace FILE or a command after --.",
+            console,
+        )
+        sys.exit(2)
+
+    if from_trace is not None and not name:
+        print_error("--name is required when using --from-trace.", console)
+        sys.exit(2)
+
+    # --- trace mode ---
+    if from_trace is not None:
+        assert name is not None  # checked above
+        from toolscore.core import load_trace
+
+        store = SnapshotStore(snap_dir)
+        try:
+            tool_calls = load_trace(from_trace, format=fmt)
+        except (FileNotFoundError, ValueError) as exc:
+            print_error(f"Failed to load trace: {exc}", console)
+            sys.exit(1)
+
+        calls = [{"tool": tc.tool, "args": tc.args or {}} for tc in tool_calls]
+
+        existing = store.load(name)
+        if existing is not None and not update:
+            print_error(
+                f"Snapshot {name!r} already exists. Use --update to overwrite and approve it.",
+                console,
+            )
+            sys.exit(1)
+
+        if existing is not None and update:
+            existing.calls = calls
+            existing.approved = True
+            existing.source = "trace"
+            store.save(existing)
+            console.print(
+                f"[green]Updated[/green] snapshot [cyan]{name!r}[/cyan] "
+                f"({len(calls)} calls) — approved."
+            )
+        else:
+            snap = Snapshot(name=name, calls=calls, approved=False, source="trace")
+            store.save(snap)
+            console.print(
+                f"[green]Recorded[/green] snapshot [cyan]{name!r}[/cyan] "
+                f"({len(calls)} calls) — pending approval."
+            )
+            console.print(f"[dim]Run [cyan]toolscore approve {name}[/cyan] to approve it.[/dim]")
+        return
+
+    # --- subprocess mode ---
+    cmd_list = list(cmd)
+    console.print(f"[dim]Recording snapshots via:[/dim] {' '.join(cmd_list)}")
+
+    env = {**os.environ, "TOOLSCORE_RECORD": "1"}
+    if update:
+        env["TOOLSCORE_RECORD_UPDATE"] = "1"
+
+    completed = subprocess.run(cmd_list, env=env)
+
+    if completed.returncode == 0:
+        console.print(
+            "[green]Done.[/green] Run [cyan]toolscore approve --all[/cyan] "
+            "to approve any new snapshots."
+        )
+    else:
+        console.print(
+            f"[yellow]Command exited with code {completed.returncode}.[/yellow] "
+            "Run [cyan]toolscore approve --all[/cyan] to approve any recorded snapshots."
+        )
+
+    sys.exit(completed.returncode)
+
+
+# ---------------------------------------------------------------------------
+# approve command
+# ---------------------------------------------------------------------------
+
+
+@main.command()
+@click.argument("names", nargs=-1)
+@click.option(
+    "--all", "approve_all", is_flag=True, default=False, help="Approve all pending snapshots."
+)
+@click.option(
+    "--dir",
+    "snap_dir",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=_DEFAULT_SNAP_DIR,
+    help=f"Snapshot store directory (default: {_DEFAULT_SNAP_DIR}).",
+)
+def approve(names: tuple[str, ...], approve_all: bool, snap_dir: Path) -> None:
+    """Approve one or more snapshots for use as a baseline.
+
+    \b
+    Examples:
+      toolscore approve my_test         # approve a single snapshot by name
+      toolscore approve --all           # approve every pending snapshot
+    """
+    from datetime import timezone
+
+    from toolscore.snapshots import SnapshotStore
+
+    console = Console()
+    store = SnapshotStore(snap_dir)
+
+    if not names and not approve_all:
+        print_error("Provide snapshot NAME(s) or --all.", console)
+        sys.exit(2)
+
+    # --- collect snapshots to approve ---
+    to_approve = []
+    if approve_all:
+        pending = store.pending()
+        if not pending:
+            console.print("[dim]No pending snapshots found — nothing to approve.[/dim]")
+            return
+        to_approve = pending
+    else:
+        for n in names:
+            snap = store.load(n)
+            if snap is None:
+                print_error(f"Snapshot {n!r} does not exist.", console)
+                sys.exit(1)
+            to_approve.append(snap)
+
+    # --- approve them ---
+    approved = []
+    for snap in to_approve:
+        snap = store.approve(snap.name)
+        approved.append(snap)
+
+    # --- rich table ---
+    from datetime import datetime
+
+    table = Table(header_style="bold magenta")
+    table.add_column("Name", style="cyan")
+    table.add_column("Calls", justify="right")
+    table.add_column("Age", style="dim")
+
+    for snap in approved:
+        try:
+            dt = datetime.fromisoformat(snap.created_at)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            now = datetime.now(timezone.utc)
+            delta = now - dt
+            days = delta.days
+            if days == 0:
+                age = "today"
+            elif days == 1:
+                age = "1 day ago"
+            else:
+                age = f"{days} days ago"
+        except (ValueError, TypeError):
+            age = snap.created_at or "unknown"
+
+        table.add_row(snap.name, str(len(snap.calls)), age)
+
+    console.print()
+    console.print(table)
+    console.print(f"\n[green]Approved {len(approved)} snapshot(s).[/green]")
+
+
+# ---------------------------------------------------------------------------
+# snapshots sub-group
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def snapshots() -> None:
+    """List, inspect, and manage recorded snapshots."""
+
+
+@snapshots.command("list")
+@click.option(
+    "--pending", is_flag=True, default=False, help="Show only pending (unapproved) snapshots."
+)
+@click.option(
+    "--dir",
+    "snap_dir",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=_DEFAULT_SNAP_DIR,
+    help=f"Snapshot store directory (default: {_DEFAULT_SNAP_DIR}).",
+)
+def snapshots_list(pending: bool, snap_dir: Path) -> None:
+    """List all recorded snapshots."""
+    from toolscore.snapshots import SnapshotStore
+
+    console = Console()
+    store = SnapshotStore(snap_dir)
+
+    all_snaps = store.list()
+    if pending:
+        all_snaps = [s for s in all_snaps if not s.approved]
+
+    if not all_snaps:
+        console.print("[dim]No snapshots found.[/dim]")
+        return
+
+    table = Table(header_style="bold magenta")
+    table.add_column("Status", justify="center", width=6)
+    table.add_column("Name", style="cyan")
+    table.add_column("Calls", justify="right")
+    table.add_column("Updated", style="dim")
+    table.add_column("Source", style="dim")
+
+    for snap in all_snaps:
+        icon = "[green]v[/green]" if snap.approved else "[yellow]o[/yellow]"
+        table.add_row(icon, snap.name, str(len(snap.calls)), snap.updated_at[:19], snap.source)
+
+    console.print()
+    console.print(table)
+    console.print()
+
+
+@snapshots.command("show")
+@click.argument("name")
+@click.option(
+    "--dir",
+    "snap_dir",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=_DEFAULT_SNAP_DIR,
+    help=f"Snapshot store directory (default: {_DEFAULT_SNAP_DIR}).",
+)
+def snapshots_show(name: str, snap_dir: Path) -> None:
+    """Show the tool calls and metadata for a snapshot."""
+    from toolscore.snapshots import SnapshotStore
+
+    console = Console()
+    store = SnapshotStore(snap_dir)
+
+    snap = store.load(name)
+    if snap is None:
+        print_error(f"Snapshot {name!r} not found.", console)
+        sys.exit(1)
+
+    status = "[green]approved[/green]" if snap.approved else "[yellow]pending[/yellow]"
+    console.print(f"\n[bold]Snapshot:[/bold] [cyan]{snap.name}[/cyan]  {status}")
+    console.print(f"[dim]Source:[/dim]  {snap.source}")
+    console.print(f"[dim]Created:[/dim] {snap.created_at}")
+    console.print(f"[dim]Updated:[/dim] {snap.updated_at}")
+    console.print(f"[dim]Calls:[/dim]   {len(snap.calls)}")
+    console.print()
+
+    for i, call in enumerate(snap.calls, 1):
+        console.print(f"[bold]Call {i}[/bold] — [cyan]{call.get('tool', '?')}[/cyan]")
+        console.print(json.dumps(call.get("args", {}), indent=2))
+        console.print()
+
+
+@snapshots.command("rm")
+@click.argument("name")
+@click.option("--yes", is_flag=True, default=False, help="Skip confirmation prompt.")
+@click.option(
+    "--dir",
+    "snap_dir",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=_DEFAULT_SNAP_DIR,
+    help=f"Snapshot store directory (default: {_DEFAULT_SNAP_DIR}).",
+)
+def snapshots_rm(name: str, yes: bool, snap_dir: Path) -> None:
+    """Delete a snapshot by name."""
+    from toolscore.snapshots import SnapshotStore
+
+    console = Console()
+    store = SnapshotStore(snap_dir)
+
+    snap = store.load(name)
+    if snap is None:
+        print_error(f"Snapshot {name!r} not found.", console)
+        sys.exit(1)
+
+    if not yes:
+        answer = Prompt.ask(
+            f"Delete snapshot [cyan]{name!r}[/cyan]? [y/N]",
+            default="n",
+        )
+        if answer.lower() not in ("y", "yes"):
+            console.print("[dim]Aborted.[/dim]")
+            return
+
+    store.delete(name)
+    console.print(f"[green]Deleted[/green] snapshot [cyan]{name!r}[/cyan].")
+
+
 if __name__ == "__main__":
     main()
