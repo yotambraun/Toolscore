@@ -40,14 +40,6 @@ def pytest_addoption(parser: Any) -> None:
         help="Directory containing trace files (default: tests/traces)",
     )
 
-    group.addoption(
-        "--toolscore-min-accuracy",
-        action="store",
-        type=float,
-        default=0.8,
-        help="Minimum required accuracy for tests (default: 0.8)",
-    )
-
 
 def pytest_configure(config: Any) -> None:
     """Register Toolscore markers.
@@ -58,10 +50,6 @@ def pytest_configure(config: Any) -> None:
     config.addinivalue_line(
         "markers",
         "toolscore: mark test as a Toolscore evaluation test",
-    )
-    config.addinivalue_line(
-        "markers",
-        "min_accuracy(score): require minimum accuracy score for test",
     )
 
 
@@ -89,19 +77,6 @@ def toolscore_trace_dir(request: Any) -> Path:
         Path to traces directory
     """
     return Path(request.config.getoption("--toolscore-trace-dir"))
-
-
-@pytest.fixture
-def toolscore_min_accuracy(request: Any) -> float:
-    """Get the minimum required accuracy from config.
-
-    Args:
-        request: Pytest request object
-
-    Returns:
-        Minimum accuracy threshold
-    """
-    return float(request.config.getoption("--toolscore-min-accuracy"))
 
 
 @pytest.fixture
@@ -175,14 +150,14 @@ class ToolscoreAssertions:
     @staticmethod
     def assert_invocation_accuracy(
         result: EvaluationResult,
-        min_accuracy: float,
+        threshold: float,
         msg: str | None = None,
     ) -> None:
         """Assert that invocation accuracy meets minimum threshold.
 
         Args:
             result: Evaluation result
-            min_accuracy: Minimum required accuracy (0.0 to 1.0)
+            threshold: Minimum required accuracy (0.0 to 1.0)
             msg: Optional custom error message
 
         Raises:
@@ -190,20 +165,20 @@ class ToolscoreAssertions:
         """
         accuracy = result.metrics["invocation_accuracy"]
         if msg is None:
-            msg = f"Invocation accuracy {accuracy:.1%} below minimum {min_accuracy:.1%}"
-        assert accuracy >= min_accuracy, msg
+            msg = f"Invocation accuracy {accuracy:.1%} below minimum {threshold:.1%}"
+        assert accuracy >= threshold, msg
 
     @staticmethod
     def assert_selection_accuracy(
         result: EvaluationResult,
-        min_accuracy: float,
+        threshold: float,
         msg: str | None = None,
     ) -> None:
         """Assert that selection accuracy meets minimum threshold.
 
         Args:
             result: Evaluation result
-            min_accuracy: Minimum required accuracy (0.0 to 1.0)
+            threshold: Minimum required accuracy (0.0 to 1.0)
             msg: Optional custom error message
 
         Raises:
@@ -211,20 +186,20 @@ class ToolscoreAssertions:
         """
         accuracy = result.metrics["selection_accuracy"]
         if msg is None:
-            msg = f"Selection accuracy {accuracy:.1%} below minimum {min_accuracy:.1%}"
-        assert accuracy >= min_accuracy, msg
+            msg = f"Selection accuracy {accuracy:.1%} below minimum {threshold:.1%}"
+        assert accuracy >= threshold, msg
 
     @staticmethod
     def assert_sequence_accuracy(
         result: EvaluationResult,
-        min_accuracy: float,
+        threshold: float,
         msg: str | None = None,
     ) -> None:
         """Assert that sequence accuracy meets minimum threshold.
 
         Args:
             result: Evaluation result
-            min_accuracy: Minimum required accuracy (0.0 to 1.0)
+            threshold: Minimum required accuracy (0.0 to 1.0)
             msg: Optional custom error message
 
         Raises:
@@ -232,8 +207,8 @@ class ToolscoreAssertions:
         """
         accuracy = result.metrics["sequence_metrics"]["sequence_accuracy"]
         if msg is None:
-            msg = f"Sequence accuracy {accuracy:.1%} below minimum {min_accuracy:.1%}"
-        assert accuracy >= min_accuracy, msg
+            msg = f"Sequence accuracy {accuracy:.1%} below minimum {threshold:.1%}"
+        assert accuracy >= threshold, msg
 
     @staticmethod
     def assert_argument_f1(
@@ -302,22 +277,20 @@ class ToolscoreAssertions:
         """
         result = evaluate(expected, actual, weights=weights)
         score = result.score
-        assert score >= min_score, (
-            f"Composite score {score:.3f} below minimum {min_score:.3f}"
-        )
+        assert score >= min_score, f"Composite score {score:.3f} below minimum {min_score:.3f}"
         return result
 
     @staticmethod
     def assert_all_metrics_above(
         result: EvaluationResult,
-        min_accuracy: float,
+        threshold: float,
         msg: str | None = None,
     ) -> None:
         """Assert that all core metrics meet minimum threshold.
 
         Args:
             result: Evaluation result
-            min_accuracy: Minimum required accuracy (0.0 to 1.0)
+            threshold: Minimum required accuracy (0.0 to 1.0)
             msg: Optional custom error message
 
         Raises:
@@ -333,18 +306,12 @@ class ToolscoreAssertions:
             ("argument_f1", result.metrics["argument_metrics"]["f1"]),
         ]
 
-        failures = [
-            (name, value)
-            for name, value in metrics_to_check
-            if value < min_accuracy
-        ]
+        failures = [(name, value) for name, value in metrics_to_check if value < threshold]
 
         if failures:
             if msg is None:
-                failure_str = ", ".join(
-                    f"{name}={value:.1%}" for name, value in failures
-                )
-                msg = f"Metrics below {min_accuracy:.1%}: {failure_str}"
+                failure_str = ", ".join(f"{name}={value:.1%}" for name, value in failures)
+                msg = f"Metrics below {threshold:.1%}: {failure_str}"
             raise AssertionError(msg)
 
 

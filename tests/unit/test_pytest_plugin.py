@@ -70,9 +70,7 @@ class TestToolscoreAssertions:
         """Test invocation accuracy assertion with custom message."""
         assertions = ToolscoreAssertions()
         with pytest.raises(AssertionError, match="Custom error"):
-            assertions.assert_invocation_accuracy(
-                mock_result, 0.99, msg="Custom error"
-            )
+            assertions.assert_invocation_accuracy(mock_result, 0.99, msg="Custom error")
 
     def test_assert_selection_accuracy_pass(self, mock_result):
         """Test selection accuracy assertion passes."""
@@ -173,3 +171,20 @@ def test_toolscore_assert_tools_fixture():
     from toolscore.core import assert_tools
 
     assert callable(assert_tools)
+
+
+def test_min_accuracy_marker_not_registered():
+    """The dead min_accuracy marker must no longer be registered by the plugin.
+
+    We inspect the plugin source directly so the test doesn't depend on a
+    live pytest session having the plugin loaded.
+    """
+    import inspect
+
+    from toolscore import pytest_plugin
+
+    source = inspect.getsource(pytest_plugin)
+    assert "min_accuracy" not in source, (
+        "The 'min_accuracy' marker registration was supposed to be removed "
+        "but is still present in toolscore/pytest_plugin.py"
+    )
