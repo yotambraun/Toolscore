@@ -144,10 +144,60 @@ class TestEvaluate:
         result_custom = evaluate(
             expected=[{"tool": "a"}],
             actual=[{"tool": "a"}],
-            weights={"selection_accuracy": 1.0, "argument_f1": 0.0, "sequence_accuracy": 0.0, "redundant_rate": 0.0},
+            weights={
+                "selection_accuracy": 1.0,
+                "argument_f1": 0.0,
+                "sequence_accuracy": 0.0,
+                "redundant_rate": 0.0,
+            },
         )
         assert result_default.score < result_custom.score
         assert result_custom.score == 1.0
+
+    def test_partial_weights_renormalize(self):
+        """Partial weights dict is merged with defaults then renormalized."""
+        # Provide only selection_accuracy=2.0 — after merging with defaults the
+        # total is 2.0+0.3+0.2+0.1=2.6, so selection_accuracy fraction ~0.769.
+        # With a perfect match (sel=1, arg=1, seq=1, red=0) the score must be 1.0
+        # regardless of the raw weight magnitudes.
+        result = evaluate(
+            expected=[{"tool": "a", "args": {"x": 1}}],
+            actual=[{"tool": "a", "args": {"x": 1}}],
+            weights={"selection_accuracy": 2.0},
+        )
+        assert result.score == pytest.approx(1.0, abs=1e-6)
+
+    def test_all_zero_weights_raise_valueerror(self):
+        """Weights that sum to zero after merging should raise ValueError."""
+        with pytest.raises(ValueError, match="sum to zero"):
+            evaluate(
+                expected=[{"tool": "a"}],
+                actual=[{"tool": "a"}],
+                weights={
+                    "selection_accuracy": 0.0,
+                    "argument_f1": 0.0,
+                    "sequence_accuracy": 0.0,
+                    "redundant_rate": 0.0,
+                },
+            )
+
+    def test_default_weights_unchanged(self):
+        """evaluate() without weights uses the default weights unmodified."""
+        result_a = evaluate(
+            expected=[{"tool": "a"}],
+            actual=[{"tool": "a"}],
+        )
+        result_b = evaluate(
+            expected=[{"tool": "a"}],
+            actual=[{"tool": "a"}],
+            weights={
+                "selection_accuracy": 0.4,
+                "argument_f1": 0.3,
+                "sequence_accuracy": 0.2,
+                "redundant_rate": 0.1,
+            },
+        )
+        assert result_a.score == pytest.approx(result_b.score, abs=1e-9)
 
     def test_metrics_populated(self):
         """evaluate() should populate all core metrics."""
@@ -244,7 +294,12 @@ class TestAssertTools:
             expected=[{"tool": "search"}],
             actual=[{"tool": "search"}],
             min_score=0.9,
-            weights={"selection_accuracy": 1.0, "argument_f1": 0.0, "sequence_accuracy": 0.0, "redundant_rate": 0.0},
+            weights={
+                "selection_accuracy": 1.0,
+                "argument_f1": 0.0,
+                "sequence_accuracy": 0.0,
+                "redundant_rate": 0.0,
+            },
         )
         assert result.score >= 0.9
 

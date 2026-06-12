@@ -399,6 +399,7 @@ def evaluate(
     expected: list[dict[str, Any]],
     actual: list[dict[str, Any]] | Any,
     weights: dict[str, float] | None = None,
+    strict: bool = False,
 ) -> EvaluationResult:
     """Evaluate tool calls by comparing actual against expected (in-memory).
 
@@ -412,6 +413,8 @@ def evaluate(
             raw OpenAI/Anthropic/Gemini response objects or dicts (auto-detected).
         weights: Optional custom weights for the composite score.
             Keys: 'selection_accuracy', 'argument_f1', 'sequence_accuracy', 'redundant_rate'.
+        strict: When True, argument comparison uses pure equality (no int/float
+            coercion, no string strip).  Default is False (lenient matching).
 
     Returns:
         EvaluationResult with metrics and a composite .score property.
@@ -432,6 +435,7 @@ def evaluate(
 
         actual = auto_extract(actual)
 
+    merged_weights: dict[str, float] | None = None
     if weights is not None:
         valid_keys = set(EvaluationResult.DEFAULT_WEIGHTS.keys())
         unknown = set(weights.keys()) - valid_keys
@@ -440,6 +444,14 @@ def evaluate(
         for key, value in weights.items():
             if value < 0:
                 raise ValueError(f"Weight for '{key}' must be non-negative, got {value}")
+        merged_weights = {**EvaluationResult.DEFAULT_WEIGHTS, **weights}
+        total = sum(merged_weights.values())
+        if total == 0.0:
+            raise ValueError(
+                "Weights sum to zero after merging with defaults; "
+                "at least one weight must be positive."
+            )
+        merged_weights = {k: v / total for k, v in merged_weights.items()}
 
     gold_calls = _dicts_to_tool_calls(expected)
     trace_calls = _dicts_to_tool_calls(actual)
@@ -448,8 +460,8 @@ def evaluate(
     result.gold_calls = gold_calls
     result.trace_calls = trace_calls
 
-    if weights is not None:
-        result._weights = {**result.DEFAULT_WEIGHTS, **weights}
+    if merged_weights is not None:
+        result._weights = merged_weights
 
     # Calculate core metrics
     result.metrics["invocation_accuracy"] = calculate_invocation_accuracy(gold_calls, trace_calls)
@@ -464,7 +476,7 @@ def evaluate(
     trajectory_metrics = calculate_trajectory_accuracy(gold_calls, trace_calls)
     result.metrics["trajectory_metrics"] = trajectory_metrics
 
-    argument_metrics = calculate_argument_f1(gold_calls, trace_calls)
+    argument_metrics = calculate_argument_f1(gold_calls, trace_calls, strict=strict)
     result.metrics["argument_metrics"] = argument_metrics
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
@@ -482,6 +494,7 @@ def assert_tools(
     actual: list[dict[str, Any]] | Any,
     min_score: float = 0.9,
     weights: dict[str, float] | None = None,
+    strict: bool = False,
 ) -> EvaluationResult:
     """Assert that actual tool calls meet a minimum composite score.
 
@@ -492,6 +505,8 @@ def assert_tools(
         actual: List of actual tool calls.
         min_score: Minimum composite score required (0.0 to 1.0).
         weights: Optional custom weights for the composite score.
+        strict: When True, argument comparison uses pure equality (no int/float
+            coercion, no string strip).  Default is False.
 
     Returns:
         EvaluationResult if assertion passes.
@@ -502,7 +517,7 @@ def assert_tools(
     if not (0.0 <= min_score <= 1.0):
         raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
 
-    result = evaluate(expected, actual, weights=weights)
+    result = evaluate(expected, actual, weights=weights, strict=strict)
     if result.score < min_score:
         raise ToolScoreAssertionError(
             f"Tool call score {result.score:.3f} is below minimum {min_score:.3f}. "
