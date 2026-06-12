@@ -32,6 +32,12 @@ keywords = [
     "gemini",
     "langchain",
     "mcp",
+    # Frameworks & evaluation
+    "langgraph",
+    "pydantic-ai",
+    "agent-evaluation",
+    "llm-evaluation",
+    "snapshot-testing",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -57,6 +63,7 @@ dependencies = [
     "jinja2>=3.1.0",
     "python-Levenshtein>=0.25.0",
     "rich>=13.0.0",
+    "tomli>=2.0; python_version < \"3.11\"",
 ]
 
 [project.optional-dependencies]
@@ -106,7 +113,7 @@ toolscore = "toolscore.pytest_plugin"
 
 [project.urls]
 Homepage = "https://github.com/yotambraun/toolscore"
-Documentation = "https://github.com/yotambraun/toolscore#readme"
+Documentation = "https://tool-scorer.readthedocs.io"
 Repository = "https://github.com/yotambraun/toolscore"
 Issues = "https://github.com/yotambraun/toolscore/issues"
 Changelog = "https://github.com/yotambraun/toolscore/blob/main/CHANGELOG.md"
