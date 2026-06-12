@@ -3,19 +3,32 @@
 This file demonstrates how to use Toolscore's pytest integration
 to test your LLM agent's tool usage behavior.
 
-To run these tests:
+To run these tests (from anywhere):
     pytest examples/test_example_with_pytest.py
 """
 
+from pathlib import Path
+
 import pytest
+
+# Resolve example data files relative to *this* file so the suite passes
+# regardless of the current working directory or the configured gold/trace dirs.
+# ``toolscore_eval`` passes absolute paths straight through without joining the
+# default ``--toolscore-gold-dir`` / ``--toolscore-trace-dir``.
+_EX = Path(__file__).resolve().parent
+
+
+def _ex(name: str) -> str:
+    """Return the absolute path to an example data file as a string."""
+    return str(_EX / name)
 
 
 @pytest.mark.toolscore
 def test_openai_agent_basic(toolscore_eval):
     """Test OpenAI agent meets basic accuracy requirements."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_openai.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_openai.json"),
         format="openai",
     )
 
@@ -28,8 +41,8 @@ def test_openai_agent_basic(toolscore_eval):
 def test_openai_agent_with_assertions(toolscore_eval, toolscore_assert):
     """Test OpenAI agent using helper assertions."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_openai.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_openai.json"),
     )
 
     # Use helper assertions
@@ -43,8 +56,8 @@ def test_openai_agent_with_assertions(toolscore_eval, toolscore_assert):
 def test_anthropic_agent(toolscore_eval, toolscore_assert):
     """Test Anthropic agent performance."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_anthropic.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_anthropic.json"),
         format="anthropic",
     )
 
@@ -56,8 +69,8 @@ def test_anthropic_agent(toolscore_eval, toolscore_assert):
 def test_agent_efficiency(toolscore_eval, toolscore_assert):
     """Test agent doesn't make redundant calls."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_openai.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_openai.json"),
     )
 
     # Check redundancy is low
@@ -68,8 +81,8 @@ def test_agent_efficiency(toolscore_eval, toolscore_assert):
 def test_high_precision_agent(toolscore_eval):
     """Test agent meets high precision requirements."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_openai.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_openai.json"),
     )
 
     # Verify high accuracy
@@ -80,8 +93,8 @@ def test_high_precision_agent(toolscore_eval):
 def test_custom_error_messages(toolscore_eval, toolscore_assert):
     """Demonstrate custom error messages in assertions."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_openai.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_openai.json"),
     )
 
     # Use custom error messages
@@ -95,8 +108,8 @@ def test_custom_error_messages(toolscore_eval, toolscore_assert):
 def test_detailed_metrics(toolscore_eval):
     """Test accessing detailed metrics from result."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
-        trace_file="../examples/trace_openai.json",
+        gold_file=_ex("gold_calls.json"),
+        trace_file=_ex("trace_openai.json"),
     )
 
     # Access all metrics
@@ -125,15 +138,15 @@ def test_detailed_metrics(toolscore_eval):
 @pytest.mark.parametrize(
     "trace_file,format_type",
     [
-        ("../examples/trace_openai.json", "openai"),
-        ("../examples/trace_anthropic.json", "anthropic"),
-        ("../examples/trace_custom.json", "custom"),
+        (_ex("trace_openai.json"), "openai"),
+        (_ex("trace_anthropic.json"), "anthropic"),
+        (_ex("trace_custom.json"), "custom"),
     ],
 )
 def test_multiple_formats(toolscore_eval, trace_file, format_type):
     """Test agent performance across different trace formats."""
     result = toolscore_eval(
-        gold_file="../examples/gold_calls.json",
+        gold_file=_ex("gold_calls.json"),
         trace_file=trace_file,
         format=format_type,
     )

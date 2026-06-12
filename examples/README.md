@@ -10,6 +10,19 @@ This directory contains example files and scripts demonstrating the usage of Too
 - **trace_anthropic.json** - Example trace in Anthropic/Claude format
 - **trace_custom.json** - Example trace in custom/generic format
 
+### Runnable Scripts (no API keys required)
+- **evaluate_in_memory.py** - `evaluate()`, `assert_tools()`, `test_agent()`, integrations, and custom weights on mock data
+- **langgraph_quickstart.py** - evaluate a LangGraph-shaped agent result (self-contained; runs without langgraph installed)
+- **pydantic_ai_quickstart.py** - evaluate a Pydantic AI-shaped agent result (self-contained; runs without pydantic-ai installed)
+- **mcp_scorecard_demo.py** - run the MCP scorecard harness against the bundled fake MCP server and print an A–F scorecard
+- **test_example_with_pytest.py** - example pytest suite using the Toolscore plugin and fixtures
+
+Run any of them with:
+
+```bash
+uv run python examples/<file>.py     # or: python examples/<file>.py
+```
+
 ### Capture Scripts (Generate Your Own Traces)
 - **capture_openai_trace.py** - Script to capture traces from OpenAI API
 - **capture_anthropic_trace.py** - Script to capture traces from Anthropic API
