@@ -70,6 +70,4 @@ class BaseAdapter(ABC):
         if trace_data is None:
             raise ValueError("Trace data cannot be None")
         if not isinstance(trace_data, (dict, list)):
-            raise ValueError(
-                f"Trace data must be dict or list, got {type(trace_data).__name__}"
-            )
+            raise ValueError(f"Trace data must be dict or list, got {type(trace_data).__name__}")

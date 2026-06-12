@@ -233,9 +233,7 @@ class TestLoadBaseline:
 class TestCompareToBaseline:
     """Tests for baseline comparison logic."""
 
-    def _create_result(
-        self, selection: float = 0.95, invocation: float = 0.95
-    ) -> EvaluationResult:
+    def _create_result(self, selection: float = 0.95, invocation: float = 0.95) -> EvaluationResult:
         """Helper to create evaluation result."""
         result = EvaluationResult()
         result.gold_calls = [ToolCall(tool="search")]
@@ -246,9 +244,7 @@ class TestCompareToBaseline:
         }
         return result
 
-    def _create_baseline(
-        self, selection: float = 0.95, invocation: float = 0.95
-    ) -> Baseline:
+    def _create_baseline(self, selection: float = 0.95, invocation: float = 0.95) -> Baseline:
         """Helper to create baseline."""
         return Baseline(
             version="1.4.0",

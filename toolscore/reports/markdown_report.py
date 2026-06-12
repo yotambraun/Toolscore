@@ -153,6 +153,7 @@ def generate_markdown_report(
     lines.append("```json")
 
     import json
+
     lines.append(json.dumps(metrics, indent=2))
 
     lines.append("```")

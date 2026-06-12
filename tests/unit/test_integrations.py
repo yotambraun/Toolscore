@@ -270,17 +270,7 @@ class TestFromGemini:
 
     def test_no_function_calls(self):
         """Response with no function calls should return empty list."""
-        response = {
-            "candidates": [
-                {
-                    "content": {
-                        "parts": [
-                            {"text": "Hello!"}
-                        ]
-                    }
-                }
-            ]
-        }
+        response = {"candidates": [{"content": {"parts": [{"text": "Hello!"}]}}]}
         calls = from_gemini(response)
         assert calls == []
 

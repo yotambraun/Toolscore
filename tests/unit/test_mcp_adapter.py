@@ -1,7 +1,5 @@
 """Unit tests for MCP (Model Context Protocol) adapter."""
 
-import pytest
-
 from toolscore.adapters.mcp import MCPAdapter
 
 

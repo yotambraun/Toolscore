@@ -121,8 +121,9 @@ def calculate_semantic_correctness(
 
     # Penalize length mismatch
     if len(gold_calls) != len(trace_calls):
-        length_penalty = 1.0 - (abs(len(gold_calls) - len(trace_calls)) /
-                                 max(len(gold_calls), len(trace_calls), 1))
+        length_penalty = 1.0 - (
+            abs(len(gold_calls) - len(trace_calls)) / max(len(gold_calls), len(trace_calls), 1)
+        )
         semantic_score *= length_penalty
 
     return {

@@ -375,9 +375,13 @@ def explain_sequence_metrics(
             )
 
         if edit_distance > len(gold_sequence) // 2:
-            explanation.tips.append("Sequence is significantly different - review agent's planning logic")
+            explanation.tips.append(
+                "Sequence is significantly different - review agent's planning logic"
+            )
         else:
-            explanation.tips.append("Minor sequence differences - may be acceptable depending on task")
+            explanation.tips.append(
+                "Minor sequence differences - may be acceptable depending on task"
+            )
 
     return explanation
 

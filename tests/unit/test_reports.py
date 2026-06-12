@@ -377,7 +377,7 @@ class TestCSVReport:
         content = output_path.read_text()
         # Accuracy metrics should be formatted as percentages
         lines = content.split("\n")
-        percentage_lines = [l for l in lines if "%" in l]
+        percentage_lines = [line for line in lines if "%" in line]
         assert len(percentage_lines) > 0
 
     def test_csv_report_default_path(self, sample_result, tmp_path, monkeypatch):

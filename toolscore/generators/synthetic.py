@@ -132,9 +132,7 @@ def _generate_value_from_schema(
     return None
 
 
-def _create_test_case(
-    function_def: dict[str, Any], variation: str = "normal"
-) -> dict[str, Any]:
+def _create_test_case(function_def: dict[str, Any], variation: str = "normal") -> dict[str, Any]:
     """Create a single test case from function definition.
 
     Args:

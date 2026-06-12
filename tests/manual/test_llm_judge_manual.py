@@ -1,17 +1,17 @@
 """Quick test script for LLM judge metrics."""
 
-import os
 import sys
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Load API key from .env
+from dotenv import load_dotenv
+
 from toolscore.adapters.base import ToolCall
 from toolscore.metrics.llm_judge import calculate_semantic_correctness
 
-# Load API key from .env
-from dotenv import load_dotenv
 load_dotenv()
 
 print("Testing LLM Judge Metrics...")

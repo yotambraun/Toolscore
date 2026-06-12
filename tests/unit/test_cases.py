@@ -8,10 +8,12 @@ class TestCases:
 
     def test_cases_basic(self):
         """Decorator produces correct pytest.mark.parametrize."""
-        decorator = toolscore.cases([
-            {"input": "weather NYC", "expected": [{"tool": "get_weather"}]},
-            {"input": "email bob", "expected": [{"tool": "send_email"}]},
-        ])
+        decorator = toolscore.cases(
+            [
+                {"input": "weather NYC", "expected": [{"tool": "get_weather"}]},
+                {"input": "email bob", "expected": [{"tool": "send_email"}]},
+            ]
+        )
         # The decorator is a pytest.mark.parametrize instance
         assert hasattr(decorator, "args")
         # Check parameter names
@@ -35,8 +37,10 @@ class TestCases:
 
     def test_cases_default_id_key(self):
         """Default id_key='input' is used for test IDs."""
-        decorator = toolscore.cases([
-            {"input": "hello", "expected": []},
-            {"input": "world", "expected": []},
-        ])
+        decorator = toolscore.cases(
+            [
+                {"input": "hello", "expected": []},
+                {"input": "world", "expected": []},
+            ]
+        )
         assert decorator.kwargs.get("ids") == ["hello", "world"]

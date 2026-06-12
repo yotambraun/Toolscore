@@ -1,7 +1,6 @@
 """Tests for multi-model comparison functionality."""
 
 import json
-from pathlib import Path
 
 from toolscore.comparison import compare_models, save_comparison_report
 from toolscore.core import EvaluationResult

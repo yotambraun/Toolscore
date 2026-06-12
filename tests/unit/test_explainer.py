@@ -1,7 +1,5 @@
 """Tests for self-explaining metrics module."""
 
-import pytest
-
 from toolscore.adapters.base import ToolCall
 from toolscore.core import EvaluationResult
 from toolscore.explainer import (
@@ -187,9 +185,7 @@ class TestExplainArgumentMetrics:
         metrics = {"f1": 0.0, "precision": 0.0, "recall": 0.0}
         exp = explain_argument_metrics(gold, trace, metrics)
         assert any(
-            "Type mismatch" in item.message
-            for item in exp.items
-            if item.category == "mismatch"
+            "Type mismatch" in item.message for item in exp.items if item.category == "mismatch"
         )
 
 

@@ -103,20 +103,15 @@ def _validate_value(value: Any, schema: dict[str, Any], arg_name: str) -> list[s
         allowed_values = schema["enum"]
         if value not in allowed_values:
             errors.append(
-                f"Argument '{arg_name}' has invalid value: {value!r} "
-                f"not in {allowed_values}"
+                f"Argument '{arg_name}' has invalid value: {value!r} not in {allowed_values}"
             )
 
     # Numeric constraints
     if expected_type in ("integer", "number"):
         if "minimum" in schema and value < schema["minimum"]:
-            errors.append(
-                f"Argument '{arg_name}' is below minimum: {value} < {schema['minimum']}"
-            )
+            errors.append(f"Argument '{arg_name}' is below minimum: {value} < {schema['minimum']}")
         if "maximum" in schema and value > schema["maximum"]:
-            errors.append(
-                f"Argument '{arg_name}' exceeds maximum: {value} > {schema['maximum']}"
-            )
+            errors.append(f"Argument '{arg_name}' exceeds maximum: {value} > {schema['maximum']}")
 
     # String constraints
     if expected_type == "string":
@@ -133,9 +128,7 @@ def _validate_value(value: Any, schema: dict[str, Any], arg_name: str) -> list[s
 
             pattern = schema["pattern"]
             if not re.match(pattern, value):
-                errors.append(
-                    f"Argument '{arg_name}' doesn't match pattern: {pattern}"
-                )
+                errors.append(f"Argument '{arg_name}' doesn't match pattern: {pattern}")
 
     # Array constraints
     if expected_type == "array":

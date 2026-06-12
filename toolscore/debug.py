@@ -60,7 +60,7 @@ def _find_mismatches(result: EvaluationResult) -> list[dict[str, Any]]:
                     "type": "missing_call",
                     "index": i,
                     "gold_call": gold_call,
-                    "message": f"Expected call #{i+1} to '{gold_call.tool}' but trace ended",
+                    "message": f"Expected call #{i + 1} to '{gold_call.tool}' but trace ended",
                 }
             )
             continue
@@ -75,7 +75,7 @@ def _find_mismatches(result: EvaluationResult) -> list[dict[str, Any]]:
                     "index": i,
                     "gold_call": gold_call,
                     "trace_call": trace_call,
-                    "message": f"Call #{i+1}: Expected '{gold_call.tool}' but got '{trace_call.tool}'",
+                    "message": f"Call #{i + 1}: Expected '{gold_call.tool}' but got '{trace_call.tool}'",
                 }
             )
             continue
@@ -110,7 +110,7 @@ def _find_mismatches(result: EvaluationResult) -> list[dict[str, Any]]:
                         "gold_call": gold_call,
                         "trace_call": trace_call,
                         "arg_diffs": arg_diffs,
-                        "message": f"Call #{i+1} to '{gold_call.tool}': Arguments don't match",
+                        "message": f"Call #{i + 1} to '{gold_call.tool}': Arguments don't match",
                     }
                 )
 
@@ -123,7 +123,7 @@ def _find_mismatches(result: EvaluationResult) -> list[dict[str, Any]]:
                     "type": "extra_call",
                     "index": i,
                     "trace_call": trace_call,
-                    "message": f"Unexpected call #{i+1} to '{trace_call.tool}'",
+                    "message": f"Unexpected call #{i + 1} to '{trace_call.tool}'",
                 }
             )
 
@@ -200,7 +200,9 @@ def _show_mismatch_detail(
         console.print(table)
         console.print()
         console.print("[cyan]Suggestion:[/cyan]")
-        console.print("  • Check if tools are semantically equivalent (e.g., 'search' vs 'web_search')")
+        console.print(
+            "  • Check if tools are semantically equivalent (e.g., 'search' vs 'web_search')"
+        )
         console.print("  • Try --llm-judge flag to check semantic equivalence")
         console.print("  • Verify agent is selecting correct tool")
 
@@ -301,9 +303,7 @@ def run_interactive_debug(
         mismatch = mismatches[current_index]
 
         # Show navigation info
-        console.print(
-            f"[dim]Showing mismatch {current_index + 1} of {len(mismatches)}[/dim]"
-        )
+        console.print(f"[dim]Showing mismatch {current_index + 1} of {len(mismatches)}[/dim]")
 
         # Show mismatch detail
         _show_mismatch_detail(mismatch, console)

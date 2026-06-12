@@ -1,7 +1,6 @@
 """Tests for synthetic test generation."""
 
 import json
-from pathlib import Path
 
 import pytest
 
@@ -220,9 +219,7 @@ def test_generate_with_edge_cases(tmp_path):
         "description": "Test function",
         "parameters": {
             "type": "object",
-            "properties": {
-                "value": {"type": "integer", "minimum": 1, "maximum": 100}
-            },
+            "properties": {"value": {"type": "integer", "minimum": 1, "maximum": 100}},
             "required": ["value"],
         },
     }

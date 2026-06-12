@@ -223,15 +223,17 @@ def print_evaluation_summary(
     # Selection Accuracy
     sel_exp = explanations.get("selection_accuracy")
     sel_desc = sel_exp.score_description if sel_exp else "Did agent choose correct tools?"
-    metrics_table.add_row(
-        "Selection Accuracy", _format_percentage(sel_acc), sel_desc
-    )
+    metrics_table.add_row("Selection Accuracy", _format_percentage(sel_acc), sel_desc)
 
     # Tool Correctness
     tool_correctness_metrics = metrics.get("tool_correctness_metrics", {})
     tool_correctness = tool_correctness_metrics.get("tool_correctness", 0.0)
     tc_exp = explanations.get("tool_correctness")
-    tc_desc = tc_exp.score_description if tc_exp else f"{tool_correctness_metrics.get('correct_count', 0)}/{tool_correctness_metrics.get('total_expected', 0)} expected tools called"
+    tc_desc = (
+        tc_exp.score_description
+        if tc_exp
+        else f"{tool_correctness_metrics.get('correct_count', 0)}/{tool_correctness_metrics.get('total_expected', 0)} expected tools called"
+    )
     metrics_table.add_row(
         "Tool Correctness",
         _format_percentage(tool_correctness),
@@ -241,7 +243,11 @@ def print_evaluation_summary(
     # Sequence Accuracy
     seq_exp = explanations.get("sequence_metrics")
     seq_metrics_data = metrics.get("sequence_metrics", {})
-    seq_desc = seq_exp.score_description if seq_exp else f"Edit distance: {seq_metrics_data.get('edit_distance', 0)}"
+    seq_desc = (
+        seq_exp.score_description
+        if seq_exp
+        else f"Edit distance: {seq_metrics_data.get('edit_distance', 0)}"
+    )
     metrics_table.add_row(
         "Sequence Accuracy",
         _format_percentage(seq_acc),
@@ -251,7 +257,11 @@ def print_evaluation_summary(
     # Argument F1
     arg_metrics = metrics.get("argument_metrics", {})
     arg_exp = explanations.get("argument_metrics")
-    arg_desc = arg_exp.score_description if arg_exp else f"P:{arg_metrics.get('precision', 0.0):.1%} R:{arg_metrics.get('recall', 0.0):.1%}"
+    arg_desc = (
+        arg_exp.score_description
+        if arg_exp
+        else f"P:{arg_metrics.get('precision', 0.0):.1%} R:{arg_metrics.get('recall', 0.0):.1%}"
+    )
     metrics_table.add_row(
         "Argument F1",
         _format_percentage(arg_f1),
@@ -367,9 +377,7 @@ def print_evaluation_summary(
         sem_table.add_column("Description", style="dim")
 
         if "error" in semantic_metrics:
-            sem_table.add_row(
-                "Status", Text("Error", style="bold red"), semantic_metrics["error"]
-            )
+            sem_table.add_row("Status", Text("Error", style="bold red"), semantic_metrics["error"])
         else:
             sem_score = semantic_metrics.get("semantic_score", 0.0)
             model_used = semantic_metrics.get("model_used", "unknown")

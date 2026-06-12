@@ -222,7 +222,9 @@ class TestPartialTrajectoryAccuracy:
         gold = [ToolCall(tool="web_search", args={})]
         trace = [ToolCall(tool="websearch", args={})]
 
-        result = calculate_partial_trajectory_accuracy(gold, trace, allow_tool_name_variations=False)
+        result = calculate_partial_trajectory_accuracy(
+            gold, trace, allow_tool_name_variations=False
+        )
 
         assert result["partial_trajectory_accuracy"] == 0.0
 

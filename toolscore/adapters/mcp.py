@@ -100,7 +100,12 @@ class MCPAdapter(BaseAdapter):
             ToolCall object or None if not a tool call.
         """
         # Check if this is a JSON-RPC 2.0 message
-        if "jsonrpc" not in message and "method" not in message and "params" not in message and "error" not in message:
+        if (
+            "jsonrpc" not in message
+            and "method" not in message
+            and "params" not in message
+            and "error" not in message
+        ):
             return None
 
         # Extract tool call from request
