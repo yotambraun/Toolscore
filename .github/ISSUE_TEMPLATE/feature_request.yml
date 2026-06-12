@@ -1,0 +1,42 @@
+name: Feature Request
+description: Propose a new feature or enhancement for Toolscore
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Before submitting, please search existing issues and discussions
+        to make sure it hasn't already been proposed.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: |
+        What problem are you trying to solve? Who does it affect?
+        A clear, concrete use-case is more persuasive than a solution in isolation.
+      placeholder: "When I try to evaluate X, I can't do Y because..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: |
+        Describe the feature you'd like. Include a code sketch if helpful.
+      render: python
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you have explored or workarounds you are currently using.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Links, screenshots, related issues, or anything else relevant.

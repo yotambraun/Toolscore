@@ -1,0 +1,78 @@
+name: Bug Report
+description: Something isn't working as expected in Toolscore
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report! Please fill out the fields below as completely as possible.
+        If you have a question rather than a bug, please open a [Discussion](https://github.com/yotambraun/toolscore/discussions) instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: Toolscore version
+      description: Output of `pip show tool-scorer | grep Version`
+      placeholder: "e.g. 1.7.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: framework
+    attributes:
+      label: Framework / provider
+      description: Which framework or LLM provider are you using?
+      options:
+        - OpenAI Agents SDK
+        - LangGraph
+        - Pydantic AI
+        - Claude Agent SDK
+        - CrewAI
+        - MCP (Model Context Protocol)
+        - Other / plain Python
+    validations:
+      required: true
+
+  - type: input
+    id: python-version
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.11.9"
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: |
+        The smallest possible code snippet or CLI command that reproduces the issue.
+        Include any relevant fixture files (gold JSON, trace JSON) as inline code or attach them.
+      render: python
+      placeholder: |
+        import toolscore
+        # ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: What actually happened? Include the full traceback or error message.
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: Anything else that might be relevant — CI/CD environment, OS, related issues.
