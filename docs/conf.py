@@ -74,6 +74,7 @@ language = "en"
 
 # HTML output settings
 html_theme = "sphinx_rtd_theme"
+html_logo = "../assets/logo.svg"
 html_static_path = []
 html_theme_options = {
     "logo_only": False,

@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/logo.png" alt="Toolscore Logo" width="200"/>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+    <img src="assets/logo.svg" alt="Toolscore Logo" width="360"/>
+  </picture>
 </p>
 
 <h1 align="center">Toolscore</h1>

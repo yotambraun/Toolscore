@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <!-- Background: dark slate #0F172A -->
+  <rect x="0" y="0" width="1280" height="640" fill="#0F172A"/>
+
+  <!-- Subtle large-radius rounded geometry: decorative shapes in background -->
+  <!-- Large soft rounded rect, slightly lighter slate, offset top-right -->
+  <rect x="720" y="-120" width="680" height="680" rx="160" ry="160" fill="#1E293B" opacity="0.6"/>
+  <!-- Second decorative shape: bottom-left corner -->
+  <rect x="-80" y="340" width="480" height="480" rx="160" ry="160" fill="#1E293B" opacity="0.4"/>
+
+  <!-- Icon tile: 200x200, centered vertically at y=(640-200)/2=220, x=120 -->
+  <!-- Indigo tile slightly brighter for dark bg -->
+  <rect x="120" y="220" width="200" height="200" rx="44" ry="44" fill="#2D2A6E"/>
+
+  <!-- Gauge arc: center (220, 308), radius 58 -->
+  <!-- 210deg: x=220+58*cos(210)=220-50.2=169.8, y=308+58*sin(210)=308-29=279 -->
+  <!-- 330deg: x=220+58*cos(330)=220+50.2=270.2, y=308+58*sin(330)=308-29=279 -->
+  <path d="M 169.8 279 A 58 58 0 1 1 270.2 279"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="16"
+        stroke-linecap="round"/>
+
+  <!-- Checkmark: teal, bold -->
+  <!-- left-foot(182,308), knee(210,336), tip(262,272) -->
+  <path d="M 182 308 L 210 336 L 262 272"
+        fill="none"
+        stroke="#22D3A0"
+        stroke-width="22"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Score bar ticks in banner icon (bottom-right of tile) -->
+  <!-- Bottom anchor y=400, x positions 248,272,296 inside tile ending at x=320 -->
+  <rect x="248" y="376" width="12" height="24" rx="3" ry="3" fill="#22D3A0" opacity="0.45"/>
+  <rect x="268" y="360" width="12" height="40" rx="3" ry="3" fill="#22D3A0" opacity="0.7"/>
+  <rect x="288" y="344" width="12" height="56" rx="3" ry="3" fill="#22D3A0" opacity="1.0"/>
+
+  <!-- Wordmark: large, x=356, baseline y=340 (icon center is y=320) -->
+  <!-- font-size=140 for banner impact -->
+  <text x="356" y="352"
+        font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif"
+        font-weight="700"
+        font-size="140"
+        letter-spacing="-2"
+        xml:space="preserve"><tspan fill="#F8FAFC">tool</tspan><tspan fill="#22D3A0">score</tspan></text>
+
+  <!-- Tagline: "The pytest of tool-calling" in neutral gray #64748B -->
+  <!-- Position below wordmark, x=356, y=410 -->
+  <text x="356" y="420"
+        font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif"
+        font-weight="400"
+        font-size="36"
+        letter-spacing="0"
+        fill="#64748B">The pytest of tool-calling</text>
+</svg>

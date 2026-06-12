@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 128" width="520" height="128">
+  <!-- Icon tile: dark variant — tile background lightened slightly for visibility on dark bg -->
+  <!-- Using #2D2A6E (lighter indigo) so tile reads on dark backgrounds -->
+  <rect x="0" y="8" width="112" height="112" rx="24" ry="24" fill="#2D2A6E"/>
+
+  <!-- Gauge arc: white on dark tile -->
+  <path d="M 28.3 44 A 32 32 0 1 1 83.7 44"
+        fill="none"
+        stroke="#FFFFFF"
+        stroke-width="9"
+        stroke-linecap="round"/>
+
+  <!-- Checkmark: teal accent, same as light -->
+  <path d="M 37 60 L 50 72 L 76 42"
+        fill="none"
+        stroke="#22D3A0"
+        stroke-width="12"
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Score bar ticks -->
+  <rect x="70" y="97" width="6" height="11" rx="2" ry="2" fill="#22D3A0" opacity="0.45"/>
+  <rect x="80" y="90" width="6" height="18" rx="2" ry="2" fill="#22D3A0" opacity="0.7"/>
+  <rect x="90" y="83" width="6" height="25" rx="2" ry="2" fill="#22D3A0" opacity="1.0"/>
+
+  <!-- Wordmark: "tool" in near-white #F8FAFC (dark variant), "score" in teal #22D3A0 -->
+  <text x="128" y="84"
+        font-family="Inter, 'Segoe UI', system-ui, -apple-system, sans-serif"
+        font-weight="700"
+        font-size="64"
+        letter-spacing="-1"
+        xml:space="preserve"><tspan fill="#F8FAFC">tool</tspan><tspan fill="#22D3A0">score</tspan></text>
+</svg>
