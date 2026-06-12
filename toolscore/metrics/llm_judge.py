@@ -49,6 +49,15 @@ _SYSTEM_PROMPT = (
 )
 
 
+class _BatchParseError(Exception):
+    """Raised internally when a batched judge response cannot be parsed.
+
+    This is the *only* failure that triggers the per-pair fallback. Transport,
+    authentication, and other SDK errors from ``backend.complete()`` propagate
+    instead of silently fanning out into N doomed per-pair requests.
+    """
+
+
 @dataclass
 class JudgeConfig:
     """Configuration for the LLM judge.
@@ -77,20 +86,45 @@ class JudgeConfig:
 def infer_provider(config: JudgeConfig) -> Provider:
     """Resolve the effective provider for a config.
 
-    A ``base_url`` always wins (forces ``openai_compatible``); otherwise an
-    explicit ``provider`` wins; otherwise the provider is inferred from the
-    model name.
+    Resolution rules:
+
+    - An explicit ``provider`` wins. It is validated against ``base_url``:
+      ``openai_compatible`` requires a ``base_url``; any other explicit provider
+      must *not* be combined with a ``base_url`` (the combination is ambiguous).
+    - With no explicit provider, a ``base_url`` forces ``openai_compatible``.
+    - Otherwise the provider is inferred from the model name.
 
     Args:
         config: Judge configuration.
 
     Returns:
         The resolved provider.
+
+    Raises:
+        ValueError: If an explicit ``provider`` conflicts with ``base_url``.
     """
+    if config.provider is not None:
+        if config.provider == "openai_compatible":
+            if config.base_url is None:
+                raise ValueError(
+                    "provider='openai_compatible' requires a base_url "
+                    "(e.g. JudgeConfig(provider='openai_compatible', "
+                    "base_url='http://localhost:11434/v1')). "
+                    "Omit the provider to infer it from the model name instead."
+                )
+            return "openai_compatible"
+        if config.base_url is not None:
+            raise ValueError(
+                f"provider='{config.provider}' conflicts with base_url="
+                f"{config.base_url!r}. A base_url implies an OpenAI-compatible "
+                "endpoint; either drop base_url, or use "
+                "provider='openai_compatible' (or omit provider entirely)."
+            )
+        return config.provider
+
     if config.base_url is not None:
         return "openai_compatible"
-    if config.provider is not None:
-        return config.provider
+
     model = config.model.lower()
     if model.startswith("claude"):
         return "anthropic"
@@ -100,10 +134,17 @@ def infer_provider(config: JudgeConfig) -> Provider:
 
 
 def _resolve_api_key(config: JudgeConfig, provider: Provider) -> str | None:
-    """Resolve the API key, falling back to the per-provider env var."""
+    """Resolve the API key, falling back to the per-provider env var(s).
+
+    For Gemini, ``GOOGLE_API_KEY`` is checked first, then ``GEMINI_API_KEY``
+    (the newer google-genai SDK accepts either).
+    """
     if config.api_key is not None:
         return config.api_key
-    return os.getenv(_ENV_KEYS[provider])
+    key = os.getenv(_ENV_KEYS[provider])
+    if key is None and provider == "gemini":
+        key = os.getenv("GEMINI_API_KEY")
+    return key
 
 
 class _JudgeBackend(Protocol):
@@ -202,18 +243,29 @@ class _GeminiBackend:
         self._client = genai.Client(api_key=_resolve_api_key(config, "gemini"))
         self._model = config.model
         self._temperature = config.temperature
+        # The google-genai SDK has no built-in retry knob like openai/anthropic,
+        # so honor config.max_retries with a small retry loop.
+        self._max_retries = max(0, config.max_retries)
 
     def complete(self, system: str, prompt: str) -> str:
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=prompt,
-            config={
-                "system_instruction": system,
-                "temperature": self._temperature,
-                "response_mime_type": "application/json",
-            },
-        )
-        return response.text or ""
+        last_exc: Exception | None = None
+        for _attempt in range(self._max_retries + 1):
+            try:
+                response = self._client.models.generate_content(
+                    model=self._model,
+                    contents=prompt,
+                    config={
+                        "system_instruction": system,
+                        "temperature": self._temperature,
+                        "response_mime_type": "application/json",
+                    },
+                )
+                return response.text or ""
+            except Exception as e:
+                # Retried below; re-raised after exhausting attempts.
+                last_exc = e
+        assert last_exc is not None
+        raise last_exc
 
 
 def _make_backend(config: JudgeConfig) -> _JudgeBackend:
@@ -361,39 +413,49 @@ def _judge_batched(
     trace_calls: list[ToolCall],
     min_len: int,
 ) -> tuple[list[float], list[str]] | None:
-    """Issue a single request for all pairs; return ``None`` on parse failure."""
+    """Issue a single request for all pairs; return ``None`` on parse failure.
+
+    Only a :class:`_BatchParseError` (the batched response could not be parsed)
+    triggers the per-pair fallback. Transport/SDK errors from
+    ``backend.complete()`` propagate so an auth/network failure surfaces clearly
+    instead of fanning out into N doomed per-pair requests.
+    """
     prompt = _create_batch_prompt(gold_calls, trace_calls, min_len)
+    raw = backend.complete(_SYSTEM_PROMPT, prompt)
     try:
-        raw = backend.complete(_SYSTEM_PROMPT, prompt)
-        parsed = _parse_batch_response(raw, min_len)
-    except Exception:
+        return _parse_batch_response(raw, min_len)
+    except _BatchParseError:
         return None
-    return parsed
 
 
-def _parse_batch_response(raw: str, min_len: int) -> tuple[list[float], list[str]] | None:
-    """Parse a batched JSON-array response into scores + explanations."""
+def _parse_batch_response(raw: str, min_len: int) -> tuple[list[float], list[str]]:
+    """Parse a batched JSON-array response into scores + explanations.
+
+    Raises:
+        _BatchParseError: If the response cannot be parsed into ``min_len``
+            score/explanation pairs.
+    """
     text = _strip_code_fences(raw)
     if not text:
-        return None
+        raise _BatchParseError("empty batched response")
     try:
         data = json.loads(text)
-    except (json.JSONDecodeError, ValueError):
-        return None
+    except (json.JSONDecodeError, ValueError) as e:
+        raise _BatchParseError(f"invalid JSON: {e}") from e
 
     # Accept either a bare array or an object wrapping one (e.g. {"results": [...]}).
     if isinstance(data, dict):
         array = next((v for v in data.values() if isinstance(v, list)), None)
         if array is None:
-            return None
+            raise _BatchParseError("object response has no list value")
         data = array
     if not isinstance(data, list) or len(data) != min_len:
-        return None
+        raise _BatchParseError("response is not a list of the expected length")
 
     by_index: dict[int, dict[str, Any]] = {}
     for i, item in enumerate(data):
         if not isinstance(item, dict):
-            return None
+            raise _BatchParseError("array item is not an object")
         idx = item.get("index", i)
         try:
             by_index[int(idx)] = item
@@ -405,7 +467,7 @@ def _parse_batch_response(raw: str, min_len: int) -> tuple[list[float], list[str
     for i in range(min_len):
         item = by_index.get(i)
         if item is None:
-            return None
+            raise _BatchParseError(f"missing item for index {i}")
         scores.append(_clamp_score(item.get("score", 0.0)))
         explanations.append(str(item.get("explanation", "No explanation provided")))
     return scores, explanations
