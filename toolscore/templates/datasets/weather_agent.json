@@ -1,0 +1,44 @@
+[
+  {
+    "tool": "get_current_weather",
+    "args": {
+      "location": "San Francisco, CA",
+      "unit": "fahrenheit"
+    },
+    "description": "Check current weather conditions for a specific location",
+    "metadata": {
+      "schema": {
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "unit": {
+          "type": "string",
+          "enum": ["celsius", "fahrenheit"],
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "get_forecast",
+    "args": {
+      "location": "San Francisco, CA",
+      "days": 3
+    },
+    "description": "Get weather forecast for upcoming days",
+    "metadata": {
+      "schema": {
+        "location": {
+          "type": "string",
+          "minLength": 1
+        },
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 14
+        }
+      }
+    }
+  }
+]

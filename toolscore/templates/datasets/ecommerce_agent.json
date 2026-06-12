@@ -1,0 +1,97 @@
+[
+  {
+    "tool": "search_products",
+    "args": {
+      "query": "wireless headphones",
+      "max_results": 10,
+      "min_price": 50.0,
+      "max_price": 200.0
+    },
+    "description": "Search for products in the catalog",
+    "metadata": {
+      "schema": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "required": false
+        },
+        "min_price": {
+          "type": "number",
+          "minimum": 0,
+          "required": false
+        },
+        "max_price": {
+          "type": "number",
+          "minimum": 0,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "get_product_details",
+    "args": {
+      "product_id": "HEADPHONE-001"
+    },
+    "description": "Get detailed information about a specific product",
+    "metadata": {
+      "schema": {
+        "product_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  {
+    "tool": "add_to_cart",
+    "args": {
+      "product_id": "HEADPHONE-001",
+      "quantity": 1
+    },
+    "description": "Add a product to shopping cart",
+    "metadata": {
+      "schema": {
+        "product_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "quantity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 99
+        }
+      }
+    }
+  },
+  {
+    "tool": "get_cart_total",
+    "args": {},
+    "description": "Calculate total price of items in cart"
+  },
+  {
+    "tool": "checkout",
+    "args": {
+      "payment_method": "credit_card",
+      "shipping_address": "123 Main St, San Francisco, CA 94102"
+    },
+    "description": "Complete the purchase",
+    "metadata": {
+      "schema": {
+        "payment_method": {
+          "type": "string",
+          "enum": ["credit_card", "paypal", "apple_pay"]
+        },
+        "shipping_address": {
+          "type": "string",
+          "minLength": 10
+        }
+      }
+    }
+  }
+]

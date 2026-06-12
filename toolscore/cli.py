@@ -2,7 +2,6 @@
 
 import json
 import shlex
-import shutil
 import sys
 from pathlib import Path
 
@@ -287,190 +286,136 @@ def validate(trace_file: Path, format: str) -> None:
         sys.exit(1)
 
 
+_FRAMEWORK_LABELS = {
+    "langgraph": "LangGraph",
+    "pydantic_ai": "Pydantic AI",
+    "openai_agents": "OpenAI Agents SDK",
+    "crewai": "CrewAI",
+    "claude_agent_sdk": "Claude Agent SDK",
+    "openai": "OpenAI (raw SDK)",
+    "anthropic": "Anthropic (raw SDK)",
+    "generic": "Generic / any framework",
+}
+
+
 @main.command()
 @click.option(
-    "--output-dir",
-    "-o",
+    "--framework",
+    type=click.Choice(list(_FRAMEWORK_LABELS.keys())),
+    default=None,
+    help="Agent framework to scaffold for (skips auto-detection prompt).",
+)
+@click.option(
+    "--dir",
+    "directory",
     type=click.Path(path_type=Path),  # type: ignore[type-var]
     default=None,
-    help="Output directory (default: current directory)",
+    help="Target project directory (default: current directory).",
 )
-def init(output_dir: Path | None) -> None:
-    """Initialize a new Toolscore evaluation project.
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    default=False,
+    help="Accept the detected framework without prompting (non-interactive).",
+)
+@click.option(
+    "--no-ci",
+    is_flag=True,
+    default=False,
+    help="Skip writing the GitHub Actions workflow.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    default=False,
+    help="Overwrite existing files instead of erroring.",
+)
+def init(
+    framework: str | None,
+    directory: Path | None,
+    yes: bool,
+    no_ci: bool,
+    force: bool,
+) -> None:
+    """Scaffold a working Toolscore test suite for your agent.
 
-    Creates gold standard template and example files to get started quickly.
+    Detects your agent framework and writes a pytest suite that passes
+    immediately, so you reach a green test (and your first recorded snapshot)
+    in about 60 seconds.
     """
+    from toolscore.scaffold import detect_frameworks, scaffold
+
     console = Console()
+    output_dir = directory if directory is not None else Path.cwd()
 
-    console.print("\n[bold cyan]🚀 Toolscore Quickstart[/bold cyan]\n")
+    console.print("\n[bold cyan]Toolscore init[/bold cyan] — scaffolding a tool-call test suite\n")
 
-    # Agent types with their template files
-    agent_types = {
-        "1": {
-            "name": "Weather/API lookup",
-            "file": "weather_agent.json",
-            "complexity": "⭐ Beginner",
-            "desc": "Simple API calls with basic parameters",
-        },
-        "2": {
-            "name": "E-commerce/Shopping",
-            "file": "ecommerce_agent.json",
-            "complexity": "⭐⭐ Intermediate",
-            "desc": "Multi-step workflow with cart management",
-        },
-        "3": {
-            "name": "Code assistant",
-            "file": "code_assistant.json",
-            "complexity": "⭐⭐ Intermediate",
-            "desc": "Code search, read, edit, and test execution",
-        },
-        "4": {
-            "name": "RAG/Search agent",
-            "file": "rag_agent.json",
-            "complexity": "⭐⭐⭐ Advanced",
-            "desc": "Vector search, reranking, generation, citations",
-        },
-        "5": {
-            "name": "Multi-tool workflow",
-            "file": "multi_tool_agent.json",
-            "complexity": "⭐⭐⭐ Advanced",
-            "desc": "Complex research and documentation workflow",
-        },
-    }
+    # --- resolve the framework -------------------------------------------------
+    if framework is None:
+        detected = detect_frameworks(output_dir)
+        default = detected[0]
+        if len(detected) == 1:
+            console.print(
+                f"Detected framework: [green]{_FRAMEWORK_LABELS[default]}[/green]"
+                if default != "generic"
+                else "No framework detected — using [green]generic[/green] (works anywhere)."
+            )
+        else:
+            labels = ", ".join(_FRAMEWORK_LABELS[f] for f in detected)
+            console.print(f"Detected frameworks: [green]{labels}[/green]")
 
-    # Display options table
-    table = Table(show_header=True, header_style="bold magenta", box=None)
-    table.add_column("#", style="cyan", width=3)
-    table.add_column("Agent Type", style="green")
-    table.add_column("Complexity", style="yellow")
-    table.add_column("Description", style="dim")
+        if yes or not sys.stdin.isatty():
+            framework = default
+        else:
+            framework = Prompt.ask(
+                "Scaffold for which framework?",
+                choices=list(_FRAMEWORK_LABELS.keys()),
+                default=default,
+            )
+    else:
+        console.print(f"Framework: [green]{_FRAMEWORK_LABELS[framework]}[/green]")
 
-    for key, info in agent_types.items():
-        table.add_row(key, info["name"], info["complexity"], info["desc"])
-
-    console.print(table)
-    console.print()
-
-    # Get user choice
-    choice = Prompt.ask(
-        "What type of agent are you testing?",
-        choices=list(agent_types.keys()),
-        default="1",
-    )
-
-    selected = agent_types[choice]
-
-    # Determine output directory
-    if output_dir is None:
-        output_dir = Path.cwd()
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Find the package directory to copy templates from
+    # --- scaffold --------------------------------------------------------------
     try:
-        import toolscore
-
-        package_dir = Path(toolscore.__file__).parent.parent
-        template_dir = package_dir / "examples" / "datasets"
-        template_file = template_dir / selected["file"]
-
-        if not template_file.exists():
-            print_error(f"Template file not found: {template_file}", console)
-            sys.exit(1)
-
-        # Copy gold standard template
-        gold_output = output_dir / "gold_calls.json"
-        shutil.copy(template_file, gold_output)
-
-        console.print(f"\n[green]✅ Created:[/green] {gold_output.name}")
-        console.print(f"   [dim]Template: {selected['name']}[/dim]")
-
-        # Create example trace (empty but valid)
-        example_trace = output_dir / "example_trace.json"
-        example_trace.write_text("[]")
-        console.print(f"[green]✅ Created:[/green] {example_trace.name}")
-        console.print("   [dim]Empty trace - replace with your agent's output[/dim]")
-
-        # Create README
-        readme_content = f"""# Toolscore Evaluation Project
-
-## Agent Type: {selected["name"]}
-**Complexity:** {selected["complexity"]}
-**Description:** {selected["desc"]}
-
-## Quick Start
-
-1. **Capture your agent's trace:**
-   - Run your agent and save tool calls to `my_trace.json`
-   - See examples at: https://github.com/yotambraun/toolscore/tree/main/examples
-
-2. **Run evaluation:**
-   ```bash
-   toolscore eval gold_calls.json my_trace.json --html report.html
-   ```
-
-3. **View results:**
-   - Console output shows key metrics
-   - Open `report.html` for detailed analysis
-
-## Advanced Usage
-
-### With LLM Judge (semantic matching):
-```bash
-toolscore eval gold_calls.json my_trace.json --llm-judge
-```
-
-### Verbose output (see missing/extra tools):
-```bash
-toolscore eval gold_calls.json my_trace.json --verbose
-```
-
-### Compare multiple models:
-```bash
-toolscore eval gold_calls.json gpt4_trace.json --html gpt4.html
-toolscore eval gold_calls.json claude_trace.json --html claude.html
-```
-
-## Files
-
-- `gold_calls.json` - Expected tool calls (gold standard)
-- `example_trace.json` - Replace with your agent's actual trace
-- `README.md` - This file
-
-## Need Help?
-
-- 📖 Documentation: https://toolscore.readthedocs.io/
-- 🎓 Tutorial: https://github.com/yotambraun/toolscore/blob/main/TUTORIAL.md
-- 💬 Issues: https://github.com/yotambraun/toolscore/issues
-
-## Next Steps
-
-1. Review `gold_calls.json` and customize for your use case
-2. Capture your agent's tool calls to a JSON file
-3. Run `toolscore eval` and iterate!
-"""
-
-        readme_file = output_dir / "README.md"
-        readme_file.write_text(readme_content)
-        console.print(f"[green]✅ Created:[/green] {readme_file.name}")
-        console.print("   [dim]Getting started guide[/dim]")
-
-        # Success message with next steps
-        console.print("\n[bold green]🎉 Project initialized successfully![/bold green]\n")
-
-        console.print("[bold]Try it now:[/bold]")
-        console.print(f"  [cyan]cd {output_dir}[/cyan]")
-        console.print("  [cyan]toolscore eval gold_calls.json example_trace.json[/cyan]")
-        console.print()
-
-        console.print("[bold]Next steps:[/bold]")
-        console.print("  1. Review and customize [cyan]gold_calls.json[/cyan]")
-        console.print("  2. Capture your agent's trace to a JSON file")
-        console.print("  3. Run evaluation and see results!")
-        console.print()
-
-    except Exception as e:
-        print_error(f"Failed to initialize project: {e}", console)
+        created = scaffold(
+            framework,
+            output_dir,
+            with_ci=not no_ci,
+            force=force,
+        )
+    except FileExistsError as exc:
+        print_error(
+            f"{exc} already exists. Re-run with [cyan]--force[/cyan] to overwrite it.",
+            console,
+        )
         sys.exit(1)
+    except Exception as exc:
+        print_error(f"Failed to scaffold project: {exc}", console)
+        sys.exit(1)
+
+    console.print()
+    for path in created:
+        try:
+            shown = path.relative_to(output_dir)
+        except ValueError:
+            shown = path
+        console.print(f"[green]created[/green] {shown}")
+
+    # --- exactly three next steps ---------------------------------------------
+    console.print("\n[bold green]Done![/bold green] Next steps:\n")
+    console.print(
+        "  [bold]1.[/bold] Edit [cyan]tests/test_agent_tools.py[/cyan] — replace the "
+        "[cyan]# TODO: import your agent[/cyan] block with your real agent call."
+    )
+    console.print(
+        "  [bold]2.[/bold] Run [cyan]pytest[/cyan] — the first run records snapshots and passes."
+    )
+    console.print(
+        "  [bold]3.[/bold] Review the recorded calls, then approve them with "
+        "[cyan]toolscore approve --all[/cyan]."
+    )
+    console.print()
 
 
 @main.command()

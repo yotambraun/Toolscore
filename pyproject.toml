@@ -116,6 +116,13 @@ PyPI = "https://pypi.org/project/tool-scorer/"
 
 [tool.hatch.build.targets.wheel]
 packages = ["toolscore"]
+# Ship the init-wizard templates and datasets (non-.py files hatchling would
+# otherwise skip) inside the wheel so `toolscore init` works from a pip install.
+artifacts = [
+    "toolscore/templates/**/*.j2",
+    "toolscore/templates/**/*.json",
+    "toolscore/templates/**/.gitkeep",
+]
 
 [tool.hatch.build.targets.sdist]
 include = [
