@@ -57,6 +57,7 @@ Contents
    installation
    quickstart
    user_guide
+   frameworks
 
 .. toctree::
    :maxdepth: 2

@@ -1,5 +1,7 @@
 """Tests for the in-memory evaluate() API and EvaluationResult properties."""
 
+import asyncio
+
 import pytest
 
 from toolscore.core import (
@@ -7,6 +9,7 @@ from toolscore.core import (
     ToolScoreAssertionError,
     assert_tools,
     evaluate,
+    test_agent_async,
 )
 from toolscore.core import test_agent as run_test_agent
 
@@ -406,3 +409,124 @@ class TestTestAgent:
             expected=[{"tool": "search", "args": {"q": "test"}}],
         )
         assert result.score >= 0.99
+
+    def test_test_agent_raises_on_async_function(self):
+        """test_agent raises TypeError when given an async agent function."""
+
+        async def async_agent(prompt: str) -> list:
+            return [{"tool": "search", "args": {"q": prompt}}]
+
+        with pytest.raises(TypeError, match="async"):
+            run_test_agent(
+                agent=async_agent,
+                input="test",
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+            )
+
+    def test_test_agent_raises_on_awaitable_return(self):
+        """test_agent raises TypeError when the agent returns an awaitable."""
+
+        # A function that is NOT a coroutine function but returns a coroutine
+        # (edge case: wrapping an async call result manually).
+        # We simulate this by having the function return a coroutine object.
+        async def _inner(prompt: str) -> list:
+            return [{"tool": "x", "args": {}}]
+
+        def sneaky_sync_agent(prompt: str):  # type: ignore[no-untyped-def]
+            # Returns a coroutine without being an async def itself
+            return _inner(prompt)
+
+        with pytest.raises(TypeError, match="async"):
+            run_test_agent(
+                agent=sneaky_sync_agent,
+                input="test",
+                expected=[{"tool": "x", "args": {}}],
+            )
+
+
+class TestTestAgentAsync:
+    """Tests for test_agent_async()."""
+
+    def test_async_agent_basic(self):
+        """Async agent is awaited and evaluated."""
+
+        async def async_agent(prompt: str) -> list:
+            return [{"tool": "search", "args": {"q": prompt}}]
+
+        result = asyncio.run(
+            test_agent_async(
+                agent=async_agent,
+                input="test",
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+            )
+        )
+        assert result.score >= 0.99
+
+    def test_sync_agent_through_async(self):
+        """Sync agent also works via test_agent_async."""
+
+        def sync_agent(prompt: str) -> list:
+            return [{"tool": "search", "args": {"q": prompt}}]
+
+        result = asyncio.run(
+            test_agent_async(
+                agent=sync_agent,
+                input="hello",
+                expected=[{"tool": "search", "args": {"q": "hello"}}],
+            )
+        )
+        assert result.score >= 0.99
+
+    def test_async_agent_min_score_fail(self):
+        """test_agent_async raises ToolScoreAssertionError when score too low."""
+
+        async def bad_agent(prompt: str) -> list:
+            return [{"tool": "wrong_tool", "args": {}}]
+
+        with pytest.raises(ToolScoreAssertionError, match="below minimum"):
+            asyncio.run(
+                test_agent_async(
+                    agent=bad_agent,
+                    input="test",
+                    expected=[{"tool": "search", "args": {"q": "test"}}],
+                    min_score=0.9,
+                )
+            )
+
+    def test_async_agent_returns_openai_response(self):
+        """Async agent returning raw OpenAI response works via auto-detect."""
+
+        async def agent(prompt: str) -> dict:
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "tool_calls": [
+                                {
+                                    "function": {
+                                        "name": "search",
+                                        "arguments": '{"q": "test"}',
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+
+        result = asyncio.run(
+            test_agent_async(
+                agent=agent,
+                input="test",
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+            )
+        )
+        assert result.score >= 0.99
+
+    def test_test_agent_async_not_collected_by_pytest(self):
+        """test_agent_async has __test__ = False."""
+        assert test_agent_async.__test__ is False  # type: ignore[attr-defined]
+
+    def test_test_agent_not_collected_by_pytest(self):
+        """test_agent has __test__ = False."""
+        assert run_test_agent.__test__ is False  # type: ignore[attr-defined]

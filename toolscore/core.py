@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 from pathlib import Path
@@ -533,12 +534,37 @@ def assert_tools(
     return result
 
 
+def _check_min_score(result: EvaluationResult, min_score: float | None) -> None:
+    """Raise ToolScoreAssertionError if result.score is below min_score.
+
+    Args:
+        result: The EvaluationResult to check.
+        min_score: Minimum composite score required (0.0 to 1.0), or None to skip.
+
+    Raises:
+        ValueError: If min_score is outside [0.0, 1.0].
+        ToolScoreAssertionError: If result.score < min_score.
+    """
+    if min_score is None:
+        return
+    if not (0.0 <= min_score <= 1.0):
+        raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
+    if result.score < min_score:
+        raise ToolScoreAssertionError(
+            f"Tool call score {result.score:.3f} is below minimum {min_score:.3f}. "
+            f"Selection: {result.selection_accuracy:.3f}, "
+            f"Argument F1: {result.argument_f1:.3f}, "
+            f"Sequence: {result.sequence_accuracy:.3f}"
+        )
+
+
 def test_agent(
     agent: Callable[..., Any],
     input: str,
     expected: list[dict[str, Any]],
     min_score: float | None = None,
     weights: dict[str, float] | None = None,
+    strict: bool = False,
 ) -> EvaluationResult:
     """End-to-end test helper: run an agent, extract tool calls, evaluate.
 
@@ -547,12 +573,62 @@ def test_agent(
 
     Args:
         agent: Any callable that accepts a string and returns an LLM response
-            (raw provider response or list of tool-call dicts).
+            (raw provider response or list of tool-call dicts).  Must be a
+            synchronous callable; use :func:`test_agent_async` for async agents.
         input: The prompt / user message to send to the agent.
         expected: List of expected tool calls.
         min_score: If provided, raises ``ToolScoreAssertionError`` when the
             composite score is below this threshold.
         weights: Optional custom weights for the composite score.
+        strict: When True, argument comparison uses pure equality.
+
+    Returns:
+        EvaluationResult with metrics and a composite ``.score`` property.
+
+    Raises:
+        TypeError: If *agent* is an async function or returns an awaitable.
+        ToolScoreAssertionError: If *min_score* is set and the score is below it.
+    """
+    if inspect.iscoroutinefunction(agent):
+        raise TypeError("agent is async — use `await toolscore.test_agent_async(...)` instead.")
+    response = agent(input)
+    if inspect.iscoroutine(response):
+        # Close the coroutine to avoid an "un-awaited coroutine" warning.
+        response.close()
+        raise TypeError("agent is async — use `await toolscore.test_agent_async(...)` instead.")
+    if inspect.isawaitable(response):
+        raise TypeError("agent is async — use `await toolscore.test_agent_async(...)` instead.")
+    result = evaluate(expected, response, weights=weights, strict=strict)
+    _check_min_score(result, min_score)
+    return result
+
+
+test_agent.__test__ = False  # type: ignore[attr-defined]
+
+
+async def test_agent_async(
+    agent: Callable[..., Any],
+    input: str,
+    expected: list[dict[str, Any]],
+    min_score: float | None = None,
+    weights: dict[str, float] | None = None,
+    strict: bool = False,
+) -> EvaluationResult:
+    """Async end-to-end test helper: run an agent, extract tool calls, evaluate.
+
+    Works for both synchronous and asynchronous agents.  Calls ``agent(input)``
+    and, if the result is awaitable, awaits it.
+
+    Args:
+        agent: Any callable that accepts a string and returns an LLM response
+            (raw provider response or list of tool-call dicts).  May be sync
+            or async.
+        input: The prompt / user message to send to the agent.
+        expected: List of expected tool calls.
+        min_score: If provided, raises ``ToolScoreAssertionError`` when the
+            composite score is below this threshold.
+        weights: Optional custom weights for the composite score.
+        strict: When True, argument comparison uses pure equality.
 
     Returns:
         EvaluationResult with metrics and a composite ``.score`` property.
@@ -561,15 +637,11 @@ def test_agent(
         ToolScoreAssertionError: If *min_score* is set and the score is below it.
     """
     response = agent(input)
-    result = evaluate(expected, response, weights=weights)
-    if min_score is not None:
-        if not (0.0 <= min_score <= 1.0):
-            raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
-        if result.score < min_score:
-            raise ToolScoreAssertionError(
-                f"Tool call score {result.score:.3f} is below minimum {min_score:.3f}. "
-                f"Selection: {result.selection_accuracy:.3f}, "
-                f"Argument F1: {result.argument_f1:.3f}, "
-                f"Sequence: {result.sequence_accuracy:.3f}"
-            )
+    if inspect.isawaitable(response):
+        response = await response
+    result = evaluate(expected, response, weights=weights, strict=strict)
+    _check_min_score(result, min_score)
     return result
+
+
+test_agent_async.__test__ = False  # type: ignore[attr-defined]
