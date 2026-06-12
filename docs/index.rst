@@ -59,6 +59,7 @@ Contents
    user_guide
    mcp_testing
    frameworks
+   fluent_api
 
 .. toctree::
    :maxdepth: 2
