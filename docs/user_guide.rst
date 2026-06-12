@@ -449,7 +449,7 @@ Example Test Suite
    def test_agent_efficiency(toolscore_eval, toolscore_assertions):
        """Verify agent doesn't make redundant calls."""
        result = toolscore_eval("gold_standard.json", "agent_trace.json")
-       toolscore_assertions.assert_redundancy_rate(result, max_rate=0.1)
+       toolscore_assertions.assert_redundancy_below(result, max_rate=0.1)
 
    def test_multiple_scenarios(toolscore_eval, toolscore_assertions):
        """Test agent across multiple scenarios."""
