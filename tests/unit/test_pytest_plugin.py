@@ -165,6 +165,26 @@ class TestToolscoreAssertions:
         with pytest.raises(AssertionError, match="Composite score"):
             assertions.assert_score(expected, actual, min_score=0.99)
 
+    def test_assert_score_strict_propagates(self):
+        """assert_score(strict=True) must propagate strict to evaluate().
+
+        With strict=False, int 1 == float 1.0, so argument F1 == 1.0 and the
+        assertion passes.  With strict=True the types differ, so argument F1
+        drops below 1.0, meaning the assertion must fail at threshold 0.99.
+        """
+        assertions = ToolscoreAssertions()
+        expected = [{"tool": "t", "args": {"x": 1}}]
+        actual = [{"tool": "t", "args": {"x": 1.0}}]
+
+        # Lenient: should pass at high threshold (full score)
+        result = assertions.assert_score(expected, actual, min_score=0.0, strict=False)
+        lenient_arg_f1 = result.metrics["argument_metrics"]["f1"]
+        assert lenient_arg_f1 == 1.0, "Lenient mode must treat int 1 == float 1.0"
+
+        # Strict: argument F1 drops, so assertion should fail at threshold 0.99
+        with pytest.raises(AssertionError, match="Composite score"):
+            assertions.assert_score(expected, actual, min_score=0.99, strict=True)
+
 
 def test_toolscore_assert_tools_fixture():
     """Verify toolscore_assert_tools fixture returns a callable."""

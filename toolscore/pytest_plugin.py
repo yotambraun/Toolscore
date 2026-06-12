@@ -258,6 +258,7 @@ class ToolscoreAssertions:
         actual: list[dict[str, Any]],
         min_score: float = 0.9,
         weights: dict[str, float] | None = None,
+        strict: bool = False,
     ) -> EvaluationResult:
         """Assert that actual tool calls meet a minimum composite score.
 
@@ -268,6 +269,9 @@ class ToolscoreAssertions:
             actual: List of actual tool calls from the agent, same format.
             min_score: Minimum composite score required (0.0 to 1.0).
             weights: Optional custom weights for the composite score.
+            strict: When True, argument comparison uses pure equality (no
+                int/float coercion, no string stripping).  Passed through to
+                :func:`toolscore.core.evaluate`.  Default is False.
 
         Returns:
             EvaluationResult if assertion passes.
@@ -275,7 +279,7 @@ class ToolscoreAssertions:
         Raises:
             AssertionError: If the composite score is below min_score.
         """
-        result = evaluate(expected, actual, weights=weights)
+        result = evaluate(expected, actual, weights=weights, strict=strict)
         score = result.score
         assert score >= min_score, f"Composite score {score:.3f} below minimum {min_score:.3f}"
         return result
