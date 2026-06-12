@@ -168,6 +168,70 @@ class TestStrictArgumentComparison:
         assert result_strict.argument_f1 < 1.0
 
 
+class TestStrictNestedComparison:
+    """Tests for strict recursive comparison of nested structures."""
+
+    # --- nested dict int vs float ---
+
+    def test_nested_dict_int_float_strict_mismatch(self) -> None:
+        """strict=True: nested dict {n: 1} vs {n: 1.0} must NOT match."""
+        assert _compare_values({"n": 1}, {"n": 1.0}, strict=True) is False
+
+    def test_nested_dict_int_float_lenient_match(self) -> None:
+        """strict=False: nested dict {n: 1} vs {n: 1.0} MUST match."""
+        assert _compare_values({"n": 1}, {"n": 1.0}, strict=False) is True
+
+    # --- nested dict bool vs int ---
+
+    def test_nested_dict_bool_int_strict_mismatch(self) -> None:
+        """strict=True: nested {flag: True} vs {flag: 1} must NOT match (bool != int)."""
+        assert _compare_values({"flag": True}, {"flag": 1}, strict=True) is False
+
+    def test_nested_dict_bool_int_lenient_match(self) -> None:
+        """strict=False: {flag: True} vs {flag: 1} matches because True == 1."""
+        assert _compare_values({"flag": True}, {"flag": 1}, strict=False) is True
+
+    # --- nested list int vs float ---
+
+    def test_nested_list_int_float_strict_mismatch(self) -> None:
+        """strict=True: [1, 2] vs [1.0, 2.0] must NOT match."""
+        assert _compare_values([1, 2], [1.0, 2.0], strict=True) is False
+
+    def test_nested_list_int_float_lenient_match(self) -> None:
+        """strict=False: [1, 2] vs [1.0, 2.0] MUST match."""
+        assert _compare_values([1, 2], [1.0, 2.0], strict=False) is True
+
+    # --- deeply nested list ---
+
+    def test_deeply_nested_list_strict_mismatch(self) -> None:
+        """strict=True: deeply nested list with int vs float must NOT match."""
+        assert _compare_values([[1, 2], [3]], [[1.0, 2.0], [3]], strict=True) is False
+
+    def test_deeply_nested_list_lenient_match(self) -> None:
+        """strict=False: deeply nested list with int vs float MUST match."""
+        assert _compare_values([[1, 2], [3]], [[1.0, 2.0], [3]], strict=False) is True
+
+    # --- type mismatch list vs tuple ---
+
+    def test_list_vs_tuple_strict_mismatch(self) -> None:
+        """strict=True: list [1, 2] vs tuple (1, 2) must NOT match."""
+        assert _compare_values([1, 2], (1, 2), strict=True) is False
+
+    def test_list_vs_tuple_lenient_no_match(self) -> None:
+        """strict=False: list [1, 2] vs tuple (1, 2) — not equal by default (different containers)."""
+        assert _compare_values([1, 2], (1, 2), strict=False) is False
+
+    # --- dict key set mismatch ---
+
+    def test_nested_dict_extra_key_strict_mismatch(self) -> None:
+        """strict=True: dicts with different key sets must NOT match."""
+        assert _compare_values({"a": 1}, {"a": 1, "b": 2}, strict=True) is False
+
+    def test_nested_list_length_mismatch_strict(self) -> None:
+        """strict=True: lists of different lengths must NOT match."""
+        assert _compare_values([1, 2], [1, 2, 3], strict=True) is False
+
+
 class TestRedundantCallRate:
     """Tests for redundant call rate metric."""
 

@@ -11,16 +11,38 @@ def _compare_values(expected: Any, actual: Any, strict: bool = False) -> bool:
     Args:
         expected: Expected value.
         actual: Actual value.
-        strict: When True, use pure ``==`` only (no int/float coercion, no
-            string strip).  When False (default), int/float pairs are compared
-            as floats and strings are stripped before comparison.
+        strict: When True, require exact type and value equality throughout the
+            entire structure — no int/float coercion, no string stripping.
+            For containers (dict, list, tuple) the comparison recurses
+            element-by-element in strict mode so that, for example,
+            ``{"n": 1}`` does **not** match ``{"n": 1.0}``.  When False
+            (default), int/float pairs are compared as floats and strings are
+            stripped before comparison; containers use plain ``==`` which
+            internally coerces numeric types.
 
     Returns:
         True if values match, False otherwise.
     """
     if strict:
-        return type(expected) is type(actual) and expected == actual
+        # Types must match exactly first
+        if type(expected) is not type(actual):
+            return False
+        # Recurse into dicts
+        if isinstance(expected, dict):
+            if set(expected.keys()) != set(actual.keys()):
+                return False
+            return all(_compare_values(expected[k], actual[k], strict=True) for k in expected)
+        # Recurse into lists and tuples (types already match from the check above)
+        if isinstance(expected, (list, tuple)):
+            if len(expected) != len(actual):
+                return False
+            return all(
+                _compare_values(e, a, strict=True) for e, a in zip(expected, actual, strict=False)
+            )
+        # Scalar — type already matched; just check value
+        return expected == actual  # type: ignore[no-any-return]
 
+    # Lenient mode
     # Direct equality
     if expected == actual:
         return True
