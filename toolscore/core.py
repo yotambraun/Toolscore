@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 import math
+import sys
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -524,24 +525,25 @@ def assert_tools(
         EvaluationResult if assertion passes.
 
     Raises:
+        ValueError: If min_score is outside [0.0, 1.0].
         ToolScoreAssertionError: If the composite score is below min_score.
     """
     if not (0.0 <= min_score <= 1.0):
         raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
 
     result = evaluate(expected, actual, weights=weights, strict=strict)
-    if result.score < min_score:
-        raise ToolScoreAssertionError(
-            f"Tool call score {result.score:.3f} is below minimum {min_score:.3f}. "
-            f"Selection: {result.selection_accuracy:.3f}, "
-            f"Argument F1: {result.argument_f1:.3f}, "
-            f"Sequence: {result.sequence_accuracy:.3f}"
-        )
+    _check_min_score(result, min_score)
     return result
 
 
 def _check_min_score(result: EvaluationResult, min_score: float | None) -> None:
     """Raise ToolScoreAssertionError if result.score is below min_score.
+
+    When *min_score* is not None and ``result.score < min_score``, renders a
+    rich expected-vs-actual diff via :func:`toolscore.diff.render_failure`.
+    If ``sys.stderr`` is a TTY the colored rendering is also printed to stderr
+    before raising, so interactive sessions get color output while the
+    exception message (embedded in pytest output) stays plain text.
 
     Args:
         result: The EvaluationResult to check.
@@ -556,12 +558,17 @@ def _check_min_score(result: EvaluationResult, min_score: float | None) -> None:
     if not (0.0 <= min_score <= 1.0):
         raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
     if result.score < min_score:
-        raise ToolScoreAssertionError(
-            f"Tool call score {result.score:.3f} is below minimum {min_score:.3f}. "
-            f"Selection: {result.selection_accuracy:.3f}, "
-            f"Argument F1: {result.argument_f1:.3f}, "
-            f"Sequence: {result.sequence_accuracy:.3f}"
-        )
+        from toolscore.diff import render_failure
+
+        plain_msg = render_failure(result, min_score, color=False)
+        # Print colored version to stderr when running in a terminal
+        try:
+            if sys.stderr.isatty():
+                colored_msg = render_failure(result, min_score, color=True)
+                sys.stderr.write(colored_msg)
+        except Exception:  # noqa: BLE001
+            pass
+        raise ToolScoreAssertionError(plain_msg)
 
 
 def test_agent(

@@ -265,7 +265,7 @@ class TestAssertTools:
 
     def test_failing_assertion(self):
         """Failing assertion should raise ToolScoreAssertionError."""
-        with pytest.raises(ToolScoreAssertionError, match="below minimum"):
+        with pytest.raises(ToolScoreAssertionError, match="score"):
             assert_tools(
                 expected=[{"tool": "search", "args": {"q": "test"}}],
                 actual=[{"tool": "wrong_tool", "args": {"q": "other"}}],
@@ -374,7 +374,7 @@ class TestTestAgent:
         def mock_agent(prompt):  # type: ignore[no-untyped-def]
             return [{"tool": "wrong_tool", "args": {}}]
 
-        with pytest.raises(ToolScoreAssertionError, match="below minimum"):
+        with pytest.raises(ToolScoreAssertionError, match="score"):
             run_test_agent(
                 agent=mock_agent,
                 input="test",
@@ -483,7 +483,7 @@ class TestTestAgentAsync:
         async def bad_agent(prompt: str) -> list:
             return [{"tool": "wrong_tool", "args": {}}]
 
-        with pytest.raises(ToolScoreAssertionError, match="below minimum"):
+        with pytest.raises(ToolScoreAssertionError, match="score"):
             asyncio.run(
                 test_agent_async(
                     agent=bad_agent,
