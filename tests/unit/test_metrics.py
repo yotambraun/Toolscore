@@ -7,8 +7,10 @@ from toolscore.metrics import (
     calculate_invocation_accuracy,
     calculate_redundant_call_rate,
     calculate_selection_accuracy,
+    calculate_trajectory_accuracy,
 )
 from toolscore.metrics.arguments import _compare_values
+from toolscore.metrics.tool_correctness import calculate_tool_correctness_with_args
 
 
 class TestInvocationAccuracy:
@@ -255,3 +257,81 @@ class TestRedundantCallRate:
         result = calculate_redundant_call_rate(gold, trace)
         assert result["redundant_count"] == 2
         assert result["redundant_rate"] > 0.0
+
+
+class TestNoneArgsContract:
+    """The v1.7 "omitted gold args = do not check arguments" contract.
+
+    Gold ``args is None`` (args omitted) → skip argument checking for that call.
+    Gold ``args == {}`` (explicit) → expect the tool called with zero arguments.
+    Trace-side args are unaffected (their args are facts, not expectations).
+    """
+
+    def test_argument_f1_none_gold_against_arg_bearing_actual_is_perfect(self) -> None:
+        """None gold args + arg-bearing actual → f1 == 1.0 (do not check)."""
+        gold = [ToolCall(tool="t", args=None)]
+        trace = [ToolCall(tool="t", args={"x": 1})]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 1.0
+        assert result["precision"] == 1.0
+        assert result["recall"] == 1.0
+
+    def test_argument_f1_all_none_gold_is_perfect(self) -> None:
+        """An all-None gold set must yield f1 == 1.0, not 0/0 -> 0."""
+        gold = [ToolCall(tool="a", args=None), ToolCall(tool="b", args=None)]
+        trace = [ToolCall(tool="a", args={"q": 1}), ToolCall(tool="b")]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 1.0
+
+    def test_argument_f1_explicit_empty_gold_still_strict(self) -> None:
+        """Explicit {} gold against arg-bearing actual still fails (f1 == 0)."""
+        gold = [ToolCall(tool="t", args={})]
+        trace = [ToolCall(tool="t", args={"x": 1})]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 0.0
+
+    def test_argument_f1_mixed_none_and_checked(self) -> None:
+        """A None gold call must not drag down a sibling checked call."""
+        gold = [
+            ToolCall(tool="a", args=None),
+            ToolCall(tool="b", args={"x": 1}),
+        ]
+        trace = [
+            ToolCall(tool="a", args={"noise": 99}),
+            ToolCall(tool="b", args={"x": 1}),
+        ]
+        result = calculate_argument_f1(gold, trace)
+        # Only "b" is scored, and it matches perfectly.
+        assert result["f1"] == 1.0
+
+    def test_tool_correctness_with_args_none_gold_matches_on_name(self) -> None:
+        """None gold args → tool-name match suffices for the strict variant."""
+        gold = [ToolCall(tool="search", args=None)]
+        trace = [ToolCall(tool="search", args={"q": "anything"})]
+        result = calculate_tool_correctness_with_args(gold, trace)
+        assert result["tool_correctness_strict"] == 1.0
+
+    def test_tool_correctness_with_args_explicit_empty_still_strict(self) -> None:
+        """Explicit {} gold still requires exact arg equality."""
+        gold = [ToolCall(tool="search", args={})]
+        trace = [ToolCall(tool="search", args={"q": "x"})]
+        result = calculate_tool_correctness_with_args(gold, trace)
+        assert result["tool_correctness_strict"] == 0.0
+
+    def test_trajectory_none_gold_matches_on_name(self) -> None:
+        """Trajectory step with None gold args matches on tool name only."""
+        gold = [ToolCall(tool="a", args=None), ToolCall(tool="b", args=None)]
+        trace = [ToolCall(tool="a", args={"x": 1}), ToolCall(tool="b", args={"y": 2})]
+        result = calculate_trajectory_accuracy(gold, trace)
+        assert result["trajectory_accuracy"] == 1.0
+        assert result["step_match_rate"] == 1.0
+
+    def test_matchers_in_populated_gold_still_work(self) -> None:
+        """A populated gold dict containing matchers is unaffected by the
+        None-check (which only short-circuits when args IS None)."""
+        from toolscore.matchers import ANY
+
+        gold = [ToolCall(tool="t", args={"x": ANY})]
+        trace = [ToolCall(tool="t", args={"x": 12345})]
+        result = calculate_argument_f1(gold, trace)
+        assert result["f1"] == 1.0

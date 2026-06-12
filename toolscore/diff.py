@@ -40,8 +40,15 @@ def _fmt_value(v: Any) -> str:
 
 
 def _fmt_call(call: ToolCall, *, max_val: int = _MAX_VAL_LEN) -> str:
-    """Render a ToolCall as ``tool(k=v, …)`` with truncated values."""
-    args = call.args or {}
+    """Render a ToolCall as ``tool(k=v, …)`` with truncated values.
+
+    A gold call whose ``args is None`` ("do not check arguments") renders as
+    ``tool(…any args…)`` to make the don't-check semantics visible.  An empty
+    dict (``args == {}``) renders as ``tool()`` (expect zero arguments).
+    """
+    if call.args is None:
+        return f"{call.tool}(…any args…)"
+    args = call.args
     if not args:
         return f"{call.tool}()"
     parts = []
@@ -128,9 +135,8 @@ def build_diff_table(gold: list[ToolCall], trace: list[ToolCall]) -> Table:
                 gold_cell = Text(_fmt_call(g))
                 trace_cell = Text(_fmt_call(t))
 
-                g_args = g.args or {}
-                t_args = t.args or {}
-                diffs = _arg_diff_lines(g_args, t_args)
+                # Gold args is None → "do not check arguments": never a mismatch.
+                diffs = [] if g.args is None else _arg_diff_lines(g.args, t.args or {})
 
                 if not diffs:
                     status = Text("✓", style="green")
@@ -175,10 +181,8 @@ def build_diff_table(gold: list[ToolCall], trace: list[ToolCall]) -> Table:
                         style="yellow",
                     )
                 else:
-                    # Same tool, arg mismatches
-                    g_args = g.args or {}
-                    t_args = t.args or {}
-                    diffs = _arg_diff_lines(g_args, t_args)
+                    # Same tool, arg mismatches.  Gold args None → no check.
+                    diffs = [] if g.args is None else _arg_diff_lines(g.args, t.args or {})
                     status = Text(
                         "\n".join(diffs) if diffs else "✓", style="yellow" if diffs else "green"
                     )

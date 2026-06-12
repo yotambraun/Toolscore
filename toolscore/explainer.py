@@ -233,8 +233,11 @@ def explain_argument_metrics(
         trace = trace_calls[i]
 
         if gold.tool == trace.tool:
+            # Gold args None → "do not check arguments": nothing to explain.
+            if gold.args is None:
+                continue
             # Same tool, check argument differences
-            gold_args_dict = gold.args or {}
+            gold_args_dict = gold.args
             trace_args_dict = trace.args or {}
             gold_args = set(gold_args_dict.keys())
             trace_args = set(trace_args_dict.keys())

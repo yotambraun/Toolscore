@@ -21,9 +21,14 @@ class TestToolCall:
         assert call.args == {"key": "value"}
 
     def test_tool_call_defaults(self) -> None:
-        """Test tool call default values."""
+        """Test tool call default values.
+
+        ``args`` defaults to ``None`` (not ``{}``) so that a gold call which
+        omits arguments can express "do not check arguments" distinctly from
+        an explicit empty-args expectation.
+        """
         call = ToolCall(tool="test")
-        assert call.args == {}
+        assert call.args is None
         assert call.result is None
         assert call.metadata == {}
 

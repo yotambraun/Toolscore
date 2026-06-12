@@ -149,8 +149,15 @@ def _compare_steps(gold_step: ToolCall, trace_step: ToolCall) -> bool:
     if gold_step.tool != trace_step.tool:
         return False
 
+    # Gold step with args omitted (None) → "do not check arguments": a matching
+    # tool name is enough.  An explicit {} still requires the trace to have no
+    # arguments (the loop below over an empty gold dict makes any extra trace
+    # args irrelevant, matching the historical step-comparison semantics).
+    if gold_step.args is None:
+        return True
+
     # Compare arguments
-    gold_args = gold_step.args or {}
+    gold_args = gold_step.args
     trace_args = trace_step.args or {}
 
     # All expected arguments must be present and match

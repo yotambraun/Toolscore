@@ -71,7 +71,11 @@ class TestLoadGoldStandard:
         assert calls[1].tool == "read_file"
 
     def test_load_minimal_gold_standard(self, tmp_path):
-        """Test loading minimal gold standard with just tool names."""
+        """Test loading minimal gold standard with just tool names.
+
+        A gold entry that omits ``args`` now loads with ``args is None``
+        ("do not check arguments") rather than being coerced to ``{}``.
+        """
         gold_file = tmp_path / "gold.json"
         gold_data = [{"tool": "tool1"}, {"tool": "tool2"}]
 
@@ -82,7 +86,7 @@ class TestLoadGoldStandard:
 
         assert len(calls) == 2
         assert calls[0].tool == "tool1"
-        assert calls[0].args == {}
+        assert calls[0].args is None
         assert calls[1].tool == "tool2"
 
     def test_load_missing_file(self):

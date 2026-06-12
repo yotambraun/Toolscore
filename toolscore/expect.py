@@ -64,34 +64,40 @@ class Expectation:
     def calls(self, tool: str, **args: Any) -> Expectation:
         """Append an expected tool call.
 
-        Calling with no keyword arguments sets ``args=None``, meaning the tool
-        name will be matched but arguments will **not** be checked (equivalent
-        to using :data:`toolscore.ANY` for every argument).  To assert that the
-        agent calls the tool with an empty args dict, pass no actual kwargs —
-        the current contract is: ``calls("tool")`` → do not check args.
+        Calling with **no keyword arguments** — ``calls("tool")`` — means *do
+        not check arguments*: the tool name must be called, but whatever
+        arguments the agent passed are accepted (equivalent to using
+        :data:`toolscore.ANY` for every argument).  This is the common case and
+        keeps casual assertions from failing just because the agent supplied
+        arguments.
 
-        Use :data:`toolscore.ANY`, :class:`toolscore.Regex`, etc. as values
-        for individual arguments when you want flexible matching.
+        Calling **with** keyword arguments — ``calls("tool", q="x")`` — checks
+        those arguments.  Use :data:`toolscore.ANY`, :class:`toolscore.Regex`,
+        etc. as values for individual arguments when you want flexible matching.
+
+        Note:
+            There is intentionally no fluent way to assert "the tool was called
+            with *exactly zero* arguments", because ``calls("tool", **{})`` is
+            indistinguishable in Python from ``calls("tool")``.  For that rare
+            expectation, use :func:`toolscore.evaluate` directly with an
+            explicit empty dict::
+
+                evaluate([{"tool": "t", "args": {}}], actual)
 
         Args:
             tool: Expected tool name.
             **args: Expected argument key/value pairs (may contain
-                :class:`~toolscore.matchers.Matcher` instances).
+                :class:`~toolscore.matchers.Matcher` instances).  Omit entirely
+                to skip argument checking.
 
         Returns:
             ``self`` for chaining.
         """
-        # No kwargs → don't check args (pass args=None via sentinel {}; we'll
-        # store None to indicate "no arg check").  When args are given, store them.
-        expected_args: dict[str, Any] | None = args if args else None
         entry: dict[str, Any] = {"tool": tool}
-        if expected_args is not None:
-            entry["args"] = expected_args
-        else:
-            # Store empty dict so evaluate() sees a ToolCall with args={}.
-            # The key distinction is we pass {} and the score will just reflect
-            # whatever metric logic does with an empty gold-args dict.
-            entry["args"] = {}
+        # No kwargs → omit "args" so the gold ToolCall keeps args=None ("do not
+        # check arguments").  With kwargs → store them for checking.
+        if args:
+            entry["args"] = dict(args)
         self._expected.append(entry)
         self._has_calls = True
         return self

@@ -65,16 +65,21 @@ class TestEvaluate:
         result = evaluate(expected=[], actual=[])
         assert result.selection_accuracy == 1.0
 
-    def test_no_args_defaults_to_empty(self):
-        """Missing args should default to empty dict."""
+    def test_no_args_omitted_means_dont_check(self):
+        """Omitting ``args`` means "do not check arguments" (tool-name-only).
+
+        Under the v1.7 contract a gold call with ``args`` omitted no longer
+        scores argument F1 as 0; it is treated as a perfect (vacuous) arg
+        match, so a correct tool name yields a perfect composite score.
+        """
         result = evaluate(
             expected=[{"tool": "ping"}],
             actual=[{"tool": "ping"}],
         )
         assert result.selection_accuracy == 1.0
         assert result.sequence_accuracy == 1.0
-        # Score may not be 1.0 because argument F1 is 0 when there are no args
-        assert result.score >= 0.6
+        assert result.argument_f1 == 1.0
+        assert result.score == pytest.approx(1.0)
 
     def test_extra_calls_lower_score(self):
         """Extra actual calls should impact score."""
@@ -137,16 +142,22 @@ class TestEvaluate:
             evaluate(expected=["not a dict"], actual=[])  # type: ignore[list-item]
 
     def test_custom_weights(self):
-        """Custom weights should affect the composite score."""
-        # With no args, argument_f1 is 0, so default weights give < 1.0
+        """Custom weights should affect the composite score.
+
+        Uses a real argument mismatch (argument_f1 < 1.0) so that re-weighting
+        argument_f1 to zero is what raises the composite to a perfect score.
+        (Under the v1.7 contract, *omitted* args no longer zero out argument_f1,
+        so a populated-but-wrong arg is used to create the gap deliberately.)
+        """
+        # Wrong argument value → argument_f1 < 1.0, so default weights give < 1.0.
         result_default = evaluate(
-            expected=[{"tool": "a"}],
-            actual=[{"tool": "a"}],
+            expected=[{"tool": "a", "args": {"x": 1}}],
+            actual=[{"tool": "a", "args": {"x": 2}}],
         )
         # Weight only selection_accuracy, which is 1.0
         result_custom = evaluate(
-            expected=[{"tool": "a"}],
-            actual=[{"tool": "a"}],
+            expected=[{"tool": "a", "args": {"x": 1}}],
+            actual=[{"tool": "a", "args": {"x": 2}}],
             weights={
                 "selection_accuracy": 1.0,
                 "argument_f1": 0.0,
@@ -629,3 +640,115 @@ class TestTestAgentAsync:
     def test_test_agent_not_collected_by_pytest(self):
         """test_agent has __test__ = False."""
         assert run_test_agent.__test__ is False  # type: ignore[attr-defined]
+
+
+class TestNoneArgsContractEvaluate:
+    """End-to-end contract matrix for the "omitted gold args = don't check" rule.
+
+    Matrix axes: gold args (omitted / explicit null / {} / populated) by
+    actual args (empty / populated).  Verified at the evaluate() level across
+    argument_f1, tool_correctness, trajectory and the composite score.
+    """
+
+    def test_omitted_gold_args_perfect_against_arg_bearing_actual(self):
+        """Gold args omitted → argument_f1 and score perfect despite actual args."""
+        result = evaluate(
+            expected=[{"tool": "search_flights"}],
+            actual=[{"tool": "search_flights", "args": {"origin": "SFO", "dest": "NYC"}}],
+        )
+        assert result.argument_f1 == 1.0
+        assert result.score == pytest.approx(1.0)
+
+    def test_explicit_null_gold_args_behaves_like_omitted(self):
+        """Gold "args": null is identical to omitting args (do not check)."""
+        result = evaluate(
+            expected=[{"tool": "search", "args": None}],
+            actual=[{"tool": "search", "args": {"q": "x"}}],
+        )
+        assert result.argument_f1 == 1.0
+        assert result.score == pytest.approx(1.0)
+
+    def test_explicit_empty_gold_args_fails_against_arg_bearing_actual(self):
+        """Explicit {} keeps strict "expect zero args" — fails on extra args."""
+        result = evaluate(
+            expected=[{"tool": "search", "args": {}}],
+            actual=[{"tool": "search", "args": {"q": "x"}}],
+        )
+        assert result.argument_f1 == 0.0
+
+    def test_populated_gold_args_mismatch_still_penalized(self):
+        """Populated gold args still checked normally."""
+        result = evaluate(
+            expected=[{"tool": "search", "args": {"q": "right"}}],
+            actual=[{"tool": "search", "args": {"q": "wrong"}}],
+        )
+        assert result.argument_f1 == 0.0
+
+    def test_omitted_gold_args_against_empty_actual(self):
+        """Omitted gold args + empty actual → still a perfect arg match."""
+        result = evaluate(
+            expected=[{"tool": "ping"}],
+            actual=[{"tool": "ping", "args": {}}],
+        )
+        assert result.argument_f1 == 1.0
+        assert result.score == pytest.approx(1.0)
+
+    def test_fluent_hero_case_all_none_args_scores_perfect(self):
+        """The fluent-API hero case: `.calls("a").then_calls("b")` against
+        arg-bearing actual scores ~1.0."""
+        from toolscore import expect
+
+        result = (
+            expect(
+                [
+                    {"tool": "a", "args": {"x": 1}},
+                    {"tool": "b", "args": {"y": 2}},
+                ]
+            )
+            .calls("a")
+            .then_calls("b")
+            .with_score(0.9)
+            .run()
+        )
+        assert result.score >= 0.9
+
+    def test_diff_renders_none_args_as_any_args(self):
+        """Diff rendering shows None-args gold as do-not-check and as a match."""
+        from toolscore.adapters.base import ToolCall
+        from toolscore.diff import build_diff_table
+
+        gold = [ToolCall(tool="search", args=None)]
+        trace = [ToolCall(tool="search", args={"q": "x"})]
+        table = build_diff_table(gold, trace)
+
+        import io
+
+        from rich.console import Console
+
+        console = Console(file=io.StringIO(), width=120, record=True)
+        console.print(table)
+        text = console.export_text()
+        assert "any args" in text
+        # The aligned row is a match (✓), never a mismatch.
+        assert "unexpected" not in text
+
+    def test_load_gold_standard_without_args_is_dont_check(self, tmp_path):
+        """A gold file omitting "args" loads as do-not-check and scores perfect."""
+        import json
+
+        from toolscore.core import load_gold_standard
+
+        gold_file = tmp_path / "gold.json"
+        gold_file.write_text(json.dumps([{"tool": "search"}]))
+
+        gold_calls = load_gold_standard(gold_file)
+        assert gold_calls[0].args is None
+
+        result = evaluate(
+            expected=[
+                {"tool": c.tool, **({"args": c.args} if c.args is not None else {})}
+                for c in gold_calls
+            ],
+            actual=[{"tool": "search", "args": {"q": "anything"}}],
+        )
+        assert result.argument_f1 == 1.0
