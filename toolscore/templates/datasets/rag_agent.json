@@ -1,0 +1,104 @@
+[
+  {
+    "tool": "vector_search",
+    "args": {
+      "query": "What are the benefits of exercise?",
+      "collection": "health_articles",
+      "top_k": 5,
+      "min_score": 0.7
+    },
+    "description": "Search vector database for relevant documents",
+    "metadata": {
+      "schema": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "collection": {
+          "type": "string",
+          "minLength": 1
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "required": false
+        },
+        "min_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "rerank_results",
+    "args": {
+      "query": "What are the benefits of exercise?",
+      "documents": ["doc1", "doc2", "doc3"],
+      "top_k": 3
+    },
+    "description": "Rerank search results for better relevance",
+    "metadata": {
+      "schema": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "documents": {
+          "type": "array",
+          "minItems": 1
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 1,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "generate_answer",
+    "args": {
+      "query": "What are the benefits of exercise?",
+      "context": "Retrieved documents about exercise benefits...",
+      "max_tokens": 200
+    },
+    "description": "Generate answer using LLM with retrieved context",
+    "metadata": {
+      "schema": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 50,
+          "maximum": 2000,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "cite_sources",
+    "args": {
+      "document_ids": ["health_001", "health_042", "health_103"]
+    },
+    "description": "Add citations to generated answer",
+    "metadata": {
+      "schema": {
+        "document_ids": {
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    }
+  }
+]

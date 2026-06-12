@@ -942,3 +942,79 @@ class TestSnapshotsSubgroup:
         sd = _snap_dir(tmp_path)
         result = runner.invoke(main, ["snapshots", "rm", "ghost_snap", "--yes", "--dir", str(sd)])
         assert result.exit_code != 0
+
+
+class TestInitCommand:
+    """Tests for the reworked, framework-detecting ``init`` wizard."""
+
+    def test_init_with_framework_flag_writes_files(self, runner, tmp_path):
+        target = tmp_path / "proj"
+        result = runner.invoke(
+            main,
+            ["init", "--framework", "langgraph", "--yes", "--dir", str(target)],
+        )
+        assert result.exit_code == 0, result.output
+
+        test_file = target / "tests" / "test_agent_tools.py"
+        gitkeep = target / ".toolscore" / "snapshots" / ".gitkeep"
+        ci_file = target / ".github" / "workflows" / "toolscore.yml"
+        assert test_file.exists()
+        assert gitkeep.exists()
+        assert ci_file.exists()
+        assert "LangGraph" in test_file.read_text()
+
+        # Exactly the three next steps are surfaced.
+        out = result.output
+        assert "TODO: import your agent" in out
+        assert "pytest" in out
+        assert "toolscore approve --all" in out
+
+    def test_init_no_ci_skips_workflow(self, runner, tmp_path):
+        target = tmp_path / "proj"
+        result = runner.invoke(
+            main,
+            ["init", "--framework", "generic", "--yes", "--no-ci", "--dir", str(target)],
+        )
+        assert result.exit_code == 0, result.output
+        assert not (target / ".github" / "workflows" / "toolscore.yml").exists()
+        assert (target / "tests" / "test_agent_tools.py").exists()
+
+    def test_init_detection_confirm_path(self, runner, tmp_path):
+        target = tmp_path / "proj"
+        target.mkdir()
+        (target / "pyproject.toml").write_text(
+            "[project]\nname='d'\nversion='0'\ndependencies=['crewai>=0.1']\n"
+        )
+        # Interactive: simulate pressing Enter to accept the detected default.
+        result = runner.invoke(
+            main,
+            ["init", "--dir", str(target)],
+            input="\n",
+        )
+        assert result.exit_code == 0, result.output
+        assert "CrewAI" in result.output
+        assert (target / "tests" / "test_agent_tools.py").exists()
+
+    def test_init_existing_file_errors(self, runner, tmp_path):
+        target = tmp_path / "proj"
+        result = runner.invoke(
+            main, ["init", "--framework", "generic", "--yes", "--dir", str(target)]
+        )
+        assert result.exit_code == 0, result.output
+
+        # Second run must refuse and suggest --force.
+        result2 = runner.invoke(
+            main, ["init", "--framework", "generic", "--yes", "--dir", str(target)]
+        )
+        assert result2.exit_code != 0
+        assert "--force" in result2.output
+
+    def test_init_force_overwrites(self, runner, tmp_path):
+        target = tmp_path / "proj"
+        runner.invoke(main, ["init", "--framework", "generic", "--yes", "--dir", str(target)])
+        result = runner.invoke(
+            main,
+            ["init", "--framework", "langgraph", "--yes", "--force", "--dir", str(target)],
+        )
+        assert result.exit_code == 0, result.output
+        assert "LangGraph" in (target / "tests" / "test_agent_tools.py").read_text()

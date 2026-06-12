@@ -1,0 +1,100 @@
+[
+  {
+    "tool": "search_code",
+    "args": {
+      "query": "def authenticate",
+      "file_pattern": "*.py",
+      "max_results": 5
+    },
+    "description": "Search codebase for function definitions",
+    "metadata": {
+      "schema": {
+        "query": {
+          "type": "string",
+          "minLength": 1
+        },
+        "file_pattern": {
+          "type": "string",
+          "required": false
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "read_file",
+    "args": {
+      "path": "src/auth.py",
+      "start_line": 1,
+      "end_line": 50
+    },
+    "description": "Read contents of a file",
+    "metadata": {
+      "schema": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1,
+          "required": false
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1,
+          "required": false
+        }
+      }
+    }
+  },
+  {
+    "tool": "edit_file",
+    "args": {
+      "path": "src/auth.py",
+      "start_line": 15,
+      "end_line": 20,
+      "new_content": "def authenticate(username: str, password: str) -> bool:\n    # Updated implementation\n    return verify_credentials(username, password)"
+    },
+    "description": "Edit specific lines in a file",
+    "metadata": {
+      "schema": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "end_line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "new_content": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  {
+    "tool": "run_tests",
+    "args": {
+      "test_file": "tests/test_auth.py"
+    },
+    "description": "Execute test suite",
+    "metadata": {
+      "schema": {
+        "test_file": {
+          "type": "string",
+          "required": false
+        }
+      }
+    }
+  }
+]
