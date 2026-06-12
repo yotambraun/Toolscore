@@ -583,7 +583,12 @@ def _check_min_score(result: EvaluationResult, min_score: float | None) -> None:
         return
     if not (0.0 <= min_score <= 1.0):
         raise ValueError(f"min_score must be between 0.0 and 1.0, got {min_score}")
-    if result.score < min_score:
+    # The composite score sums float-weighted metrics, so an exact match lands at
+    # ~0.9999999999999999 rather than a clean 1.0.  Nudge the threshold down by a
+    # tiny epsilon here (the shared chokepoint for every threshold check) so float
+    # noise does not spuriously fail a genuine perfect match; real drift drops the
+    # score far below this tolerance and is still caught.
+    if result.score < max(0.0, min_score - 1e-9):
         from toolscore.diff import render_failure
 
         plain_msg = render_failure(result, min_score, color=False)

@@ -365,14 +365,8 @@ def snapshot_check(
 
     # State 4: exists and approved — evaluate against the baseline.
     result = evaluate(existing.calls, actual, weights=weights, strict=strict)
-    # The composite score sums float-weighted metrics, so an exact reproduction
-    # lands at ~0.9999999999999999 rather than a clean 1.0.  Since snapshots
-    # default to ``min_score=1.0`` (expecting an exact replay), nudge the
-    # threshold down by a tiny epsilon so float noise does not spuriously fail a
-    # genuine match.  Real drift (e.g. a wrong tool) drops the score far below
-    # this tolerance and is still caught by ``_check_min_score``.
-    effective_min = min_score
-    if 0.0 <= min_score <= 1.0:
-        effective_min = max(0.0, min_score - 1e-9)
-    _check_min_score(result, effective_min)
+    # ``_check_min_score`` already tolerates float noise in the threshold, so an
+    # exact replay (~0.9999999999999999 against the default min_score=1.0) passes
+    # while genuine drift is still caught.
+    _check_min_score(result, min_score)
     return result

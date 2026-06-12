@@ -274,6 +274,29 @@ class TestAssertTools:
         )
         assert result.score >= 0.9
 
+    def test_perfect_match_passes_min_score_1(self):
+        """A perfect match must satisfy min_score=1.0 despite float noise.
+
+        The composite score sums float-weighted metrics and lands at
+        ~0.9999999999999999 for an exact match, so a raw ``< 1.0`` comparison
+        would spuriously fail; the threshold tolerates that float noise.
+        """
+        result = assert_tools(
+            expected=[{"tool": "search", "args": {"q": "test"}}],
+            actual=[{"tool": "search", "args": {"q": "test"}}],
+            min_score=1.0,
+        )
+        assert result.score == pytest.approx(1.0)
+
+    def test_genuine_drift_still_fails_at_min_score_1(self):
+        """Float tolerance must not let real drift slip past min_score=1.0."""
+        with pytest.raises(ToolScoreAssertionError, match="score"):
+            assert_tools(
+                expected=[{"tool": "search", "args": {"q": "test"}}],
+                actual=[{"tool": "wrong_tool", "args": {"q": "other"}}],
+                min_score=1.0,
+            )
+
     def test_failing_assertion(self):
         """Failing assertion should raise ToolScoreAssertionError."""
         with pytest.raises(ToolScoreAssertionError, match="score"):
