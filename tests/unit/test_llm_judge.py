@@ -23,6 +23,15 @@ from toolscore.metrics.llm_judge import (
 )
 
 
+def test_judge_config_exported_from_toolscore():
+    """JudgeConfig is importable from the top-level package and in __all__."""
+    import toolscore
+    from toolscore import JudgeConfig as ExportedJudgeConfig
+
+    assert ExportedJudgeConfig is JudgeConfig
+    assert "JudgeConfig" in toolscore.__all__
+
+
 @pytest.fixture
 def gold():
     return [
@@ -82,9 +91,20 @@ class TestProviderInference:
         cfg = JudgeConfig(model="gpt-4o-mini", provider="anthropic")
         assert infer_provider(cfg) == "anthropic"
 
-    def test_base_url_wins_over_explicit_provider(self):
+    def test_explicit_provider_conflicting_base_url_raises(self):
+        # An explicit non-compatible provider plus a base_url is ambiguous.
         cfg = JudgeConfig(model="gpt-4o-mini", provider="anthropic", base_url="http://x/v1")
+        with pytest.raises(ValueError, match="conflicts with base_url"):
+            infer_provider(cfg)
+
+    def test_openai_compatible_with_base_url_ok(self):
+        cfg = JudgeConfig(model="llama3.1", provider="openai_compatible", base_url="http://x/v1")
         assert infer_provider(cfg) == "openai_compatible"
+
+    def test_openai_compatible_without_base_url_raises(self):
+        cfg = JudgeConfig(model="llama3.1", provider="openai_compatible")
+        with pytest.raises(ValueError, match="requires a base_url"):
+            infer_provider(cfg)
 
 
 # --------------------------------------------------------------------------- #
@@ -108,6 +128,19 @@ class TestApiKeyFallback:
         monkeypatch.setenv("GOOGLE_API_KEY", "g-key")
         cfg = JudgeConfig(model="gemini-2.0-flash")
         assert llm_judge._resolve_api_key(cfg, "gemini") == "g-key"
+
+    def test_gemini_gemini_api_key_fallback(self, monkeypatch):
+        # GEMINI_API_KEY is honored when GOOGLE_API_KEY is unset.
+        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+        cfg = JudgeConfig(model="gemini-2.0-flash")
+        assert llm_judge._resolve_api_key(cfg, "gemini") == "gemini-key"
+
+    def test_gemini_google_key_preferred_over_gemini_key(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
+        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+        cfg = JudgeConfig(model="gemini-2.0-flash")
+        assert llm_judge._resolve_api_key(cfg, "gemini") == "google-key"
 
     def test_explicit_key_wins_over_env(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
@@ -333,6 +366,24 @@ class TestBatchedJudging:
         assert result["explanations"] == ["p0", "p1"]
         assert set(result.keys()) == EXPECTED_KEYS
 
+    def test_transport_error_propagates_no_fallback(self, monkeypatch, gold, trace):
+        """A backend transport/SDK error must NOT fan out into per-pair calls."""
+
+        class FailingBackend:
+            def __init__(self):
+                self.calls = 0
+
+            def complete(self, system, prompt):
+                self.calls += 1
+                raise RuntimeError("connection refused")
+
+        backend = FailingBackend()
+        monkeypatch.setattr(llm_judge, "_make_backend", lambda config: backend)
+        with pytest.raises(RuntimeError, match="connection refused"):
+            calculate_semantic_correctness(gold, trace)
+        # Exactly one (batched) attempt — no doomed per-pair retries.
+        assert backend.calls == 1
+
     def test_wrong_length_array_falls_back(self, monkeypatch, gold, trace):
         responses = iter(
             [
@@ -393,6 +444,61 @@ class TestBatchedJudging:
         assert result["semantic_score"] == 0.0
         assert result["per_call_scores"] == []
         assert len(backend.calls) == 0  # nothing to judge
+
+
+# --------------------------------------------------------------------------- #
+# Gemini backend retry behavior
+# --------------------------------------------------------------------------- #
+
+
+class _FakeGeminiModels:
+    def __init__(self, fail_times: int, text: str) -> None:
+        self.fail_times = fail_times
+        self.text = text
+        self.calls = 0
+
+    def generate_content(self, *, model, contents, config):
+        self.calls += 1
+        if self.calls <= self.fail_times:
+            raise RuntimeError("transient gemini error")
+
+        class _Resp:
+            text = self.text
+
+        return _Resp()
+
+
+class _FakeGeminiClient:
+    def __init__(self, models: _FakeGeminiModels) -> None:
+        self.models = models
+
+
+def _make_gemini_backend(config: JudgeConfig, models: _FakeGeminiModels):
+    """Build a _GeminiBackend bypassing its SDK-importing __init__."""
+    backend = llm_judge._GeminiBackend.__new__(llm_judge._GeminiBackend)
+    backend._client = _FakeGeminiClient(models)
+    backend._model = config.model
+    backend._temperature = config.temperature
+    backend._max_retries = max(0, config.max_retries)
+    return backend
+
+
+class TestGeminiRetry:
+    def test_retries_then_succeeds(self):
+        models = _FakeGeminiModels(fail_times=2, text='{"score": 1.0}')
+        cfg = JudgeConfig(model="gemini-2.0-flash", max_retries=2)
+        backend = _make_gemini_backend(cfg, models)
+        assert backend.complete("sys", "prompt") == '{"score": 1.0}'
+        # 2 failures + 1 success == 3 attempts (max_retries + 1).
+        assert models.calls == 3
+
+    def test_exhausts_retries_and_raises(self):
+        models = _FakeGeminiModels(fail_times=5, text="never")
+        cfg = JudgeConfig(model="gemini-2.0-flash", max_retries=2)
+        backend = _make_gemini_backend(cfg, models)
+        with pytest.raises(RuntimeError, match="transient gemini error"):
+            backend.complete("sys", "prompt")
+        assert models.calls == 3  # 1 initial + 2 retries
 
 
 # --------------------------------------------------------------------------- #

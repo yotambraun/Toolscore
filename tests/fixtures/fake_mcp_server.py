@@ -14,10 +14,14 @@ Tools advertised:
 Flags:
     ``--sleep <seconds>``  Delay every ``tools/call`` response by N seconds
     (used to drive client timeout tests).
+    ``--paginate``  Serve ``tools/list`` across three terminating pages, one
+    tool per page, using ``nextCursor``. Exercises the client's pagination loop.
+    ``--paginate-loop``  Serve ``tools/list`` with a ``nextCursor`` that always
+    repeats (``"loop"``), to drive the client's infinite-loop guard.
 
 Run directly::
 
-    python tests/fixtures/fake_mcp_server.py [--sleep 2]
+    python tests/fixtures/fake_mcp_server.py [--sleep 2] [--paginate] [--paginate-loop]
 """
 
 from __future__ import annotations
@@ -131,6 +135,38 @@ def _handle_call(request_id: Any, params: dict[str, Any], sleep: float) -> None:
         _error(request_id, -32602, f"Unknown tool: {name!r}")
 
 
+def _handle_list_tools(request_id: Any, params: dict[str, Any], mode: str) -> None:
+    """Handle a ``tools/list`` request, optionally paginated.
+
+    Args:
+        request_id: The originating request id.
+        params: The request params (may carry a ``cursor``).
+        mode: One of ``"single"`` (all tools, no cursor), ``"paginate"`` (one
+            tool per page across terminating pages), or ``"paginate-loop"``
+            (always returns a repeating ``nextCursor`` to drive the loop guard).
+    """
+    cursor = params.get("cursor")
+
+    if mode == "paginate-loop":
+        # Always return the first tool and the same "loop" cursor forever.
+        _result(request_id, {"tools": TOOLS[:1], "nextCursor": "loop"})
+        return
+
+    if mode == "paginate":
+        # One tool per page; cursor encodes the next index. Terminate when
+        # all tools have been served (no nextCursor on the final page).
+        idx = int(cursor) if cursor is not None else 0
+        idx = max(0, min(idx, len(TOOLS)))
+        page = TOOLS[idx : idx + 1]
+        response: dict[str, Any] = {"tools": page}
+        if idx + 1 < len(TOOLS):
+            response["nextCursor"] = str(idx + 1)
+        _result(request_id, response)
+        return
+
+    _result(request_id, {"tools": TOOLS})
+
+
 def main(argv: list[str]) -> int:
     """Run the fake server's read/dispatch loop.
 
@@ -146,7 +182,13 @@ def main(argv: list[str]) -> int:
         if idx + 1 < len(argv):
             sleep = float(argv[idx + 1])
 
-    _log(f"starting (sleep={sleep})")
+    list_mode = "single"
+    if "--paginate-loop" in argv:
+        list_mode = "paginate-loop"
+    elif "--paginate" in argv:
+        list_mode = "paginate"
+
+    _log(f"starting (sleep={sleep}, list_mode={list_mode})")
 
     for line in sys.stdin:
         line = line.strip()
@@ -176,7 +218,7 @@ def main(argv: list[str]) -> int:
                 },
             )
         elif method == "tools/list":
-            _result(request_id, {"tools": TOOLS})
+            _handle_list_tools(request_id, message.get("params", {}) or {}, list_mode)
         elif method == "tools/call":
             _handle_call(request_id, message.get("params", {}) or {}, sleep)
         elif request_id is not None:

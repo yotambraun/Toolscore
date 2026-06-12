@@ -395,6 +395,73 @@ class TestFromLangGraph:
         assert len(calls) == 1
         assert calls[0]["tool"] == "real_tool"
 
+    def test_openai_wire_format_nested_function(self):
+        """OpenAI conversation-history shape nests under ``function``."""
+        state = {
+            "messages": [
+                {"role": "user", "content": "search please"},
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "search",
+                                "arguments": '{"q": "test"}',
+                            },
+                        }
+                    ],
+                },
+            ]
+        }
+        calls = from_langgraph(state)
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "search"
+        assert calls[0]["args"] == {"q": "test"}
+
+    def test_openai_wire_format_object_function(self):
+        """OpenAI wire format via attribute access (function.name / .arguments)."""
+
+        class Func:
+            def __init__(self, name: str, arguments: str) -> None:
+                self.name = name
+                self.arguments = arguments
+
+        class ToolCall:
+            def __init__(self, func: Func) -> None:
+                self.function = func
+
+        class Message:
+            def __init__(self, tool_calls: list) -> None:
+                self.tool_calls = tool_calls
+
+        messages = [Message([ToolCall(Func("lookup", '{"id": 5}'))])]
+        calls = from_langgraph(messages)
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "lookup"
+        assert calls[0]["args"] == {"id": 5}
+
+    def test_top_level_name_preferred_over_function(self):
+        """Top-level ``name``/``args`` win when both shapes are present."""
+        state = {
+            "messages": [
+                {
+                    "tool_calls": [
+                        {
+                            "name": "top_tool",
+                            "args": {"a": 1},
+                            "function": {"name": "nested_tool", "arguments": "{}"},
+                        }
+                    ]
+                }
+            ]
+        }
+        calls = from_langgraph(state)
+        assert len(calls) == 1
+        assert calls[0]["tool"] == "top_tool"
+        assert calls[0]["args"] == {"a": 1}
+
 
 class TestFromPydanticAI:
     """Tests for from_pydantic_ai()."""

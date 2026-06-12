@@ -123,7 +123,10 @@ class Approx(Matcher):
     Args:
         value: The expected numeric value.
         rel: Relative tolerance (default 1e-6).
-        abs: Absolute tolerance (default 0.0).
+        abs: Absolute tolerance (default 0.0). Note this differs from
+            ``pytest.approx``, whose default absolute tolerance is ``1e-12``.
+            With ``abs=0.0`` the match is purely relative, so a comparison
+            against an expected value of ``0`` requires exact equality.
     """
 
     def __init__(self, value: float, rel: float = 1e-6, abs: float = 0.0) -> None:

@@ -97,6 +97,10 @@ class MCPToolResult:
     duration: float
 
 
+# Safety cap on tools/list pagination to bound a misbehaving server.
+_MAX_LIST_TOOLS_PAGES = 100
+
+
 class MCPError(Exception):
     """Raised on MCP protocol or transport failures."""
 
@@ -276,18 +280,22 @@ class MCPStdioClient:
     def list_tools(self) -> list[MCPToolDef]:
         """List the tools advertised by the server.
 
-        Follows pagination via the ``nextCursor`` field until exhausted.
+        Follows pagination via the ``nextCursor`` field until exhausted. Guards
+        against a misbehaving server that paginates forever: a repeated cursor
+        or more than ``_MAX_LIST_TOOLS_PAGES`` pages raises :class:`MCPError`.
 
         Returns:
             The advertised tools as :class:`MCPToolDef` objects.
 
         Raises:
-            MCPError: On a protocol or transport failure.
+            MCPError: On a protocol or transport failure, or if the server
+                paginates in a loop (repeated cursor) or beyond the page cap.
             MCPTimeoutError: If the server does not respond in time.
         """
         tools: list[MCPToolDef] = []
         cursor: str | None = None
-        while True:
+        seen_cursors: set[str] = set()
+        for _page in range(_MAX_LIST_TOOLS_PAGES):
             params: dict[str, Any] = {}
             if cursor is not None:
                 params["cursor"] = cursor
@@ -307,9 +315,21 @@ class MCPStdioClient:
 
             next_cursor = result.get("nextCursor")
             if not next_cursor:
-                break
-            cursor = str(next_cursor)
-        return tools
+                return tools
+            next_cursor = str(next_cursor)
+            if next_cursor in seen_cursors:
+                raise MCPError(
+                    f"MCP server returned a repeated pagination cursor "
+                    f"{next_cursor!r} from tools/list; aborting to avoid an "
+                    "infinite pagination loop."
+                )
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+
+        raise MCPError(
+            f"MCP server exceeded the tools/list pagination cap of "
+            f"{_MAX_LIST_TOOLS_PAGES} pages; aborting to avoid an infinite loop."
+        )
 
     def call_tool(self, name: str, arguments: dict[str, Any]) -> MCPToolResult:
         """Invoke a tool on the server.

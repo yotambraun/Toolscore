@@ -161,6 +161,11 @@ def from_langgraph(result: Any) -> list[dict[str, Any]]:
 
         {"name": ..., "args": {...}, "id": ...}
 
+    It also accepts the OpenAI wire format used in raw conversation histories,
+    where each tool call nests under ``function``::
+
+        {"function": {"name": ..., "arguments": "<json string>"}, "id": ...}
+
     Order across messages is preserved.
 
     Args:
@@ -192,9 +197,23 @@ def from_langgraph(result: Any) -> list[dict[str, Any]]:
             if isinstance(tc, dict):
                 name = tc.get("name", "")
                 args = tc.get("args", {})
+                # OpenAI wire format nests under tc["function"]:
+                #   {"function": {"name": ..., "arguments": "<json>"}}
+                if not name:
+                    func = tc.get("function")
+                    if isinstance(func, dict):
+                        name = func.get("name", "")
+                        if not args:
+                            args = func.get("arguments", {})
             else:
                 name = getattr(tc, "name", "")
                 args = getattr(tc, "args", {})
+                if not name:
+                    func = getattr(tc, "function", None)
+                    if func is not None:
+                        name = getattr(func, "name", "")
+                        if not args:
+                            args = getattr(func, "arguments", {})
 
             # Parse JSON-string args
             if isinstance(args, str):
@@ -443,6 +462,45 @@ def _is_langgraph_result(actual: Any) -> bool:
     return False
 
 
+def _extract_langgraph_or_raise(actual: Any) -> list[dict[str, Any]]:
+    """Extract LangGraph tool calls, raising if detection matched but yielded none.
+
+    The LangGraph branch is only entered when at least one message carries a
+    non-empty ``tool_calls``. If :func:`from_langgraph` still extracts zero
+    calls, the messages use a shape we do not understand (rather than genuinely
+    having no calls), which would otherwise produce a silent score near zero.
+    Raise a clear error instead.
+    """
+    calls = from_langgraph(actual)
+    if not calls:
+        raise ValueError(
+            "Detected a LangGraph/message-list response with tool_calls, but could "
+            "not extract any tool calls from it. The tool_calls entries use an "
+            "unrecognized shape (expected top-level 'name'/'args' or OpenAI-style "
+            "'function.name'/'function.arguments'). Convert the response manually "
+            "with toolscore.integrations.from_langgraph or pass a list of dicts "
+            "with 'tool' and 'args' keys."
+        )
+    return calls
+
+
+def _is_langgraph_message_list(actual: Any) -> bool:
+    """Return True if *actual* is a bare list of messages with tool_calls.
+
+    Mirrors :func:`_is_langgraph_result` but for a plain message list (no
+    surrounding ``{"messages": [...]}`` wrapper). Scans *all* items, so a
+    ``[human_msg, ai_msg_with_tool_calls]`` list is detected even though the
+    tool calls live on the second message.
+    """
+    if not isinstance(actual, list) or not actual:
+        return False
+    for msg in actual:
+        tc = msg.get("tool_calls") if isinstance(msg, dict) else getattr(msg, "tool_calls", None)
+        if tc:
+            return True
+    return False
+
+
 def _is_claude_agent_sdk_list(actual: Any) -> bool:
     """Return True if *actual* looks like a list of Claude Agent SDK messages."""
     if not isinstance(actual, list) or not actual:
@@ -477,6 +535,7 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     7. Object with callable ``all_messages`` → Pydantic AI
     8. Object/dict with ``new_items`` → OpenAI Agents SDK
     9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK
+    10. Bare list of messages where some message has ``tool_calls`` → LangGraph
 
     Args:
         actual: A raw LLM provider response (object or dict), or an
@@ -487,6 +546,8 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
 
     Raises:
         TypeError: If the format cannot be detected.
+        ValueError: If a LangGraph/message-list shape with ``tool_calls`` is
+            detected but no tool calls can be extracted from it.
     """
     # 1. Already formatted
     if isinstance(actual, list) and (
@@ -511,7 +572,7 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
 
         # 6. LangGraph: messages attribute with tool_calls
         if _is_langgraph_result(actual):
-            return from_langgraph(actual)
+            return _extract_langgraph_or_raise(actual)
 
         actual = _object_to_dict(actual)
 
@@ -535,7 +596,7 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
 
         # 6. LangGraph state dict
         if _is_langgraph_result(actual):
-            return from_langgraph(actual)
+            return _extract_langgraph_or_raise(actual)
 
         # 8. OpenAI Agents SDK dict
         if "new_items" in actual:
@@ -547,15 +608,10 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
         if _is_claude_agent_sdk_list(actual):
             return from_claude_agent_sdk(actual)
 
-        # 6. LangGraph: list of messages with tool_calls
-        first = actual[0]
-        has_tool_calls = False
-        if isinstance(first, dict):
-            has_tool_calls = bool(first.get("tool_calls"))
-        else:
-            has_tool_calls = bool(getattr(first, "tool_calls", None))
-        if has_tool_calls:
-            return from_langgraph(actual)
+        # 6. LangGraph: list of messages with tool_calls (scan all items, so a
+        #    [human_msg, ai_msg_with_tool_calls] list is handled too).
+        if _is_langgraph_message_list(actual):
+            return _extract_langgraph_or_raise(actual)
 
     # 7. Pydantic AI on a plain object (after __dict__ path above, but dict
     #    conversion might have happened — check the original)

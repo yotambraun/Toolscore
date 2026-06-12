@@ -30,6 +30,7 @@ from toolscore.integrations import (
     from_pydantic_ai,
 )
 from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
+from toolscore.metrics.llm_judge import JudgeConfig
 from toolscore.snapshots import Snapshot, SnapshotStore, snapshot_check
 
 try:
@@ -79,6 +80,7 @@ __all__ = [
     "Contains",
     "Expectation",
     "IsType",
+    "JudgeConfig",
     "Matcher",
     "OneOf",
     "Regex",

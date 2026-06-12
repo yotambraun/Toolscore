@@ -95,6 +95,28 @@ def test_list_tools_bad_schema_is_tolerated(client: MCPStdioClient) -> None:
     assert "properties" not in bad.input_schema
 
 
+def test_list_tools_follows_pagination() -> None:
+    """The client walks all pages when the server paginates via nextCursor."""
+    c = MCPStdioClient(_server_command("--paginate"), timeout=10.0)
+    c.start()
+    try:
+        tools = c.list_tools()
+    finally:
+        c.close()
+    assert [t.name for t in tools] == ["add", "flaky", "bad_schema"]
+
+
+def test_list_tools_pagination_loop_raises() -> None:
+    """A server that repeats its cursor trips the infinite-loop guard."""
+    c = MCPStdioClient(_server_command("--paginate-loop"), timeout=10.0)
+    c.start()
+    try:
+        with pytest.raises(MCPError, match="repeated pagination cursor"):
+            c.list_tools()
+    finally:
+        c.close()
+
+
 # -- call_tool ------------------------------------------------------------
 
 
