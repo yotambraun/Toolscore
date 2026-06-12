@@ -1,11 +1,22 @@
 """Unit tests for CLI commands."""
 
 import json
+import shlex
+import sys
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
 from toolscore.cli import main
+
+FIXTURE_SERVER = Path(__file__).resolve().parents[1] / "fixtures" / "fake_mcp_server.py"
+
+
+def _fake_server_arg(*extra: str) -> str:
+    """Return a single shell-quoted command string launching the fake server."""
+    parts = [sys.executable, str(FIXTURE_SERVER), *extra]
+    return shlex.join(parts)
 
 
 @pytest.fixture
@@ -383,3 +394,143 @@ class TestMainCommand:
         assert "TRACE_FILE" in result.output
         assert "--format" in result.output
         assert "--html" in result.output
+
+    def test_mcp_group_in_help(self, runner):
+        """The mcp sub-group should be listed in the main help."""
+        result = runner.invoke(main, ["--help"])
+        assert result.exit_code == 0
+        assert "mcp" in result.output
+
+
+class TestMCPCommands:
+    """Tests for the `toolscore mcp` list/lint/test sub-group."""
+
+    def test_mcp_list(self, runner):
+        """list should print a table of the fake server's tools."""
+        result = runner.invoke(main, ["mcp", "list", _fake_server_arg()])
+        assert result.exit_code == 0, result.output
+        assert "add" in result.output
+        assert "flaky" in result.output
+        assert "bad_schema" in result.output
+
+    def test_mcp_lint_exits_nonzero_on_errors(self, runner):
+        """lint should exit 1 because bad_schema produces error-severity issues."""
+        result = runner.invoke(main, ["mcp", "lint", _fake_server_arg()])
+        assert result.exit_code == 1, result.output
+        assert "bad_schema" in result.output
+
+    def test_mcp_test_default_human_output(self, runner):
+        """test should print a scorecard with a grade by default."""
+        result = runner.invoke(main, ["mcp", "test", _fake_server_arg(), "--cases", "2"])
+        assert result.exit_code == 0, result.output
+        assert "Scorecard" in result.output or "Grade" in result.output
+        assert "fake-mcp" in result.output
+
+    def test_mcp_test_no_edge_cases(self, runner):
+        """--no-edge-cases is accepted and still produces a scorecard."""
+        result = runner.invoke(
+            main,
+            ["mcp", "test", _fake_server_arg(), "--cases", "2", "--no-edge-cases"],
+        )
+        assert result.exit_code == 0, result.output
+        assert "fake-mcp" in result.output
+
+    def test_mcp_test_report_json_output(self, runner, tmp_path):
+        """--report json --output writes a JSON file and prints a summary."""
+        out = tmp_path / "scorecard.json"
+        result = runner.invoke(
+            main,
+            [
+                "mcp",
+                "test",
+                _fake_server_arg(),
+                "--cases",
+                "2",
+                "--report",
+                "json",
+                "--output",
+                str(out),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        data = json.loads(out.read_text())
+        assert data["server"]["name"] == "fake-mcp"
+        assert data["grade"] in {"A", "B", "C", "D", "F"}
+        # A one-line summary is still printed to the console.
+        assert "Grade" in result.output or "grade" in result.output.lower()
+
+    def test_mcp_test_report_md_output(self, runner, tmp_path):
+        """--report md --output writes a Markdown file."""
+        out = tmp_path / "scorecard.md"
+        result = runner.invoke(
+            main,
+            [
+                "mcp",
+                "test",
+                _fake_server_arg(),
+                "--cases",
+                "2",
+                "--report",
+                "md",
+                "--output",
+                str(out),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert out.exists()
+        text = out.read_text()
+        assert "MCP Scorecard" in text
+        assert "| Tool |" in text
+
+    def test_mcp_test_fail_under_failing(self, runner):
+        """--fail-under A should fail (exit 1) since the fake server is not an A."""
+        result = runner.invoke(
+            main,
+            ["mcp", "test", _fake_server_arg(), "--cases", "2", "--fail-under", "A"],
+        )
+        assert result.exit_code == 1, result.output
+
+    def test_mcp_test_fail_under_passing(self, runner):
+        """--fail-under F should always pass."""
+        result = runner.invoke(
+            main,
+            ["mcp", "test", _fake_server_arg(), "--cases", "2", "--fail-under", "F"],
+        )
+        assert result.exit_code == 0, result.output
+
+    def test_mcp_test_both_config_and_positional_errors(self, runner, tmp_path):
+        """Providing both a positional command and --config is an error."""
+        config = tmp_path / "mcp.json"
+        config.write_text(json.dumps({"mcpServers": {"x": {"command": "echo", "args": ["hi"]}}}))
+        result = runner.invoke(
+            main,
+            ["mcp", "test", _fake_server_arg(), "--config", str(config)],
+        )
+        assert result.exit_code != 0
+        assert "config" in result.output.lower() or "exactly one" in result.output.lower()
+
+    def test_mcp_test_neither_config_nor_positional_errors(self, runner):
+        """Providing neither a positional command nor --config is an error."""
+        result = runner.invoke(main, ["mcp", "test"])
+        assert result.exit_code != 0
+        assert "config" in result.output.lower() or "command" in result.output.lower()
+
+    def test_mcp_list_via_config(self, runner, tmp_path):
+        """list should work through --config + --server."""
+        config = tmp_path / "mcp.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "mcpServers": {
+                        "fake": {
+                            "command": sys.executable,
+                            "args": [str(FIXTURE_SERVER)],
+                        }
+                    }
+                }
+            )
+        )
+        result = runner.invoke(main, ["mcp", "list", "--config", str(config)])
+        assert result.exit_code == 0, result.output
+        assert "add" in result.output
