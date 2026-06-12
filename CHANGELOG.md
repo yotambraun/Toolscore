@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
+## [Unreleased]
+
+### Highlights
+
+- **Snapshot testing — record, approve, replay.** Stop hand-writing expected tool calls: `toolscore init` scaffolds a suite, the first `pytest` run records your agent's calls, `toolscore approve --all` blesses the baseline, and CI replays it forever. Jest snapshots for agents.
+- **MCP Scorecard.** `toolscore mcp test "<server command>"` auto-generates scenarios from tool schemas, lints definitions, prints an A–F grade, exports Markdown reports, and gates CI with `--fail-under` — the first standard testing tool for MCP servers.
+- **Fluent `expect()` API, matchers, and rich diffs.** `expect(agent).on(prompt).calls("tool", arg=ANY).does_not_call(...).with_score(0.9).run()`, with `ANY`/`Regex`/`Approx`/`Contains`/`OneOf`/`IsType` matchers and aligned expected-vs-actual failure tables.
+- **Native everywhere.** Raw responses from OpenAI, Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, and CrewAI (experimental) go straight into `evaluate()`/`expect()`/snapshots — zero glue. Async agents via `test_agent_async()` / `.run_async()`.
+- **LLM judge for every provider.** Optional semantic judging via OpenAI, Anthropic, Gemini, or any OpenAI-compatible endpoint (Ollama/vLLM/Groq) — one `judge=` parameter and matching `[llm]`/`[anthropic]`/`[gemini]` extras.
+
+### Added
+
+#### Snapshot Testing
+- `snapshot_check()`, `Snapshot`, and `SnapshotStore` — record-approve-replay state machine backed by plain JSON files under `.toolscore/snapshots/`
+- `toolscore_snapshot` pytest fixture: records on first run, replays approved baselines, fails on drift, and prints a Jest-style terminal summary (`toolscore: 1 snapshot created (pending approval), 5 passed`)
+- Pytest options `--toolscore-update` (re-record + re-approve), `--toolscore-snapshot-dir`, and `--toolscore-allow-pending`; `TOOLSCORE_RECORD_UPDATE=1` mirrors `--toolscore-update`
+- CLI commands: `toolscore record` (subprocess or `--from-trace` mode), `toolscore approve [NAME|--all]`, and `toolscore snapshots list|show|rm`
+- CI-safe by design: snapshots are never created or auto-approved when the `CI` env var is set — missing/pending snapshots fail the build
+
+#### MCP Scorecard
+- Zero-dependency MCP stdio client (`MCPStdioClient`) with config-file support for Claude Desktop style files (`--config` / `--server`)
+- Scenario harness: happy-path and edge-case scenarios generated from each tool's input schema
+- Schema linting (`lint_tools`) for missing descriptions, malformed schemas, undeclared required lists, and more
+- `MCPScorecard` with an A–F grade blending happy-path pass rate (60%), edge resilience (20%), and lint cleanliness (20%)
+- CLI commands: `toolscore mcp list`, `toolscore mcp lint`, `toolscore mcp test` with `--cases`, `--no-edge-cases`, `--report md|json --output`, and `--fail-under A-F`
+- GitHub Action MCP mode: set `mcp-command` (and optionally `mcp-fail-under`) to grade an MCP server in CI instead of running the eval path
+
+#### Fluent API, Matchers & Diffs
+- `expect()` / `Expectation` fluent builder: `.on()`, `.calls()`, `.then_calls()`, `.does_not_call()`, `.with_score()`, `.with_weights()`, `.with_strict_args()`, `.run()`, `.run_async()`
+- Argument matchers usable anywhere expected args appear: `ANY`, `Regex`, `Approx`, `Contains`, `OneOf`, `IsType`
+- Rich failure diffs: `ToolScoreAssertionError` messages now embed an aligned expected-vs-actual table with per-argument mismatches and targeted tips (colored on a TTY, plain text in CI logs)
+
+#### Framework & Async Support
+- New extractors: `from_langgraph()`, `from_pydantic_ai()`, `from_openai_agents()`, `from_claude_agent_sdk()`, and `from_crewai()` (experimental); `auto_extract()` detects all of them, including list-shaped message formats
+- `test_agent_async()` and `expect(...).run_async()` for async agents; sync entry points raise a clear `TypeError` pointing at the async variant
+
+#### Multi-Provider LLM Judge
+- `JudgeConfig` dataclass with provider inference from the model name (`claude-*` → Anthropic, `gemini-*` → Gemini, `base_url` → any OpenAI-compatible endpoint, otherwise OpenAI)
+- CLI flags `--llm-model`, `--llm-provider`, and `--llm-base-url` on `toolscore eval` (e.g. Ollama: `--llm-model llama3.1 --llm-base-url http://localhost:11434/v1`)
+- New extras: `tool-scorer[anthropic]` and `tool-scorer[gemini]`
+
+#### Scaffolding & Quality
+- `toolscore init` reworked into a framework-detecting wizard: detects your agent framework (LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI, raw SDKs, or generic), writes a pytest suite that passes immediately, and adds a snapshot-replay GitHub Actions workflow
+- `evaluate()` validates inputs: `TypeError` for non-list `expected`, `ValueError` for unknown, negative, or non-finite weight keys; `assert_tools()`/`test_agent()` validate `min_score` range early
+- `assert_score()` on `ToolscoreAssertions` and the `toolscore_assert_tools` fixture bridge the pytest plugin to the in-memory API
+- `py.typed` marker (PEP 561) — mypy/pyright now see inline annotations
+- Strict argument comparison mode (`strict=True` / `.with_strict_args()`): pure equality, no int/float coercion or string stripping
+
+### Changed
+
+**This release intentionally changes a few behaviors. Review these before upgrading:**
+
+- **`evaluate_trace()` takes a single `judge` parameter.** The old `use_llm_judge`, `llm_judge_model`, and `llm_judge_api_key` keyword arguments are gone. Pass `judge=False` (default), `judge=True`, a model-name string, or a `JudgeConfig` — e.g. `evaluate_trace(gold, trace, judge=JudgeConfig(model="gemini-2.0-flash"))`.
+- **Composite-score weights are renormalized.** Custom `weights=` are merged with the defaults and scaled so they sum to 1.0 before the composite score is computed. Scores produced with partial weight overrides may differ from previous releases; the relative ordering of metrics you emphasized is preserved.
+- **Omitted gold arguments now mean "do not check arguments".** An expected call with `args` omitted (or `null`) is a tool-name-only expectation: the tool must be called, but any arguments are accepted. An explicit `"args": {}` keeps its strict meaning — "expect this tool to be called with zero arguments". This affects `argument_f1`, `tool_correctness`, trajectory, the composite score, gold-file loading, the fluent `.calls("tool")` (no kwargs = don't check args), and failure-diff rendering.
+- **`ToolCall.args` preserves `None`.** It is no longer coerced to `{}` on construction, keeping "do not check" (`None`) distinct from "expect zero args" (`{}`). Code that assumed `.args` is always a dict should handle `None`.
+- **The `min_accuracy` pytest marker is removed.** It was dead code; use `assert_tools(min_score=...)`, the `toolscore_snapshot` fixture, or the `toolscore_assert` helpers instead.
+- **Importing `toolscore` no longer creates a `traces/` directory.** Trace capture creates its output directory lazily on first write, so simply importing the package leaves your filesystem untouched.
+- Cost estimator pricing refreshed (February 2026), including a `claude-opus-4-6` entry.
+
+### Fixed
+
+- Zero-argument tool calls now score a perfect argument F1 when matched exactly (instead of being penalized as having no overlapping args)
+- `evaluate()` routes `actual` through `auto_extract()`, so list-shaped raw formats (Claude Agent SDK / LangGraph message lists) are detected even when passed as plain lists
+- LLM judge batching falls back to per-pair requests only on parse failures; transport and auth errors propagate instead of fanning out into doomed retries
+- `MCPStdioClient.list_tools()` guards against runaway `nextCursor` pagination loops
+- Argument comparison recurses strictly through nested dicts and lists
+- `JudgeConfig` is exported from the package root
+
 ## [1.6.0]
 
 ### Added - Instant Value: Zero-Friction API
@@ -23,45 +92,9 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 - Thin wrapper around `pytest.mark.parametrize` with automatic key extraction and test IDs
 - Lazy pytest import avoids breaking non-pytest users
 
-## [Unreleased]
+## [1.5.0]
 
-### Changed - Argument-checking semantics
-
-- **Omitted gold arguments now mean "do not check arguments".** A gold/expected
-  call with `args` omitted (or set to `null`/`None`) is now a tool-name-only
-  expectation: the tool must be called, but whatever arguments the agent passed
-  are accepted. This affects `argument_f1`, `tool_correctness`, `trajectory`,
-  the composite `score`, the fluent `expect().calls("tool")` API, gold-file
-  loading via `load_gold_standard`, and the failure-diff rendering.
-- An explicit `"args": {}` keeps its strict meaning: "expect the tool to be
-  called with **no** arguments" (unchanged).
-- The fluent `.calls("tool")` (no kwargs) now omits argument checking, so casual
-  assertions like `.calls("search_flights").then_calls("book_flight")` pass even
-  when the agent supplies arguments. Pass kwargs — `.calls("tool", q="x")` — to
-  check specific arguments. For the rare "exactly zero args" expectation, use
-  `evaluate([{"tool": "t", "args": {}}], ...)` directly.
-- `ToolCall.args` is no longer coerced from `None` to `{}` on construction, so
-  the "do not check" (`None`) and "expect zero args" (`{}`) cases stay distinct.
-
-### Added - Code Quality & Polish (Round 2)
-
-#### Input Validation
-- `evaluate()` now raises `TypeError` for non-list `expected`/`actual` arguments
-- `evaluate()` raises `ValueError` for unknown or negative weight keys
-- `assert_tools()` raises `ValueError` if `min_score` is outside 0.0–1.0
-
-#### Pytest Plugin Enhancements
-- New `assert_score()` static method on `ToolscoreAssertions` — bridges the plugin to the in-memory `evaluate()` API
-- New `toolscore_assert_tools` fixture — directly exposes `assert_tools` for one-liner tests
-
-#### PEP 561 Compliance
-- Added `py.typed` marker file — type checkers (mypy, pyright) now recognise inline annotations
-
-#### Cost Estimator Updates
-- Updated model pricing date to February 2026
-- Added `claude-opus-4-6` model entry
-
-### Added - In-Memory API, Integration Helpers & Simplified Output (Round 1)
+### Added - In-Memory API, Integration Helpers & Simplified Output
 
 #### In-Memory Python API
 - **New `evaluate()` function** accepting Python dicts directly - no file I/O required
