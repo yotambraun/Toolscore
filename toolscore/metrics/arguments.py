@@ -3,6 +3,7 @@
 from typing import Any
 
 from toolscore.adapters.base import ToolCall
+from toolscore.matchers import Matcher
 
 
 def _compare_values(expected: Any, actual: Any, strict: bool = False) -> bool:
@@ -23,6 +24,12 @@ def _compare_values(expected: Any, actual: Any, strict: bool = False) -> bool:
     Returns:
         True if values match, False otherwise.
     """
+    # Matcher check must come first — before strict type checks — so that
+    # matchers work in both lenient and strict modes (including when they are
+    # nested inside dicts/lists that strict mode recurses into).
+    if isinstance(expected, Matcher):
+        return expected.matches(actual)
+
     if strict:
         # Types must match exactly first
         if type(expected) is not type(actual):
