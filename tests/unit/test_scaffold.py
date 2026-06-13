@@ -160,7 +160,7 @@ def test_scaffold_writes_expected_files(tmp_path: Path, framework: str) -> None:
     assert gitkeep.exists()
     assert ci_file.exists()
     assert set(created) == {test_file, gitkeep, ci_file}
-    compile(test_file.read_text(), str(test_file), "exec")
+    compile(test_file.read_text(encoding="utf-8"), str(test_file), "exec")
 
 
 def test_scaffold_no_ci_skips_workflow(tmp_path: Path) -> None:
@@ -180,7 +180,7 @@ def test_scaffold_force_overwrites(tmp_path: Path) -> None:
     test_file = tmp_path / "tests" / "test_agent_tools.py"
     test_file.write_text("# clobbered\n")
     scaffold("langgraph", tmp_path, with_ci=True, force=True)
-    assert "LangGraph" in test_file.read_text()
+    assert "LangGraph" in test_file.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +190,7 @@ def test_scaffold_force_overwrites(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("framework", ["generic", "openai", "langgraph"])
 def test_rendered_file_passes_pytest_and_records_snapshot(
-    pytester: pytest.Pytester, framework: str
+    pytester: pytest.Pytester, framework: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # Ensure we are NOT treated as CI (where snapshots may not be minted).
     for var in ("CI", "GITHUB_ACTIONS", "TOOLSCORE_RECORD", "TOOLSCORE_RECORD_UPDATE"):
@@ -200,6 +200,8 @@ def test_rendered_file_passes_pytest_and_records_snapshot(
     test_file = next(p for p in paths if p.name == "test_agent_tools.py")
     assert test_file.exists()
 
+    monkeypatch.setenv("PYTHONUTF8", "1")
+    monkeypatch.setenv("PYTHONIOENCODING", "utf-8")
     result = pytester.runpytest_subprocess("-p", "toolscore", str(test_file))
     result.assert_outcomes(passed=1)
 

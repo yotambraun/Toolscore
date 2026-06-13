@@ -372,7 +372,7 @@ def snapshot_check(
         snapshot = Snapshot(name=name, calls=calls, approved=False, source="pytest")
         store.save(snapshot)
         warnings.warn(
-            f"snapshot {name!r} created — review it, then approve with `toolscore approve`",
+            f"snapshot {name!r} created - review it, then approve with `toolscore approve`",
             UserWarning,
             stacklevel=2,
         )
@@ -387,7 +387,7 @@ def snapshot_check(
                 "`toolscore approve`."
             )
         warnings.warn(
-            f"snapshot {name!r} pending approval — run `toolscore approve` to use it as a baseline",
+            f"snapshot {name!r} pending approval - run `toolscore approve` to use it as a baseline",
             UserWarning,
             stacklevel=2,
         )

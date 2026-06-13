@@ -90,7 +90,7 @@ class TestJSONReport:
         assert result_path == output_path
 
         # Load and verify contents
-        with output_path.open() as f:
+        with output_path.open(encoding="utf-8") as f:
             report = json.load(f)
 
         assert "timestamp" in report
@@ -104,7 +104,7 @@ class TestJSONReport:
         output_path = tmp_path / "report.json"
         generate_json_report(sample_result, output_path)
 
-        with output_path.open() as f:
+        with output_path.open(encoding="utf-8") as f:
             report = json.load(f)
 
         assert report["summary"]["gold_calls_count"] == 2
@@ -115,7 +115,7 @@ class TestJSONReport:
         output_path = tmp_path / "report.json"
         generate_json_report(sample_result, output_path)
 
-        with output_path.open() as f:
+        with output_path.open(encoding="utf-8") as f:
             report = json.load(f)
 
         assert report["metrics"]["invocation_accuracy"] == 0.95
@@ -127,7 +127,7 @@ class TestJSONReport:
         output_path = tmp_path / "report.json"
         generate_json_report(sample_result, output_path)
 
-        with output_path.open() as f:
+        with output_path.open(encoding="utf-8") as f:
             report = json.load(f)
 
         assert len(report["gold_calls"]) == 2
@@ -140,7 +140,7 @@ class TestJSONReport:
         output_path = tmp_path / "report.json"
         generate_json_report(sample_result, output_path)
 
-        with output_path.open() as f:
+        with output_path.open(encoding="utf-8") as f:
             report = json.load(f)
 
         # Verify timestamp is valid ISO format
@@ -170,7 +170,7 @@ class TestHTMLReport:
         assert result_path == output_path
 
         # Verify it's valid HTML
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "<!DOCTYPE html>" in content
         assert "<html" in content
         assert "</html>" in content
@@ -180,7 +180,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Toolscore Evaluation Report" in content
 
     def test_html_report_summary(self, tmp_path, sample_result):
@@ -188,7 +188,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Summary" in content
         assert "Expected Calls" in content
         assert "Actual Calls" in content
@@ -198,7 +198,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Core Metrics" in content
         assert "Invocation Accuracy" in content
         assert "Selection Accuracy" in content
@@ -211,7 +211,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(result_with_side_effects, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Side-Effect Success" in content
 
     def test_html_report_with_performance(self, tmp_path, result_with_performance):
@@ -219,7 +219,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(result_with_performance, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Performance Metrics" in content
         assert "Total Duration" in content
         assert "Total Cost" in content
@@ -229,7 +229,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Generated:" in content
 
     def test_html_report_metric_values(self, tmp_path, sample_result):
@@ -237,7 +237,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "95.0%" in content  # invocation_accuracy
         assert "90.0%" in content  # selection_accuracy
         assert "85.0%" in content  # sequence_accuracy
@@ -258,7 +258,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "good" in content
 
     def test_html_report_color_coding_warning(self, tmp_path):
@@ -277,7 +277,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "warning" in content
 
     def test_html_report_color_coding_bad(self, tmp_path):
@@ -296,7 +296,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "bad" in content
 
     def test_html_report_default_path(self, sample_result, tmp_path, monkeypatch):
@@ -313,7 +313,7 @@ class TestHTMLReport:
         output_path = tmp_path / "report.html"
         generate_html_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "<style>" in content
         assert "</style>" in content
         assert "font-family" in content
@@ -336,7 +336,7 @@ class TestCSVReport:
         output_path = tmp_path / "report.csv"
         generate_csv_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Category,Metric,Value" in content
 
     def test_csv_report_summary_data(self, sample_result, tmp_path):
@@ -344,7 +344,7 @@ class TestCSVReport:
         output_path = tmp_path / "report.csv"
         generate_csv_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Summary,Gold Calls Count,2" in content
         assert "Summary,Trace Calls Count,3" in content
 
@@ -353,7 +353,7 @@ class TestCSVReport:
         output_path = tmp_path / "report.csv"
         generate_csv_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         # Should include accuracy metrics formatted as percentages
         assert "invocation_accuracy" in content
         assert "selection_accuracy" in content
@@ -364,7 +364,7 @@ class TestCSVReport:
         output_path = tmp_path / "report.csv"
         generate_csv_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         # Check that nested metrics are included
         assert "sequence_metrics" in content or "edit_distance" in content
         assert "argument_metrics" in content or "precision" in content
@@ -374,7 +374,7 @@ class TestCSVReport:
         output_path = tmp_path / "report.csv"
         generate_csv_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         # Accuracy metrics should be formatted as percentages
         lines = content.split("\n")
         percentage_lines = [line for line in lines if "%" in line]
@@ -397,7 +397,7 @@ class TestCSVReport:
         # Verify it's valid CSV by reading it
         import csv
 
-        with output_path.open("r") as f:
+        with output_path.open("r", encoding="utf-8") as f:
             reader = csv.reader(f)
             rows = list(reader)
 
@@ -423,7 +423,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "# Toolscore Evaluation Report" in content
 
     def test_markdown_report_summary(self, sample_result, tmp_path):
@@ -431,7 +431,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Summary" in content
         assert "Gold Standard Calls:** 2" in content
         assert "Actual Trace Calls:** 3" in content
@@ -441,7 +441,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Key Metrics" in content
         assert "| Metric | Value | Status |" in content
         assert "|--------|-------|--------|" in content
@@ -451,7 +451,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         # Should include status text
         assert "Excellent" in content or "Good" in content or "Fair" in content
 
@@ -460,7 +460,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Efficiency Metrics" in content
         assert "Redundant Call Rate" in content
 
@@ -469,7 +469,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "<details>" in content
         assert "</details>" in content
         assert "Click to expand" in content
@@ -479,7 +479,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Generated with [Toolscore]" in content
 
     def test_markdown_report_timestamp(self, sample_result, tmp_path):
@@ -487,7 +487,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "**Generated:**" in content
         # Should contain current year
         assert str(datetime.now().year) in content
@@ -511,7 +511,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Semantic Evaluation" in content
         assert "Semantic Score" in content
 
@@ -525,7 +525,7 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(result_with_side_effects, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "Side Effects" in content
         assert "Success Rate" in content
 
@@ -534,6 +534,6 @@ class TestMarkdownReport:
         output_path = tmp_path / "report.md"
         generate_markdown_report(sample_result, output_path)
 
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         # Should have percentages with 2 decimal places
         assert "95.00%" in content or "90.00%" in content or "85.00%" in content
