@@ -349,9 +349,9 @@ class MCPStdioClient:
             MCPTimeoutError: If the server does not respond in time.
             MCPError: On a transport failure (e.g. the process dies).
         """
-        started = time.monotonic()
+        started = time.perf_counter()
         response = self._roundtrip("tools/call", {"name": name, "arguments": arguments})
-        duration = time.monotonic() - started
+        duration = time.perf_counter() - started
 
         if "error" in response:
             return MCPToolResult(

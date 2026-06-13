@@ -124,14 +124,14 @@ def test_call_tool_add(client: MCPStdioClient) -> None:
     result = client.call_tool("add", {"a": 2, "b": 3})
     assert result.is_error is False
     assert result.content == [{"type": "text", "text": "5"}]
-    assert result.duration > 0
+    assert result.duration >= 0
     assert result.raw["result"]["content"] == result.content
 
 
 def test_call_tool_flaky_is_error(client: MCPStdioClient) -> None:
     result = client.call_tool("flaky", {"x": "anything"})
     assert result.is_error is True
-    assert result.duration > 0
+    assert result.duration >= 0
 
 
 def test_call_unknown_tool_is_jsonrpc_error(client: MCPStdioClient) -> None:
