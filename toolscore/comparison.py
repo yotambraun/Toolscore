@@ -212,7 +212,7 @@ def save_comparison_report(
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open("w") as f:
+    with output_path.open("w", encoding="utf-8") as f:
         json.dump(comparison, f, indent=2)
 
     return output_path

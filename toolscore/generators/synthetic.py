@@ -244,7 +244,7 @@ def generate_from_openai_schema(
         raise FileNotFoundError(f"Schema file not found: {schema_file}")
 
     # Load function definitions
-    with schema_path.open() as f:
+    with schema_path.open(encoding="utf-8") as f:
         functions = json.load(f)
 
     # Handle single function or list
@@ -293,7 +293,7 @@ def save_gold_standard(gold_calls: list[dict[str, Any]], output_file: str | Path
     output_path = Path(output_file)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with output_path.open("w") as f:
+    with output_path.open("w", encoding="utf-8") as f:
         json.dump(gold_calls, f, indent=2)
 
     return output_path

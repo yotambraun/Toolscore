@@ -218,7 +218,7 @@ class TraceCapture:
         filename = f"{trace_data['id']}.json"
         file_path = self.dataset_dir / filename
 
-        with file_path.open("w") as f:
+        with file_path.open("w", encoding="utf-8") as f:
             json.dump(trace_data, f, indent=2)
 
         return file_path
@@ -264,7 +264,7 @@ class TraceCapture:
             ... )
         """
         # Load trace
-        with Path(trace_file).open() as f:
+        with Path(trace_file).open(encoding="utf-8") as f:
             trace_data = json.load(f)
 
         # Convert to gold standard format
@@ -291,7 +291,7 @@ class TraceCapture:
         output_path = Path(output_file)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with output_path.open("w") as f:
+        with output_path.open("w", encoding="utf-8") as f:
             json.dump(gold_calls, f, indent=2)
 
         return output_path

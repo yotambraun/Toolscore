@@ -773,7 +773,7 @@ def regression(
         # Save comparison report if requested
         if output:
             output.parent.mkdir(parents=True, exist_ok=True)
-            with output.open("w") as f:
+            with output.open("w", encoding="utf-8") as f:
                 json.dump(comparison.to_dict(), f, indent=2)
             console.print(f"[dim]>[/dim] Comparison report: [cyan]{output}[/cyan]")
             console.print()

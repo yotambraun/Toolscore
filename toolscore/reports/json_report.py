@@ -55,7 +55,7 @@ def generate_json_report(
         "trace_calls": [_serialize_tool_call(call) for call in result.trace_calls],
     }
 
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
 
     return path

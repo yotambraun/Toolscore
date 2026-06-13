@@ -133,7 +133,7 @@ def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
     if not path.exists():
         raise FileNotFoundError(f"Gold standard file not found: {file_path}")
 
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     # Accept a snapshot file (top-level dict with a "calls" list) in addition to
@@ -197,7 +197,7 @@ def load_trace(
     if not path.exists():
         raise FileNotFoundError(f"Trace file not found: {file_path}")
 
-    with path.open() as f:
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     # Select adapter

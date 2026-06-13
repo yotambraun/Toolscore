@@ -228,7 +228,7 @@ def save_baseline(
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(baseline.to_dict(), f, indent=2)
 
     return path
@@ -251,7 +251,7 @@ def load_baseline(path: str | Path) -> Baseline:
     if not file_path.exists():
         raise FileNotFoundError(f"Baseline file not found: {path}")
 
-    with file_path.open() as f:
+    with file_path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     if not isinstance(data, dict) or "metrics" not in data:

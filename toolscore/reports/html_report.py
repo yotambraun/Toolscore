@@ -291,7 +291,7 @@ def generate_html_report(
     html_content = template.render(**template_data)
 
     # Write to file
-    with path.open("w") as f:
+    with path.open("w", encoding="utf-8") as f:
         f.write(html_content)
 
     return path
