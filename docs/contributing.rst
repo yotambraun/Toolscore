@@ -12,7 +12,7 @@ Development Setup
 
 .. code-block:: bash
 
-   git clone https://github.com/yourusername/toolscore.git
+   git clone https://github.com/yotambraun/toolscore.git
    cd toolscore
 
 2. Install development dependencies:

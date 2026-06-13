@@ -8,7 +8,7 @@ Thank you for your interest in contributing to Toolscore! This document provides
 
 1. Fork and clone the repository:
 ```bash
-git clone https://github.com/yourusername/toolscore.git
+git clone https://github.com/yotambraun/toolscore.git
 cd toolscore
 ```
 
