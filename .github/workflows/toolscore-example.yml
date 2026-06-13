@@ -152,7 +152,8 @@ jobs:
 #       -n claude-3.5 \
 #       --output comparison.json
 
-# Example with custom thresholds in pytest:
+# Example with custom thresholds in pytest (enforce thresholds inside your
+# tests via assert_tools(..., min_score=...) or expect(...).with_score(...)):
 # - name: Run pytest with Toolscore
 #   run: |
-#     pytest tests/ --toolscore-min-accuracy=0.95
+#     pytest tests/
