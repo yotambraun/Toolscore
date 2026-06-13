@@ -219,8 +219,8 @@ class SnapshotStore:
             raise ValueError(
                 f"Cannot save snapshot {snapshot.name!r}: tool-call arguments must "
                 f"be JSON-serializable (got {e}). Convert non-serializable values "
-                "(e.g. datetime, Decimal, numpy scalars) to plain JSON types — "
-                "strings, numbers, booleans, lists, or dicts — before recording."
+                "(e.g. datetime, Decimal, numpy scalars) to plain JSON types - "
+                "strings, numbers, booleans, lists, or dicts - before recording."
             ) from e
         path.parent.mkdir(parents=True, exist_ok=True)
         # Write atomically: a temp file in the same directory + os.replace so a

@@ -202,6 +202,7 @@ class MCPStdioClient:
                 env=full_env,
                 cwd=self._cwd,
                 text=True,
+                encoding="utf-8",
                 bufsize=1,  # line-buffered
             )
         except (OSError, ValueError) as exc:
