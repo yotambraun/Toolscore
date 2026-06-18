@@ -242,7 +242,7 @@ Next Steps
 * Lock in behavior with :doc:`snapshot_testing`
 * Assert on argument shape with :doc:`matchers`
 * Pass raw framework responses with the :doc:`frameworks` extractors
-* Test an MCP server with :doc:`mcp_testing`
+* Test an MCP server with :doc:`mcp_testing` -- or run ``toolscore demo`` to grade a bundled sample server in seconds (no setup, no API key)
 * Add semantic scoring with the :doc:`llm_judge`
 * Explore example scripts in the `examples/ directory <https://github.com/yotambraun/Toolscore/tree/main/examples>`_
 * Check out the complete :doc:`api/index`

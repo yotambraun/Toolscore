@@ -62,6 +62,25 @@ jobs:
           threshold: '0.90'
 ```
 
+## MCP server scorecard in CI
+
+Building an MCP server? Gate its quality with the scorecard. `--ci` writes the verdict to the GitHub Actions job summary and fails the build on blocking issues (a tool that fails on valid input, an edge-case crash, or a schema error):
+
+```yaml
+# .github/workflows/mcp-scorecard.yml
+name: MCP Scorecard
+on: [push, pull_request]
+
+jobs:
+  scorecard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - name: Score the MCP server
+        run: uvx tool-scorer mcp test "python my_server.py" --ci --fail-under B
+```
+
 ## Environment Variables
 
 - `OPENAI_API_KEY` - Required for LLM judge feature (optional)

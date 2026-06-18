@@ -96,7 +96,9 @@ Using it in CI
 
 Gate a pull request on a minimum grade with ``--fail-under`` (a letter grade,
 case-insensitive). The command exits ``1`` when the achieved grade is below the
-threshold:
+threshold. Add ``--ci`` to also write the full scorecard to the GitHub Actions
+job summary (``$GITHUB_STEP_SUMMARY``) and fail the build on *blocking* issues --
+a tool that fails on valid input, an edge-case crash, or a schema error:
 
 .. code-block:: yaml
 
@@ -113,6 +115,7 @@ threshold:
          - name: Score the MCP server
            run: |
              uvx tool-scorer mcp test "python my_server.py" \
+               --ci \
                --fail-under B \
                --report md --output scorecard.md
 
@@ -144,18 +147,19 @@ A typical Markdown report looks like:
    - Happy-path pass rate: 100%
    - Edge-case resilience: 80%
    - Lint score: 70% (1 errors, 1 warnings)
+   - Tool-definition tokens: ~120 across 2 tool(s)
 
    ## Tools
 
-   | Tool | Scenarios | Avg latency |
-   | --- | --- | --- |
-   | `search` | 4/4 | 12.3 ms |
-   | `fetch` | 3/4 | 8.1 ms |
+   | Tool | Scenarios | Avg latency | Def. tokens |
+   | --- | --- | --- | --- |
+   | `search` | 4/4 | 12.3 ms | 64 |
+   | `fetch` | 3/4 | 8.1 ms | 56 |
 
-   ## Lint
+   ## Top issues to fix
 
-   - **error** &middot; `fetch`: property 'url' is missing a 'type'
-   - warning &middot; `search`: properties defined but no 'required' list declared
+   - **`fetch`** — property 'url' is missing a 'type'. _Fix:_ Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.
+   - **`search`** — properties defined but no 'required' list declared. _Fix:_ Declare a 'required' list so callers know which parameters are mandatory.
 
 Python API
 ----------

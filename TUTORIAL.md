@@ -29,7 +29,7 @@ This tutorial walks you through the complete workflow of using Toolscore to test
 
 **What is Toolscore?**
 
-Toolscore is the pytest of tool-calling. It checks whether your LLM agent called the right tools, with the right arguments, in the right order — deterministically, locally, with zero API cost.
+Toolscore is the instant, free, deterministic health-check for LLM tool-calling. It checks whether your LLM agent calls the right tools, with the right arguments, in the right order — and whether an MCP server's tools can actually be used by an LLM — deterministically, locally, with zero API cost.
 
 **What Toolscore does:**
 - Evaluates tool-calling accuracy with a single composite score
@@ -606,7 +606,16 @@ Tips are generated from the failure pattern — e.g. similar tool names suggest 
 
 ## MCP Scorecard
 
-Toolscore can test any MCP (Model Context Protocol) server: it spins the server up over stdio, generates happy-path and edge-case scenarios from each tool's input schema, executes them, lints the tool definitions, and prints an A–F grade.
+Toolscore can test any MCP (Model Context Protocol) server: it spins the server up over stdio, generates happy-path and edge-case scenarios from each tool's input schema, executes them, lints the tool definitions, measures each tool's token cost, and prints an A–F grade with a ranked **Top issues to fix** list.
+
+The fastest way to try it — zero setup, no API key — is the bundled demo:
+
+```bash
+toolscore demo                 # grade a bundled sample MCP server
+uvx tool-scorer demo           # ...or zero-install via uvx
+```
+
+Then point it at your own server:
 
 ```bash
 # By launch command (quoted as one string):
@@ -627,9 +636,10 @@ toolscore mcp lint "python my_server.py"     # schema lint only (exit 1 on error
 toolscore mcp test "python my_server.py" --cases 5 --no-edge-cases
 toolscore mcp test "python my_server.py" --report md --output SCORECARD.md
 toolscore mcp test "python my_server.py" --fail-under B    # CI gate: exit 1 below B
+toolscore mcp test "python my_server.py" --ci              # write verdict to $GITHUB_STEP_SUMMARY, fail on blocking issues
 ```
 
-The score blends happy-path pass rate (60%), edge-case resilience (20%), and schema lint cleanliness (20%); grades follow the usual bands (>= 0.9 is an A). The Markdown report is designed to paste into your server's README or a PR comment.
+The score blends happy-path pass rate (60%), edge-case resilience (20%), and schema lint cleanliness (20%); grades follow the usual bands (>= 0.9 is an A). The console verdict and Markdown report list the top issues to fix with concrete suggestions plus a per-tool token-cost breakdown; the Markdown report is designed to paste into your server's README or a PR comment.
 
 ## LLM Judge for Every Provider
 

@@ -93,7 +93,7 @@ CI is strict by design: snapshots are never created or auto-approved in CI — a
 
 ## MCP Scorecard — Grade Any MCP Server
 
-The first standard testing tool for MCP servers. Point it at any server — it auto-generates happy-path and edge-case scenarios from each tool's schema, executes them, lints the tool definitions, and prints an A–F grade:
+Point it at any MCP server — it auto-generates happy-path *and* adversarial edge-case scenarios from each tool's schema, runs them, lints the definitions, measures each tool's token cost, and returns an A–F grade plus a ranked **"Top issues to fix"** list. The fastest way to see it (zero install, no setup) is `toolscore demo`; against your own server:
 
 ```bash
 toolscore mcp test "python my_server.py"
@@ -103,48 +103,62 @@ uvx tool-scorer mcp test --config claude_desktop_config.json --server my-server
 ```
 
 ```
-╭─────────────────────────────────────╮
-│ MCP Scorecard: fake-mcp 0.1.0       │
-│ Grade F   Score 47%                 │
-│ happy 43%  |  edge 20%  |  lint 85% │
-╰─────────────────────────────────────╯
-                 Tools
-┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┓
-┃ Tool       ┃ Scenarios ┃ Avg latency ┃
-┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━┩
-│ add        │       4/6 │      0.1 ms │
-│ flaky      │       0/5 │      0.0 ms │
-│ bad_schema │       0/1 │      0.0 ms │
-└────────────┴───────────┴─────────────┘
+╭──────────────────────────────────────╮
+│ MCP Scorecard: notes-server 1.0.0    │
+│ Grade B   Score 87%                  │
+│ happy 80%  |  edge 100%  |  lint 93% │
+╰──────────────────────────────────────╯
+                         Tools
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Tool         ┃ Scenarios ┃ Avg latency ┃ Def. tokens ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ create_note  │       6/6 │      0.1 ms │          80 │
+│ list_notes   │       6/6 │      0.1 ms │          59 │
+│ search_notes │       6/6 │      0.1 ms │          48 │
+│ delete_note  │       6/6 │      0.1 ms │          52 │
+│ export_notes │       3/6 │      0.1 ms │          64 │
+└──────────────┴───────────┴─────────────┴─────────────┘
+Tool definitions cost ~303 tokens of context across 5 tool(s).
+
+Top issues to fix
+  1. export_notes  fails on valid input (export failed: storage backend not configured)
+     -> The tool errors on well-formed arguments — check the handler and the input schema.
+  2. delete_note   property 'note_id' is missing a 'type'
+     -> Give the property a JSON-schema type (and an enum where values are fixed).
+  3. search_notes  description is very short (< 10 chars)
+     -> Describe what the tool does and when to use it.
 ```
 
-Export a Markdown scorecard for your server's README with `--report md --output SCORECARD.md`. Here is the real output for the deliberately broken demo server above:
+Export a Markdown report — for a CI artifact or your server's own README — with `--report md --output SCORECARD.md`:
 
 ```markdown
-# MCP Scorecard: fake-mcp 0.1.0
+# MCP Scorecard: notes-server 1.0.0
 
-**Grade: F** &middot; Score 47%
+**Grade: B** &middot; Score 87%
 
-- Happy-path pass rate: 43%
-- Edge-case resilience: 20%
-- Lint score: 85% (1 errors, 2 warnings)
+- Happy-path pass rate: 80%
+- Edge-case resilience: 100%
+- Lint score: 93% (1 errors, 1 warnings)
+- Tool-definition tokens: ~303 across 5 tool(s)
 
 ## Tools
 
-| Tool | Scenarios | Avg latency |
-| --- | --- | --- |
-| `add` | 4/6 | 0.1 ms |
-| `flaky` | 0/5 | 0.0 ms |
-| `bad_schema` | 0/1 | 0.0 ms |
+| Tool | Scenarios | Avg latency | Def. tokens |
+| --- | --- | --- | --- |
+| `create_note` | 6/6 | 0.1 ms | 80 |
+| `list_notes` | 6/6 | 0.1 ms | 59 |
+| `search_notes` | 6/6 | 0.1 ms | 48 |
+| `delete_note` | 6/6 | 0.1 ms | 52 |
+| `export_notes` | 3/6 | 0.1 ms | 64 |
 
-## Lint
+## Top issues to fix
 
-- warning &middot; `flaky`: properties defined but no 'required' list declared
-- warning &middot; `bad_schema`: missing description
-- **error** &middot; `bad_schema`: missing or empty inputSchema
+- **`export_notes`** — fails on valid input (export failed: storage backend not configured). _Fix:_ The tool errors on well-formed arguments — check the handler and that the input schema matches what the tool actually accepts.
+- **`delete_note`** — property 'note_id' is missing a 'type'. _Fix:_ Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.
+- **`search_notes`** — description is very short (< 10 chars). _Fix:_ Describe what the tool does and when to use it — models choose tools by their description.
 ```
 
-Gate CI on quality with `--fail-under B` (exit code 1 below the bar). `toolscore mcp list` and `toolscore mcp lint` are also available standalone.
+Gate CI with `--fail-under B` (exit 1 below the bar), or add `--ci` to write the verdict to your GitHub Actions job summary and fail on blocking issues. `toolscore mcp list` and `toolscore mcp lint` are also available standalone.
 
 ## Fluent Assertions and a Plain Score
 
@@ -315,7 +329,7 @@ toolscore regression baseline.json new_trace.json --gold-file gold.json
 
 ## When to Use Toolscore vs. the Platforms
 
-Toolscore is the pytest of tool-calling: it runs in your test suite, deterministically, for free. Observability and eval platforms watch your agent in production. Use both.
+Toolscore is the deterministic, in-CI health-check for tool-calling: it runs in your test suite, for free, and fails the build on drift. Observability and eval platforms watch your agent in production. Use both.
 
 | You want to... | Use |
 |----------------|-----|
