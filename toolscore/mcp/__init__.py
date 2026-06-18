@@ -21,12 +21,16 @@ from toolscore.mcp.harness import (
     LintIssue,
     Scenario,
     ScenarioResult,
+    estimate_tokens,
     generate_scenarios,
     lint_tools,
     run_scenarios,
+    tool_definition_tokens,
 )
 from toolscore.mcp.scorecard import (
+    FixSuggestion,
     MCPScorecard,
+    build_fix_list,
     grade_meets,
     print_scorecard,
     scorecard_to_json,
@@ -34,6 +38,7 @@ from toolscore.mcp.scorecard import (
 )
 
 __all__ = [
+    "FixSuggestion",
     "LintIssue",
     "MCPError",
     "MCPScorecard",
@@ -44,6 +49,8 @@ __all__ = [
     "MCPToolResult",
     "Scenario",
     "ScenarioResult",
+    "build_fix_list",
+    "estimate_tokens",
     "generate_scenarios",
     "grade_meets",
     "lint_tools",
@@ -52,4 +59,5 @@ __all__ = [
     "run_scenarios",
     "scorecard_to_json",
     "scorecard_to_markdown",
+    "tool_definition_tokens",
 ]

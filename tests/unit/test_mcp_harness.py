@@ -18,18 +18,22 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
 from toolscore.mcp import (
+    FixSuggestion,
     LintIssue,
     MCPScorecard,
     MCPStdioClient,
     MCPToolDef,
     Scenario,
     ScenarioResult,
+    build_fix_list,
+    estimate_tokens,
     generate_scenarios,
     lint_tools,
     print_scorecard,
     run_scenarios,
     scorecard_to_json,
     scorecard_to_markdown,
+    tool_definition_tokens,
 )
 
 FIXTURE_SERVER = Path(__file__).resolve().parents[1] / "fixtures" / "fake_mcp_server.py"
@@ -376,3 +380,123 @@ def test_grade_lint_score_floor_at_zero() -> None:
     # lint_score floored at 0 -> score = 0.6 + 0.2 + 0 = 0.8 -> B
     assert card.score == pytest.approx(0.8)
     assert card.grade == "B"
+
+
+# -- token efficiency -----------------------------------------------------
+
+
+def test_estimate_tokens_empty_is_zero() -> None:
+    assert estimate_tokens("") == 0
+
+
+def test_estimate_tokens_scales_with_length() -> None:
+    assert estimate_tokens("a") >= 1
+    assert estimate_tokens("x" * 400) > estimate_tokens("x" * 40)
+
+
+def test_tool_definition_tokens_counts_description_and_schema() -> None:
+    sparse = MCPToolDef(name="t", description="", input_schema={"type": "object", "properties": {}})
+    rich_tool = MCPToolDef(
+        name="t",
+        description="A thorough description that explains intent. " * 8,
+        input_schema={
+            "type": "object",
+            "properties": {"a": {"type": "string", "description": "x" * 200}},
+        },
+    )
+    assert tool_definition_tokens(sparse) >= 1
+    assert tool_definition_tokens(rich_tool) > tool_definition_tokens(sparse)
+
+
+def test_scorecard_total_tool_tokens_sums_per_tool() -> None:
+    card = MCPScorecard(server_info={}, tools=[ADD_TOOL, FLAKY_TOOL], results=[], lint=[])
+    expected = tool_definition_tokens(ADD_TOOL) + tool_definition_tokens(FLAKY_TOOL)
+    assert card.total_tool_tokens == expected
+    assert card.total_tool_tokens > 0
+
+
+# -- lint fixes + build_fix_list ------------------------------------------
+
+
+def test_lint_issues_carry_fix_hints() -> None:
+    issues = lint_tools([BAD_SCHEMA_TOOL])
+    assert issues
+    assert all(hasattr(i, "fix") for i in issues)
+    assert any(i.fix.strip() for i in issues), "expected at least one actionable fix hint"
+
+
+def test_build_fix_list_prioritizes_happy_failures_first() -> None:
+    tools = [ADD_TOOL, BAD_SCHEMA_TOOL]
+    results = [_make_result("add", "happy", ok=False, is_error=True)]
+    lint = lint_tools([BAD_SCHEMA_TOOL])  # schema errors (lower priority than a happy failure)
+    card = MCPScorecard(server_info={}, tools=tools, results=results, lint=lint)
+    fixes = build_fix_list(card)
+    assert fixes
+    assert fixes[0].tool == "add", "a tool that breaks on valid input is the top issue"
+    # Priorities must be non-decreasing (ranked worst-first).
+    assert all(fixes[i].priority <= fixes[i + 1].priority for i in range(len(fixes) - 1))
+    assert all(f.fix.strip() for f in fixes), "every suggestion must carry a concrete fix"
+
+
+def test_build_fix_list_dedupes_happy_failures_per_tool() -> None:
+    tools = [ADD_TOOL]
+    results = [
+        _make_result("add", "happy", ok=False, is_error=True),
+        _make_result("add", "happy", ok=False, is_error=True),
+    ]
+    card = MCPScorecard(server_info={}, tools=tools, results=results, lint=[])
+    fixes = build_fix_list(card)
+    assert len([f for f in fixes if f.tool == "add"]) == 1
+
+
+def test_build_fix_list_empty_when_clean() -> None:
+    card = MCPScorecard(
+        server_info={},
+        tools=[ADD_TOOL],
+        results=[_make_result("add", "happy", ok=True, is_error=False)],
+        lint=[],
+    )
+    assert build_fix_list(card) == []
+
+
+def test_build_fix_list_respects_limit() -> None:
+    card = MCPScorecard(
+        server_info={},
+        tools=[BAD_SCHEMA_TOOL],
+        results=[_make_result("bad_schema", "happy", ok=False, is_error=True)],
+        lint=lint_tools([BAD_SCHEMA_TOOL]),
+    )
+    assert len(build_fix_list(card, limit=1)) == 1
+
+
+def test_markdown_includes_top_issues_and_tokens(client: MCPStdioClient) -> None:
+    tools = client.list_tools()
+    results = run_scenarios(client, generate_scenarios(tools, cases_per_tool=2))
+    card = MCPScorecard(
+        server_info=client.server_info,
+        tools=tools,
+        results=results,
+        lint=lint_tools(tools),
+    )
+    md = scorecard_to_markdown(card)
+    assert "Top issues to fix" in md
+    assert "token" in md.lower()
+
+
+def test_print_scorecard_shows_top_issues(client: MCPStdioClient) -> None:
+    from rich.console import Console
+
+    tools = client.list_tools()
+    results = run_scenarios(client, generate_scenarios(tools, cases_per_tool=2))
+    card = MCPScorecard(
+        server_info=client.server_info,
+        tools=tools,
+        results=results,
+        lint=lint_tools(tools),
+    )
+    console = Console(record=True, width=100)
+    print_scorecard(card, console=console)
+    text = console.export_text()
+    # The fake server has a flaky tool and a bad schema, so there must be fixes shown.
+    assert "Top issues to fix" in text
+    assert isinstance(build_fix_list(card)[0], FixSuggestion)

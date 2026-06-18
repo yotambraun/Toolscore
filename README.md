@@ -8,7 +8,7 @@
 <h1 align="center">Toolscore</h1>
 
 <p align="center">
-  <em>The pytest of tool-calling &mdash; deterministic, local, zero API cost</em>
+  <em>The instant, free, deterministic health-check for LLM tool-calling</em>
 </p>
 
 [![PyPI version](https://badge.fury.io/py/tool-scorer.svg)](https://badge.fury.io/py/tool-scorer)
@@ -16,10 +16,30 @@
 [![Downloads](https://static.pepy.tech/badge/tool-scorer)](https://pepy.tech/project/tool-scorer)
 [![Python Versions](https://img.shields.io/pypi/pyversions/tool-scorer.svg)](https://pypi.org/project/tool-scorer/)
 [![CI](https://github.com/yotambraun/toolscore/workflows/CI/badge.svg)](https://github.com/yotambraun/toolscore/actions)
+[![GitHub stars](https://img.shields.io/github/stars/yotambraun/toolscore?style=social)](https://github.com/yotambraun/toolscore)
 
 ---
 
-Your agent calls tools — search APIs, databases, bookings, file ops. A prompt tweak or a model upgrade can silently change *which* tools it calls, with *which* arguments, in *which* order. Observability platforms tell you how your agent behaves in production; **Toolscore fails your CI build before the regression ships.** No LLM judge required, no cloud, no per-test API bill — just deterministic scores, snapshot baselines, and readable diffs, the way pytest does it.
+**Toolscore is the instant, free, deterministic health-check for LLM tool-calling.** Point it at an MCP server or an agent and get a clear *"here's your grade and exactly what's broken"* verdict — deterministically, offline, with zero API cost. No LLM judge, no cloud, no per-test bill.
+
+It's two sides of the same handshake between an LLM and a tool:
+
+- **Building an MCP server?** `toolscore mcp test` runs your server through generated happy-path *and* adversarial edge-case scenarios and grades whether an LLM can actually use it — catching broken tools, untyped schemas, and context bloat *before you publish*.
+- **Building an agent?** Snapshot your agent's tool-calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order.
+
+## See it in 10 seconds
+
+```bash
+# Grade a bundled sample MCP server — no install, no API key, no setup:
+uvx tool-scorer demo
+
+# Then point it at your own server:
+uvx tool-scorer mcp test "python your_server.py"
+```
+
+You get an A–F scorecard, a ranked **"Top issues to fix"** list with concrete fixes, and a per-tool token-cost breakdown — in seconds, offline. Add `--ci` to gate your build (it writes the verdict to your GitHub Actions job summary and fails on blocking issues).
+
+## Test your agent's tool-calling
 
 ```python
 from toolscore import expect, ANY, Regex

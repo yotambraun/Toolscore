@@ -41,6 +41,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from toolscore.mcp.harness import tool_definition_tokens
+
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPToolDef
     from toolscore.mcp.harness import LintIssue, ScenarioResult
@@ -152,6 +154,15 @@ class MCPScorecard:
                 return letter
         return "F"
 
+    @property
+    def total_tool_tokens(self) -> int:
+        """Estimated total context tokens consumed by all tool definitions.
+
+        Tool definitions are sent to the model on every request, so this is a
+        proxy for how much of the context window the server's tools occupy.
+        """
+        return sum(tool_definition_tokens(t) for t in self.tools)
+
 
 def _tool_summaries(card: MCPScorecard) -> list[dict[str, Any]]:
     """Summarize per-tool scenario outcomes.
@@ -176,6 +187,7 @@ def _tool_summaries(card: MCPScorecard) -> list[dict[str, Any]]:
                 "passed": passed,
                 "total": total,
                 "avg_latency_ms": round(avg_latency * 1000.0, 1),
+                "tokens": tool_definition_tokens(tool),
             }
         )
     return summaries
@@ -195,6 +207,114 @@ def grade_meets(grade: str, threshold: str) -> bool:
     order = {letter: rank for rank, letter in enumerate(GRADE_ORDER)}
     worst = len(GRADE_ORDER)
     return order.get(grade.upper(), worst) <= order.get(threshold.upper(), worst)
+
+
+#: Priority bands for fix suggestions (lower numbers are more urgent).
+_PRIORITY_HAPPY_FAIL = 0
+_PRIORITY_EDGE_CRASH = 1
+_PRIORITY_LINT_ERROR = 2
+_PRIORITY_LINT_WARNING = 3
+
+#: Rich color per fix priority, worst-first.
+_PRIORITY_COLORS: dict[int, str] = {
+    _PRIORITY_HAPPY_FAIL: "bold red",
+    _PRIORITY_EDGE_CRASH: "red",
+    _PRIORITY_LINT_ERROR: "yellow",
+    _PRIORITY_LINT_WARNING: "dim",
+}
+
+#: Max number of fix items rendered in the console verdict before truncating.
+_MAX_FIXES_SHOWN = 8
+
+
+@dataclass
+class FixSuggestion:
+    """A single ranked, actionable item in the "Top issues to fix" verdict.
+
+    Attributes:
+        tool: The tool the issue concerns.
+        problem: A short statement of what is wrong.
+        fix: A concrete suggestion for how to resolve it.
+        priority: Ordering key; lower is more urgent (``0`` = breaks on valid input).
+    """
+
+    tool: str
+    problem: str
+    fix: str
+    priority: int
+
+
+def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSuggestion]:
+    """Merge scenario failures and lint issues into one ranked, actionable list.
+
+    The ranking, worst first:
+
+    1. tools that **fail on valid input** (a happy-path scenario errored),
+    2. tools that **crash on bad input** (an edge scenario timed out / crashed),
+    3. schema **errors**, then
+    4. schema **warnings**.
+
+    Scenario failures are de-duplicated per tool (one entry per tool per kind),
+    since a tool that fails one happy path usually fails them all.
+
+    Args:
+        card: The scorecard to analyze.
+        limit: If given, return at most this many suggestions.
+
+    Returns:
+        The suggestions, sorted by priority then tool name.
+    """
+    suggestions: list[FixSuggestion] = []
+    happy_seen: set[str] = set()
+    edge_seen: set[str] = set()
+
+    for result in card.results:
+        if result.ok:
+            continue
+        tool = result.scenario.tool
+        detail = result.detail or "no detail"
+        if result.scenario.kind == "happy" and tool not in happy_seen:
+            happy_seen.add(tool)
+            suggestions.append(
+                FixSuggestion(
+                    tool=tool,
+                    problem=f"fails on valid input ({detail})",
+                    fix=(
+                        "The tool errors on well-formed arguments — check the handler and that "
+                        "the input schema matches what the tool actually accepts."
+                    ),
+                    priority=_PRIORITY_HAPPY_FAIL,
+                )
+            )
+        elif result.scenario.kind == "edge" and tool not in edge_seen:
+            edge_seen.add(tool)
+            suggestions.append(
+                FixSuggestion(
+                    tool=tool,
+                    problem=f"crashes on bad input ({detail})",
+                    fix=(
+                        "Validate and guard arguments so the tool returns a clean error result "
+                        "instead of crashing or timing out."
+                    ),
+                    priority=_PRIORITY_EDGE_CRASH,
+                )
+            )
+
+    for issue in card.lint:
+        priority = _PRIORITY_LINT_ERROR if issue.severity == "error" else _PRIORITY_LINT_WARNING
+        suggestions.append(
+            FixSuggestion(
+                tool=issue.tool,
+                problem=issue.message,
+                fix=issue.fix or "Review the tool's schema and description.",
+                priority=priority,
+            )
+        )
+
+    suggestions.sort(key=lambda s: (s.priority, s.tool))
+    if limit is not None:
+        suggestions = suggestions[:limit]
+    return suggestions
 
 
 def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
@@ -232,6 +352,7 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     table.add_column("Tool", style="cyan")
     table.add_column("Scenarios", justify="right")
     table.add_column("Avg latency", justify="right")
+    table.add_column("Def. tokens", justify="right")
     for summary in _tool_summaries(card):
         passed = summary["passed"]
         total = summary["total"]
@@ -240,28 +361,32 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
             summary["name"],
             Text(f"{passed}/{total}", style=status_color),
             f"{summary['avg_latency_ms']:.1f} ms",
+            str(summary["tokens"]),
         )
     console.print(table)
+    console.print(
+        f"[dim]Tool definitions cost ~{card.total_tool_tokens} tokens of context "
+        f"across {len(card.tools)} tool(s).[/dim]"
+    )
 
-    if card.lint:
-        lint_table = Table(
-            title=(f"Lint ({card.lint_error_count} errors, {card.lint_warning_count} warnings)"),
-            header_style="bold magenta",
-            title_style="bold",
+    fixes = build_fix_list(card)
+    if not fixes:
+        console.print(
+            "\n[green]No issues found — an LLM should be able to use this server cleanly.[/green]"
         )
-        lint_table.add_column("Severity")
-        lint_table.add_column("Tool", style="cyan")
-        lint_table.add_column("Message")
-        for issue in card.lint:
-            severity_color = "red" if issue.severity == "error" else "yellow"
-            lint_table.add_row(
-                Text(issue.severity, style=severity_color),
-                issue.tool,
-                issue.message,
-            )
-        console.print(lint_table)
-    else:
-        console.print("[green]No lint issues.[/green]")
+        return
+
+    console.print("\n[bold]Top issues to fix[/bold]")
+    for index, suggestion in enumerate(fixes[:_MAX_FIXES_SHOWN], start=1):
+        issue_color = _PRIORITY_COLORS.get(suggestion.priority, "white")
+        console.print(
+            f"  [bold]{index}.[/bold] [{issue_color}]{suggestion.tool}[/{issue_color}]  "
+            f"{suggestion.problem}"
+        )
+        console.print(f"     [dim]-> {suggestion.fix}[/dim]")
+    remaining = len(fixes) - min(len(fixes), _MAX_FIXES_SHOWN)
+    if remaining > 0:
+        console.print(f"  [dim]... and {remaining} more issue(s).[/dim]")
 
 
 def scorecard_to_markdown(card: MCPScorecard) -> str:
@@ -271,8 +396,9 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         card: The scorecard to render.
 
     Returns:
-        A Markdown document with a grade badge line, a per-tool summary table,
-        and a bulleted lint list.
+        A Markdown document with a grade line, component scores (including the
+        tool-definition token cost), a per-tool summary table, and a ranked
+        "Top issues to fix" list.
     """
     name = str(card.server_info.get("name", "unknown server"))
     version = str(card.server_info.get("version", ""))
@@ -287,29 +413,32 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         f"- Happy-path pass rate: {card.happy_pass_rate:.0%}\n"
         f"- Edge-case resilience: {card.edge_resilience_rate:.0%}\n"
         f"- Lint score: {card.lint_score:.0%} "
-        f"({card.lint_error_count} errors, {card.lint_warning_count} warnings)"
+        f"({card.lint_error_count} errors, {card.lint_warning_count} warnings)\n"
+        f"- Tool-definition tokens: ~{card.total_tool_tokens} across {len(card.tools)} tool(s)"
     )
     lines.append("")
 
     lines.append("## Tools")
     lines.append("")
-    lines.append("| Tool | Scenarios | Avg latency |")
-    lines.append("| --- | --- | --- |")
+    lines.append("| Tool | Scenarios | Avg latency | Def. tokens |")
+    lines.append("| --- | --- | --- | --- |")
     for summary in _tool_summaries(card):
         lines.append(
             f"| `{summary['name']}` | {summary['passed']}/{summary['total']} | "
-            f"{summary['avg_latency_ms']:.1f} ms |"
+            f"{summary['avg_latency_ms']:.1f} ms | {summary['tokens']} |"
         )
     lines.append("")
 
-    lines.append("## Lint")
+    lines.append("## Top issues to fix")
     lines.append("")
-    if card.lint:
-        for issue in card.lint:
-            marker = "**error**" if issue.severity == "error" else "warning"
-            lines.append(f"- {marker} &middot; `{issue.tool}`: {issue.message}")
+    fixes = build_fix_list(card)
+    if fixes:
+        for suggestion in fixes:
+            lines.append(
+                f"- **`{suggestion.tool}`** — {suggestion.problem}. _Fix:_ {suggestion.fix}"
+            )
     else:
-        lines.append("- No lint issues.")
+        lines.append("- No issues found — an LLM should be able to use this server cleanly.")
     lines.append("")
 
     return "\n".join(lines)
@@ -333,6 +462,7 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
         },
         "grade": card.grade,
         "score": card.score,
+        "total_tool_tokens": card.total_tool_tokens,
         "scores": {
             "happy_pass_rate": card.happy_pass_rate,
             "edge_resilience_rate": card.edge_resilience_rate,
@@ -352,5 +482,12 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
             }
             for r in card.results
         ],
-        "lint": [{"tool": i.tool, "severity": i.severity, "message": i.message} for i in card.lint],
+        "lint": [
+            {"tool": i.tool, "severity": i.severity, "message": i.message, "fix": i.fix}
+            for i in card.lint
+        ],
+        "fixes": [
+            {"tool": s.tool, "problem": s.problem, "fix": s.fix, "priority": s.priority}
+            for s in build_fix_list(card)
+        ],
     }

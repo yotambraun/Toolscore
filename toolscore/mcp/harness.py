@@ -13,6 +13,7 @@ formatting live in :mod:`toolscore.mcp.scorecard`, while the
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -31,6 +32,52 @@ _SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 #: Maximum number of characters surfaced from an error payload in a result detail.
 _DETAIL_MAX_CHARS = 200
+
+#: Rough characters-per-token ratio used to estimate token cost without a
+#: tokenizer dependency. Real tokenizers vary, but ~4 chars/token is a stable
+#: approximation for the JSON tool definitions an MCP client feeds the model.
+_CHARS_PER_TOKEN = 4
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate the token cost of a string, tokenizer-free.
+
+    Uses a ~4-characters-per-token heuristic. This is an approximation intended
+    for relative comparison and context budgeting, not exact billing.
+
+    Args:
+        text: The text to estimate.
+
+    Returns:
+        ``0`` for empty text, otherwise an estimated token count ``>= 1``.
+    """
+    if not text:
+        return 0
+    return max(1, round(len(text) / _CHARS_PER_TOKEN))
+
+
+def tool_definition_tokens(tool: MCPToolDef) -> int:
+    """Estimate the context-window tokens a tool's definition consumes.
+
+    An MCP client sends each tool's name, description, and input schema to the
+    model on *every* request, so verbose definitions are a real, recurring
+    context cost (a documented MCP pain point). This serializes those three
+    parts the way a client would and estimates the tokens via
+    :func:`estimate_tokens`.
+
+    Args:
+        tool: The tool definition to measure.
+
+    Returns:
+        An estimated token count for the tool's advertised definition.
+    """
+    schema = tool.input_schema if isinstance(tool.input_schema, dict) else {}
+    payload = json.dumps(
+        {"name": tool.name, "description": tool.description or "", "inputSchema": schema},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return estimate_tokens(payload)
 
 
 @dataclass
@@ -84,11 +131,14 @@ class LintIssue:
         severity: Either ``"error"`` (a real schema defect) or ``"warning"``
             (a quality nit that hurts agent ergonomics).
         message: A human-readable description of the issue.
+        fix: A short, concrete suggestion for how to resolve the issue. May be
+            empty for issues raised without a specific remedy.
     """
 
     tool: str
     severity: str
     message: str
+    fix: str = ""
 
 
 def _schema_is_usable(schema: dict[str, Any]) -> bool:
@@ -390,6 +440,24 @@ def run_scenarios(client: MCPStdioClient, scenarios: list[Scenario]) -> list[Sce
     return results
 
 
+# Concrete remediation hints surfaced alongside lint issues so the verdict is
+# actionable ("here's what's wrong AND how to fix it"), not just diagnostic.
+_FIX_DESCRIPTION = (
+    "Describe what the tool does and when to use it — models choose tools by their description."
+)
+_FIX_SNAKE_CASE = "Rename the tool to snake_case for predictable, consistent tool selection."
+_FIX_INPUT_SCHEMA = (
+    "Define an object inputSchema with typed properties so clients know how to call the tool."
+)
+_FIX_SCHEMA_TYPE = 'Add \'"type": "object"\' to the inputSchema.'
+_FIX_PROP_TYPE = (
+    "Give the property a JSON-schema type (and an enum where the values are fixed) "
+    "so the model does not have to guess."
+)
+_FIX_REQUIRED_MISSING = "List only properties that actually exist in the 'required' array."
+_FIX_NO_REQUIRED = "Declare a 'required' list so callers know which parameters are mandatory."
+
+
 def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
     """Statically lint tool schemas for common quality problems.
 
@@ -406,6 +474,8 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
     * a tool name that is not ``snake_case``,
     * properties present but no ``required`` list declared.
 
+    Each issue carries a concrete ``fix`` hint.
+
     Args:
         tools: The tool definitions to lint.
 
@@ -421,13 +491,21 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
         # -- description warnings ----------------------------------------
         description = tool.description or ""
         if not description.strip():
-            issues.append(LintIssue(tool=name, severity="warning", message="missing description"))
+            issues.append(
+                LintIssue(
+                    tool=name,
+                    severity="warning",
+                    message="missing description",
+                    fix=_FIX_DESCRIPTION,
+                )
+            )
         elif len(description.strip()) < _MIN_DESCRIPTION_LENGTH:
             issues.append(
                 LintIssue(
                     tool=name,
                     severity="warning",
                     message=f"description is very short (< {_MIN_DESCRIPTION_LENGTH} chars)",
+                    fix=_FIX_DESCRIPTION,
                 )
             )
 
@@ -438,6 +516,7 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                     tool=name,
                     severity="warning",
                     message=f"tool name {name!r} is not snake_case",
+                    fix=_FIX_SNAKE_CASE,
                 )
             )
 
@@ -448,13 +527,19 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                     tool=name,
                     severity="error",
                     message="missing or empty inputSchema",
+                    fix=_FIX_INPUT_SCHEMA,
                 )
             )
             continue
 
         if "type" not in schema:
             issues.append(
-                LintIssue(tool=name, severity="error", message="inputSchema is missing 'type'")
+                LintIssue(
+                    tool=name,
+                    severity="error",
+                    message="inputSchema is missing 'type'",
+                    fix=_FIX_SCHEMA_TYPE,
+                )
             )
 
         properties = schema.get("properties")
@@ -466,6 +551,7 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                             tool=name,
                             severity="error",
                             message=f"property {prop_name!r} is missing a 'type'",
+                            fix=_FIX_PROP_TYPE,
                         )
                     )
 
@@ -478,6 +564,7 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                                 tool=name,
                                 severity="error",
                                 message=(f"required property {req_name!r} is not in 'properties'"),
+                                fix=_FIX_REQUIRED_MISSING,
                             )
                         )
             elif properties:
@@ -486,6 +573,7 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                         tool=name,
                         severity="warning",
                         message="properties defined but no 'required' list declared",
+                        fix=_FIX_NO_REQUIRED,
                     )
                 )
 

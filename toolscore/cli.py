@@ -1,6 +1,7 @@
 """Command-line interface for Toolscore."""
 
 import json
+import os
 import shlex
 import sys
 from pathlib import Path
@@ -993,6 +994,15 @@ def mcp_lint(
     default=None,
     help="Minimum acceptable grade (A-F); exit 1 if the scorecard grade is below it.",
 )
+@click.option(
+    "--ci",
+    is_flag=True,
+    default=False,
+    help=(
+        "CI mode: write the scorecard to $GITHUB_STEP_SUMMARY and exit non-zero on blocking "
+        "issues (a tool that fails on valid input, an edge crash, or a schema error)."
+    ),
+)
 def mcp_test(
     command: tuple[str, ...],
     config: Path | None,
@@ -1003,6 +1013,7 @@ def mcp_test(
     report: str | None,
     output: Path | None,
     fail_under: str | None,
+    ci: bool,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
@@ -1057,6 +1068,7 @@ def mcp_test(
         lint=lint_tools(tools),
     )
 
+    wrote_file = False
     if report is not None and output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         if report == "json":
@@ -1068,12 +1080,81 @@ def mcp_test(
             f"[bold]{name}[/bold] -> Grade [bold]{card.grade}[/bold] "
             f"(score {card.score:.0%}). Report written to [cyan]{output}[/cyan]."
         )
-    else:
+        wrote_file = True
+
+    # Always show the console scorecard unless a file report was the only output.
+    if ci or not wrote_file:
         print_scorecard(card, console=console)
+
+    if ci:
+        summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if summary_path:
+            with Path(summary_path).open("a", encoding="utf-8") as handle:
+                handle.write(scorecard_to_markdown(card) + "\n")
+            console.print("[dim]Wrote the scorecard to the GitHub Actions job summary.[/dim]")
 
     if fail_under is not None and not grade_meets(card.grade, fail_under):
         console.print(f"[red]Grade {card.grade} is below the required {fail_under.upper()}.[/red]")
         sys.exit(1)
+
+    if ci and fail_under is None:
+        # Default CI gate: fail on real problems (a tool that breaks on valid
+        # input, an edge-case crash, or a schema error) -- but not on warnings.
+        has_blocking = card.lint_error_count > 0 or any(not r.ok for r in card.results)
+        if has_blocking:
+            console.print("[red]Blocking issues found (see 'Top issues to fix' above).[/red]")
+            sys.exit(1)
+
+
+@main.command("demo")
+def demo() -> None:
+    """Health-check a bundled sample MCP server -- zero setup, no API key.
+
+    Launches a small sample MCP server that ships with toolscore (one with a few
+    deliberate issues) and prints the same scorecard that ``toolscore mcp test``
+    produces, so you can see the instant verdict in seconds.
+    """
+    from toolscore.mcp import (
+        MCPScorecard,
+        MCPStdioClient,
+        generate_scenarios,
+        lint_tools,
+        print_scorecard,
+        run_scenarios,
+    )
+
+    console = Console()
+    sample_server = Path(__file__).resolve().parent / "mcp" / "sample_server.py"
+    if not sample_server.is_file():
+        print_error(f"Bundled sample server not found at {sample_server}.", console)
+        sys.exit(1)
+
+    console.print(
+        "[bold]toolscore demo[/bold] - grading a bundled sample MCP server "
+        "(no setup, no API key).\n"
+    )
+
+    try:
+        with MCPStdioClient([sys.executable, str(sample_server)], timeout=30.0) as client:
+            tools = client.list_tools()
+            scenarios = generate_scenarios(tools, cases_per_tool=3, include_edge_cases=True)
+            results = run_scenarios(client, scenarios)
+            server_info = client.server_info
+    except Exception as exc:  # surface any launch/protocol failure to the user
+        print_error(f"Failed to run the sample server: {exc}", console)
+        sys.exit(1)
+
+    card = MCPScorecard(
+        server_info=server_info,
+        tools=tools,
+        results=results,
+        lint=lint_tools(tools),
+    )
+    print_scorecard(card, console=console)
+    console.print(
+        "\n[dim]That's the health-check. Now point it at your own server:[/dim] "
+        '[bold]toolscore mcp test "python your_server.py"[/bold]'
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -38,6 +38,11 @@ keywords = [
     "agent-evaluation",
     "llm-evaluation",
     "snapshot-testing",
+    # MCP server testing
+    "mcp-testing",
+    "mcp-server-testing",
+    "mcp-server-quality",
+    "mcp-integration-testing",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
