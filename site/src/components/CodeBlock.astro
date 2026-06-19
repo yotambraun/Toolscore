@@ -1,0 +1,44 @@
+---
+interface Props {
+  title?: string; // shown in the terminal title bar
+  lang?: string; // small lang tag, e.g. "python" / "bash" / "yaml"
+  code?: string; // code as a prop (preferred — enables the copy button)
+  copy?: boolean; // show copy button (default true when code given)
+  class?: string;
+}
+const { title, lang, code, copy, class: extra = '' } = Astro.props;
+const showCopy = copy ?? Boolean(code);
+---
+
+<div class={`terminal ${extra}`}>
+  <div class="terminal-bar">
+    <span class="dot bg-gradeF/70"></span>
+    <span class="dot bg-gradeC/70"></span>
+    <span class="dot bg-gradeA/70"></span>
+    {title && <span class="ml-2 truncate font-mono text-xs text-muted">{title}</span>}
+    <div class="ml-auto flex items-center gap-2">
+      {lang && <span class="font-mono text-[10px] uppercase tracking-wider text-faint">{lang}</span>}
+      {
+        showCopy && code && (
+          <button
+            type="button"
+            class="rounded-md border border-line px-2 py-0.5 text-[11px] text-muted transition-colors hover:border-brand/50 hover:text-brand"
+            data-copy={code}
+            aria-label="Copy code"
+          >
+            <span data-copy-label>Copy</span>
+          </button>
+        )
+      }
+    </div>
+  </div>
+  <div class="scrollx overflow-x-auto p-4 sm:p-5">
+    {
+      code ? (
+        <pre class="font-mono text-[13px] leading-relaxed text-ink"><code>{code}</code></pre>
+      ) : (
+        <slot />
+      )
+    }
+  </div>
+</div>

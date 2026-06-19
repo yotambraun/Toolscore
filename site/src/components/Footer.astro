@@ -1,0 +1,55 @@
+---
+import { site, url } from '../data/site';
+const year = 2026;
+---
+
+<footer class="mt-24 border-t border-line bg-surface/40">
+  <div class="wrap grid gap-10 py-14 md:grid-cols-4">
+    <div class="md:col-span-1">
+      <img src={url('logo-dark.svg')} alt="Toolscore" class="h-7 w-auto" />
+      <p class="mt-4 max-w-xs text-sm text-muted">
+        The instant, free, deterministic health-check for LLM tool-calling. Grade your
+        MCP server or your agent — and find <span class="text-ink">exactly what is broken</span>.
+      </p>
+    </div>
+
+    <div>
+      <h3 class="eyebrow mb-3">Get started</h3>
+      <ul class="space-y-2 text-sm">
+        <li><a class="text-muted hover:text-ink" href={url('quickstart')}>Quickstart</a></li>
+        <li><a class="text-muted hover:text-ink" href={url('mcp')}>Test an MCP server</a></li>
+        <li><a class="text-muted hover:text-ink" href={url('agents')}>Test an agent</a></li>
+        <li><a class="text-muted hover:text-ink" href={url('compare')}>Compare</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="eyebrow mb-3">Project</h3>
+      <ul class="space-y-2 text-sm">
+        <li><a class="text-muted hover:text-ink" href={site.repo}>GitHub</a></li>
+        <li><a class="text-muted hover:text-ink" href={site.pypi}>PyPI</a></li>
+        <li><a class="text-muted hover:text-ink" href={site.docs}>API docs</a></li>
+        <li><a class="text-muted hover:text-ink" href={`${site.repo}/blob/main/CHANGELOG.md`}>Changelog</a></li>
+      </ul>
+    </div>
+
+    <div>
+      <h3 class="eyebrow mb-3">Install</h3>
+      <div class="space-y-2 font-mono text-xs">
+        <div class="rounded-lg border border-line bg-bg px-3 py-2 text-muted">
+          <span class="text-brand">$</span> {site.installPip}
+        </div>
+        <div class="rounded-lg border border-line bg-bg px-3 py-2 text-muted">
+          <span class="text-brand">$</span> {site.installUvx}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="wrap flex flex-col items-start justify-between gap-3 border-t border-line py-6 text-xs text-muted sm:flex-row sm:items-center"
+  >
+    <span class="font-mono">Apache-2.0 © {year} {site.author} · v{site.version}</span>
+    <span class="font-mono text-faint">PyPI: tool-scorer · import: toolscore</span>
+  </div>
+</footer>

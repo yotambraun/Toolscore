@@ -1,0 +1,40 @@
+---
+interface Props {
+  title: string;
+  body: string;
+  icon?: string;
+}
+const { title, body, icon = 'list' } = Astro.props;
+
+// Minimal stroke-icon set (24x24). Keyed by name from site.ts.
+const icons: Record<string, string> = {
+  list: '<path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/>',
+  coins: '<circle cx="9" cy="9" r="6"/><path d="M15.5 4.2a6 6 0 0 1 0 15.6M8 9h2.5a1.5 1.5 0 0 1 0 3H8h2.5a1.5 1.5 0 0 1 0 3H8"/>',
+  lock: '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  shield: '<path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  plug: '<path d="M9 3v5M15 3v5M6 8h12v3a6 6 0 0 1-12 0z"/><path d="M12 17v4"/>',
+  camera: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7l1.5-2.5h5L16 7"/><circle cx="12" cy="13.5" r="3.5"/>',
+};
+const path = icons[icon] ?? icons.list;
+---
+
+<div class="card flex flex-col p-6 transition-colors hover:border-line2">
+  <span
+    class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-brand/25 bg-brand/10 text-brand"
+  >
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.8"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+      set:html={path}
+    />
+  </span>
+  <h3 class="mt-4 text-lg font-semibold text-ink">{title}</h3>
+  <p class="mt-2 text-sm leading-relaxed text-muted">{body}</p>
+</div>

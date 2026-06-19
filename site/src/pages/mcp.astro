@@ -1,0 +1,214 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import ScorecardDemo from '../components/ScorecardDemo.astro';
+import InstallCommand from '../components/InstallCommand.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import GradeBadge from '../components/GradeBadge.astro';
+import CTASection from '../components/CTASection.astro';
+import Button from '../components/Button.astro';
+import { mcpDimensions, mcpCommands, scorecard, site, url } from '../data/site';
+
+const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
+- run: pip install tool-scorer
+- run: toolscore mcp test "python my_server.py" --fail-under B --ci
+#        --ci writes the verdict to $GITHUB_STEP_SUMMARY`;
+---
+
+<BaseLayout
+  title="Test your MCP server"
+  description="Grade any MCP server with Toolscore: happy-path + adversarial edge-case scenarios, schema lint, token cost, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
+>
+  <PageHeader
+    eyebrow="For MCP server authors"
+    title="Test your <span class='brand-text'>MCP server</span>"
+    sub="Toolscore spins your server up over stdio, generates happy-path and adversarial edge-case scenarios from each tool's schema, lints the definitions, measures token cost, and returns an A–F grade — before you publish."
+  >
+    <div class="mt-8 flex flex-wrap gap-3">
+      <Button href={url('quickstart')} variant="primary">Quickstart</Button>
+      <Button href={site.docs} variant="secondary" external>API docs →</Button>
+    </div>
+  </PageHeader>
+
+  <!-- Zero-setup -> your server -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Step 1 — see it in 10 seconds</p>
+        <h2 class="h2">Zero setup, then point it at your server</h2>
+        <p class="lead mt-4">
+          The fastest way to see the scorecard is the bundled demo — no install, no API key, no
+          config. Then swap in your own server's launch command.
+        </p>
+
+        <div class="mt-7 grid gap-2.5">
+          <InstallCommand cmd="toolscore demo" label="Grade a bundled sample server" />
+          <InstallCommand cmd='toolscore mcp test "python my_server.py"' label="Then grade your own" />
+        </div>
+
+        <p class="mt-6 text-sm text-muted">
+          Already in Claude Desktop? Point Toolscore straight at your config — zero install:
+        </p>
+        <InstallCommand
+          class="mt-2"
+          cmd="uvx tool-scorer mcp test --config claude_desktop_config.json --server my-server"
+        />
+      </div>
+
+      <div>
+        <p class="mb-3 font-mono text-[11px] uppercase tracking-wider text-faint">Live demo</p>
+        <ScorecardDemo compact />
+      </div>
+    </div>
+  </section>
+
+  <!-- Scorecard dimensions -->
+  <section class="section">
+    <div class="wrap">
+      <div class="mx-auto max-w-2xl text-center">
+        <p class="eyebrow mb-3">The scorecard, explained</p>
+        <h2 class="h2">Four dimensions, one A–F grade</h2>
+        <p class="lead mx-auto mt-4 max-w-xl">
+          The score blends happy-path pass rate, edge-case resilience, and schema-lint cleanliness;
+          token cost rides along as a signal. <span class="text-ink">≥ 90% is an A.</span>
+        </p>
+      </div>
+
+      <div class="mt-12 grid gap-5 sm:grid-cols-2">
+        {
+          mcpDimensions.map((d) => (
+            <div class="card flex items-start gap-4 p-6">
+              <GradeBadge grade={d.grade} size="md" />
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-lg font-semibold text-ink">{d.label}</h3>
+                  <span class="rounded-full border border-line bg-bg/50 px-2 py-0.5 font-mono text-[10px] text-muted">
+                    {d.weight}
+                  </span>
+                </div>
+                <p class="mt-2 text-sm leading-relaxed text-muted">{d.body}</p>
+              </div>
+            </div>
+          ))
+        }
+      </div>
+
+      <p class="mt-6 text-center font-mono text-xs text-faint">
+        score = happy 60% + edge 20% + lint 20% &nbsp;·&nbsp; token cost reported per-tool
+      </p>
+    </div>
+  </section>
+
+  <!-- Top issues to fix -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[1fr_1.1fr]">
+      <div>
+        <p class="eyebrow mb-3">The verdict</p>
+        <h2 class="h2">"Top issues to fix" — not just a number</h2>
+        <p class="lead mt-4">
+          Every run ends with a ranked, plain-English list of what is wrong and how to fix it: a
+          handler that errors on valid input, a property with no type, a description too thin for a
+          model to choose by. Concrete problems, concrete fixes.
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <Button href={url('quickstart')} variant="secondary">Run it yourself →</Button>
+        </div>
+      </div>
+
+      <CodeBlock title="Top issues to fix">
+        <ol class="space-y-4 font-mono text-[13px] leading-relaxed">
+          {
+            scorecard.issues.map((iss) => (
+              <li class="border-l-2 border-gradeC/60 pl-3">
+                <div>
+                  <span class="text-faint">{iss.n}.</span>
+                  <span class="font-semibold text-ink"> {iss.tool}</span>
+                  <span class="text-termRed"> {iss.problem}</span>
+                </div>
+                <div class="text-muted">
+                  <span class="text-faint">{'->'} </span>
+                  {iss.fix}
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+      </CodeBlock>
+    </div>
+  </section>
+
+  <!-- CLI reference -->
+  <section class="section">
+    <div class="wrap">
+      <div class="mx-auto max-w-2xl text-center">
+        <p class="eyebrow mb-3">The CLI</p>
+        <h2 class="h2">Every command you need</h2>
+      </div>
+
+      <div class="mx-auto mt-10 max-w-3xl space-y-2.5">
+        {
+          mcpCommands.map((c) => (
+            <div class="card flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <code class="scrollx overflow-x-auto whitespace-nowrap font-mono text-[12px] text-ink">
+                <span class="text-brand">$</span> {c.cmd}
+              </code>
+              <span class="shrink-0 text-xs text-muted sm:max-w-[42%] sm:text-right">{c.note}</span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <!-- CI + Markdown report -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Gate your build</p>
+        <h2 class="h2">CI that fails on a bad grade</h2>
+        <p class="lead mt-4">
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--fail-under B</code>
+          exits non-zero below the bar.
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--ci</code>
+          writes the verdict straight to your GitHub Actions job summary and fails on blocking
+          issues — so the scorecard shows up right in the run.
+        </p>
+        <CodeBlock class="mt-6" title=".github/workflows/scorecard.yml" lang="yaml" code={ciYaml} />
+      </div>
+
+      <div>
+        <p class="eyebrow mb-3">Export it</p>
+        <h2 class="h2">A Markdown report for any PR or README</h2>
+        <p class="lead mt-4">
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--report md --output SCORECARD.md</code>
+          renders the whole verdict — grade, per-tool table, and top issues — as Markdown designed
+          to paste into your server's README or a PR comment.
+        </p>
+        <CodeBlock
+          class="mt-6"
+          title="SCORECARD.md"
+          lang="markdown"
+          code={`# MCP Scorecard: notes-server 1.0.0
+
+**Grade: B** · Score 87%
+
+- Happy-path pass rate: 80%
+- Edge-case resilience: 100%
+- Lint score: 93% (1 errors, 1 warnings)
+- Tool-definition tokens: ~303 across 5 tool(s)
+
+## Top issues to fix
+
+- **export_notes** — fails on valid input.
+- **delete_note** — property 'note_id' is missing a 'type'.
+- **search_notes** — description is very short (< 10 chars).`}
+        />
+      </div>
+    </div>
+  </section>
+
+  <CTASection
+    heading="Grade your MCP server now"
+    sub="No install required. uvx tool-scorer demo to see it, then point it at your own server."
+  />
+</BaseLayout>

@@ -1,0 +1,200 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import InstallCommand from '../components/InstallCommand.astro';
+import CTASection from '../components/CTASection.astro';
+import Button from '../components/Button.astro';
+import { snapshotSteps, matchers, frameworks, site, url } from '../data/site';
+
+const initSnippet = `pip install tool-scorer
+toolscore init          # detects your framework, scaffolds a passing pytest suite
+pytest                  # first run RECORDS your agent's tool calls as snapshots
+toolscore approve --all # review, then approve them as the baseline
+pytest                  # every run after this REPLAYS — and fails on drift`;
+
+const expectSnippet = `from toolscore import expect, ANY, Regex
+
+expect(agent).on("book me a flight to NYC") \\
+    .calls("search_flights", origin=ANY, destination="NYC") \\
+    .then_calls("book_flight", flight_id=Regex(r"FL-\\d+")) \\
+    .does_not_call("cancel_booking") \\
+    .with_score(0.9) \\
+    .run()`;
+
+const fixtureSnippet = `def test_books_a_flight(toolscore_snapshot):
+    toolscore_snapshot(my_agent("book a flight to NYC"))
+    # First run: records a pending snapshot and warns.
+    # After \`toolscore approve\`: replays against the baseline, fails on drift.`;
+
+const evalSnippet = `toolscore eval gold.json trace.json     # A–F grade + Top issues to fix`;
+
+const failureSnippet = `                     Expected vs Actual Tool Calls
+┏━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
+┃   # ┃ Expected             ┃ Actual               ┃ Status               ┃
+┡━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
+│   1 │ search_flights(dest= │ search_flights(dest= │ destination:         │
+│     │ 'NYC')               │ 'BOS')               │ 'NYC' ≠ 'BOS'        │
+│   2 │ book_flight(...)     │ cancel_booking(...)  │ tool: 'book_flight'  │
+│     │                      │                      │ ≠ 'cancel_booking'   │
+└─────┴──────────────────────┴──────────────────────┴──────────────────────┘
+score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50`;
+---
+
+<BaseLayout
+  title="Test your agent"
+  description="Snapshot your agent's tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. Record, approve, replay — Jest snapshots for agents."
+>
+  <PageHeader
+    eyebrow="For agent builders"
+    title="Test your <span class='brand-text'>agent</span>"
+    sub="Snapshot your agent's tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. No hand-written expected-call files, no YAML."
+  >
+    <div class="mt-8 flex flex-wrap gap-3">
+      <Button href={url('quickstart')} variant="primary">Quickstart</Button>
+      <Button href={site.docs} variant="secondary" external>API docs →</Button>
+    </div>
+  </PageHeader>
+
+  <!-- The 60-second loop -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[1.05fr_1fr]">
+      <div>
+        <p class="eyebrow mb-3">Snapshot testing</p>
+        <h2 class="h2">Record → approve → replay</h2>
+        <p class="lead mt-4">
+          Stop hand-writing expected tool calls. Record your agent's behavior once, approve it, and
+          replay it forever — Jest snapshots, for agents. Your agent's own behavior becomes the
+          regression test.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-brand">toolscore init</code>
+          detects your framework and scaffolds a passing pytest suite plus a CI workflow. The
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-brand">toolscore_snapshot</code>
+          fixture ships with the package — no plugin registration.
+        </p>
+      </div>
+      <CodeBlock title="the whole loop" lang="bash" code={initSnippet} />
+    </div>
+
+    <div class="wrap mt-12 grid gap-5 md:grid-cols-3">
+      {
+        snapshotSteps.map((s) => (
+          <div class="card flex flex-col p-6">
+            <span class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-brand/30 bg-brand/10 font-mono font-bold text-brand">
+              {s.n}
+            </span>
+            <h3 class="mt-4 text-lg font-semibold text-ink">{s.title}</h3>
+            <p class="mt-2 flex-1 text-sm leading-relaxed text-muted">{s.body}</p>
+            <div class="mt-4 rounded-md border border-line/80 bg-bg/50 px-3 py-2 font-mono text-[11px] text-brand">
+              {s.code}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+
+    <div class="wrap mt-6">
+      <CodeBlock title="test_agent.py" lang="python" code={fixtureSnippet} />
+    </div>
+  </section>
+
+  <!-- eval -> grade -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Or evaluate a trace</p>
+        <h2 class="h2">A–F grade + the same "Top issues to fix"</h2>
+        <p class="lead mt-4">
+          Already have a captured trace and a gold standard? <code
+            class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">toolscore eval</code
+          > scores it deterministically and gives you the same graded verdict — selection accuracy,
+          argument F1, sequence accuracy, and redundancy, blended into one score.
+        </p>
+        <InstallCommand class="mt-6" cmd="toolscore eval gold.json trace.json" />
+      </div>
+      <CodeBlock title="failure output — lands in your pytest log" lang="text" code={failureSnippet} />
+    </div>
+  </section>
+
+  <!-- Fluent expect() API -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Prefer explicit expectations?</p>
+        <h2 class="h2">The fluent <span class="font-mono">expect()</span> API</h2>
+        <p class="lead mt-4">
+          It reads like the sentence you'd say out loud. Chain
+          <code class="font-mono text-sm text-brand">.calls()</code>,
+          <code class="font-mono text-sm text-brand">.then_calls()</code>, and
+          <code class="font-mono text-sm text-brand">.does_not_call()</code> — and loosen exactly
+          the arguments you choose with matchers.
+        </p>
+      </div>
+      <CodeBlock title="fluent assertions" lang="python" code={expectSnippet} />
+    </div>
+
+    <!-- Matchers table -->
+    <div class="wrap mt-12">
+      <h3 class="mb-4 text-center text-lg font-semibold text-ink">Matchers — flexible where it matters</h3>
+      <div class="card scrollx overflow-x-auto">
+        <table class="w-full min-w-[640px] border-collapse text-left text-sm">
+          <thead>
+            <tr class="border-b border-line text-muted">
+              <th class="px-5 py-3.5 font-medium">Matcher</th>
+              <th class="px-5 py-3.5 font-medium">Matches</th>
+              <th class="px-5 py-3.5 font-medium">Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              matchers.map((m) => (
+                <tr class="border-b border-line/60 last:border-0">
+                  <td class="px-5 py-3 font-mono text-brand">{m.name}</td>
+                  <td class="px-5 py-3 text-muted">{m.matches}</td>
+                  <td class="px-5 py-3 font-mono text-[12px] text-ink">{m.example}</td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Framework auto-detect -->
+  <section class="section">
+    <div class="wrap">
+      <div class="mx-auto max-w-2xl text-center">
+        <p class="eyebrow mb-3">Native everywhere — zero glue</p>
+        <h2 class="h2">Pass raw responses straight in</h2>
+        <p class="lead mx-auto mt-4 max-w-xl">
+          Toolscore auto-detects the format — no manual extraction. The same is true in
+          <code class="font-mono text-sm text-brand">evaluate()</code>,
+          <code class="font-mono text-sm text-brand">expect()</code>, and the snapshot fixture.
+        </p>
+      </div>
+
+      <div class="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
+        {
+          frameworks.map((f) => (
+            <div class="card flex flex-col items-center justify-center px-3 py-5 text-center">
+              <span class="font-semibold text-ink">{f.name}</span>
+              <span class="mt-1 font-mono text-[10px] text-faint">{f.detail}</span>
+            </div>
+          ))
+        }
+      </div>
+
+      <p class="mt-6 text-center text-sm text-muted">
+        Plus pytest-native fixtures, <code class="font-mono text-brand">@toolscore.cases()</code>
+        data-driven tests, async support, and a CI gate — all in one package.
+      </p>
+    </div>
+  </section>
+
+  <CTASection
+    heading="Make your agent's behavior a regression test"
+    sub="pip install tool-scorer, then toolscore init. Record once, approve, and replay forever."
+  />
+</BaseLayout>

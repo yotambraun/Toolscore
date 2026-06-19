@@ -1,0 +1,240 @@
+---
+import { scorecard } from '../data/site';
+import GradeBadge from './GradeBadge.astro';
+
+interface Props {
+  compact?: boolean; // smaller variant for /mcp
+  class?: string;
+}
+const { compact = false, class: extra = '' } = Astro.props;
+const sc = scorecard;
+
+// Map the three composite dimensions to a bar color by value.
+const dimColor = (v: number) =>
+  v >= 90 ? 'bg-gradeA' : v >= 80 ? 'bg-gradeB' : v >= 70 ? 'bg-gradeC' : v >= 60 ? 'bg-gradeD' : 'bg-gradeF';
+---
+
+<div class={`terminal js-scorecard ${extra}`} data-scorecard data-command={sc.command}>
+  <div class="terminal-bar">
+    <span class="dot bg-gradeF/70"></span>
+    <span class="dot bg-gradeC/70"></span>
+    <span class="dot bg-gradeA/70"></span>
+    <span class="ml-2 font-mono text-xs text-muted">zsh — toolscore</span>
+    <span class="ml-auto font-mono text-[10px] uppercase tracking-wider text-faint">live demo</span>
+  </div>
+
+  <div class={`scrollx overflow-x-auto font-mono ${compact ? 'p-4 text-[11px]' : 'p-5 text-[12px] sm:text-[13px]'}`}>
+    <!-- Command line: JS "types" into [data-typed]; static fallback in [data-cmd-static] -->
+    <div class="flex items-start gap-2">
+      <span class="select-none text-brand">$</span>
+      <span class="text-ink">
+        <span data-typed></span><span
+          class="ml-0.5 inline-block h-[1.05em] w-[0.55ch] translate-y-[0.12em] bg-brand align-middle motion-safe:animate-blink"
+          data-cursor
+          aria-hidden="true"></span>
+      </span>
+    </div>
+    <noscript>
+      <div class="flex items-start gap-2">
+        <span class="text-brand">$</span><span class="text-ink">{sc.command}</span>
+      </div>
+    </noscript>
+
+    <!-- Output: hidden until reveal (JS); shown immediately for reduced-motion / no-JS -->
+    <div class="mt-4 space-y-4 motion-reduce:!opacity-100" data-output>
+      <!-- Grade card -->
+      <div data-reveal class="rounded-lg border border-line2/60 bg-bg/50 p-4">
+        <div class="flex items-center gap-4">
+          <GradeBadge grade={sc.grade} size={compact ? 'md' : 'lg'} />
+          <div class="min-w-0">
+            <div class="text-faint">MCP Scorecard</div>
+            <div class="truncate text-ink">
+              {sc.server} <span class="text-faint">{sc.serverVersion}</span>
+            </div>
+            <div class="mt-0.5">
+              <span class="text-muted">Grade</span>
+              <span class="font-bold text-ink"> {sc.grade}</span>
+              <span class="mx-1 text-faint">·</span>
+              <span class="text-muted">Score</span>
+              <span class="font-bold text-ink"> {sc.score}%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dimension bars -->
+        <div class="mt-4 grid grid-cols-3 gap-3">
+          {
+            sc.dims.map((d) => (
+              <div>
+                <div class="mb-1 flex items-center justify-between text-[11px]">
+                  <span class="text-muted">{d.label}</span>
+                  <span class="text-ink">{d.value}%</span>
+                </div>
+                <div class="h-1.5 overflow-hidden rounded-full bg-line">
+                  <div
+                    class:list={['h-full origin-left rounded-full', dimColor(d.value)]}
+                    style={`width:${d.value}%`}
+                    data-bar
+                  />
+                </div>
+              </div>
+            ))
+          }
+        </div>
+      </div>
+
+      <!-- Per-tool table -->
+      <div data-reveal>
+        <div class="mb-1.5 text-center text-faint">Tools</div>
+        <div class="overflow-hidden rounded-lg border border-line/80">
+          <table class="w-full border-collapse text-left text-[11px] sm:text-[12px]">
+            <thead>
+              <tr class="bg-bg/40 text-faint">
+                <th class="px-3 py-1.5 font-medium">Tool</th>
+                <th class="px-3 py-1.5 text-right font-medium">Scenarios</th>
+                {!compact && <th class="px-3 py-1.5 text-right font-medium">Avg latency</th>}
+                <th class="px-3 py-1.5 text-right font-medium">Def. tokens</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                sc.tools.map((t) => (
+                  <tr class="border-t border-line/60">
+                    <td class="px-3 py-1.5 text-ink">{t.name}</td>
+                    <td class:list={['px-3 py-1.5 text-right', t.pass ? 'text-gradeA' : 'text-gradeF']}>
+                      {t.scenarios}
+                    </td>
+                    {!compact && <td class="px-3 py-1.5 text-right text-muted">{t.latency}</td>}
+                    <td class="px-3 py-1.5 text-right text-muted">{t.tokens}</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-1.5 text-[11px] text-faint">{sc.tokenNote}</div>
+      </div>
+
+      <!-- Top issues to fix -->
+      <div data-reveal>
+        <div class="mb-2 font-bold text-ink">Top issues to fix</div>
+        <ol class="space-y-2.5">
+          {
+            sc.issues.map((iss) => (
+              <li class="border-l-2 border-gradeC/60 pl-3">
+                <div>
+                  <span class="text-faint">{iss.n}.</span>
+                  <span class="font-semibold text-ink"> {iss.tool}</span>
+                  <span class="text-termRed"> {iss.problem}</span>
+                </div>
+                <div class="text-muted">
+                  <span class="text-faint">{'->'} </span>
+                  {iss.fix}
+                </div>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Animated scorecard: types the command, then reveals output blocks in sequence.
+  // prefers-reduced-motion (and no-JS) => everything visible immediately, no typing.
+  const prefersReduced =
+    typeof window !== 'undefined' &&
+    window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  document.querySelectorAll<HTMLElement>('[data-scorecard]').forEach((root) => {
+    const typedEl = root.querySelector<HTMLElement>('[data-typed]');
+    const cursorEl = root.querySelector<HTMLElement>('[data-cursor]');
+    const output = root.querySelector<HTMLElement>('[data-output]');
+    const reveals = Array.from(root.querySelectorAll<HTMLElement>('[data-reveal]'));
+    const bars = Array.from(root.querySelectorAll<HTMLElement>('[data-bar]'));
+    const command = root.getAttribute('data-command') || '';
+
+    // Static / reduced-motion presentation.
+    const showAllImmediately = () => {
+      if (typedEl) typedEl.textContent = command;
+      if (cursorEl) cursorEl.style.display = 'none';
+      if (output) output.style.opacity = '1';
+      reveals.forEach((r) => {
+        r.style.opacity = '1';
+        r.style.transform = 'none';
+      });
+    };
+
+    if (prefersReduced || !command) {
+      showAllImmediately();
+      return;
+    }
+
+    // Prep: hide output, set reveal start state.
+    if (output) output.style.opacity = '0';
+    reveals.forEach((r) => {
+      r.style.opacity = '0';
+      r.style.transform = 'translateY(8px)';
+      r.style.transition = 'opacity .45s ease, transform .45s ease';
+    });
+    bars.forEach((b) => {
+      b.style.transform = 'scaleX(0)';
+      b.style.transition = 'transform .7s cubic-bezier(.2,.7,.2,1)';
+    });
+
+    let started = false;
+    const run = () => {
+      if (started) return;
+      started = true;
+
+      let i = 0;
+      const type = () => {
+        if (!typedEl) return;
+        typedEl.textContent = command.slice(0, i);
+        i += 1;
+        if (i <= command.length) {
+          setTimeout(type, 26 + Math.random() * 34);
+        } else {
+          // Done typing -> reveal output.
+          setTimeout(reveal, 360);
+        }
+      };
+      const reveal = () => {
+        if (output) output.style.opacity = '1';
+        reveals.forEach((r, idx) => {
+          setTimeout(() => {
+            r.style.opacity = '1';
+            r.style.transform = 'translateY(0)';
+            if (idx === 0) bars.forEach((b) => (b.style.transform = 'scaleX(1)'));
+          }, idx * 260);
+        });
+        if (cursorEl) {
+          setTimeout(() => {
+            cursorEl.style.display = 'none';
+          }, reveals.length * 260 + 200);
+        }
+      };
+      type();
+    };
+
+    // Start when scrolled into view.
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) {
+              run();
+              io.disconnect();
+            }
+          });
+        },
+        { threshold: 0.3 }
+      );
+      io.observe(root);
+    } else {
+      run();
+    }
+  });
+</script>

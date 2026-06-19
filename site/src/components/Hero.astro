@@ -1,0 +1,52 @@
+---
+import { site, url } from '../data/site';
+import Button from './Button.astro';
+import InstallCommand from './InstallCommand.astro';
+import ScorecardDemo from './ScorecardDemo.astro';
+---
+
+<section class="relative overflow-hidden bg-hero-glow">
+  <div class="wrap grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_1.1fr] lg:py-24">
+    <div>
+      <p class="eyebrow mb-5">MCP servers · agents · deterministic, offline, $0</p>
+
+      <h1 class="text-balance text-4xl font-extrabold leading-[1.06] tracking-tight sm:text-5xl lg:text-6xl">
+        The instant health-check for
+        <span class="brand-text">LLM tool-calling</span>
+      </h1>
+
+      <p class="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted">
+        Point Toolscore at an MCP server or an agent and get a clear
+        <span class="text-ink">"here’s your grade and exactly what’s broken"</span> verdict —
+        deterministically, offline, with <span class="text-ink">zero API cost</span>. No LLM
+        judge, no cloud, no per-test bill.
+      </p>
+
+      <div class="mt-8 grid max-w-md gap-2.5">
+        <InstallCommand cmd={site.installPip} label="Install" />
+        <InstallCommand cmd={site.installUvx} label="Or run instantly, zero install" />
+      </div>
+
+      <div class="mt-7 flex flex-wrap items-center gap-3">
+        <Button href={url('quickstart')} variant="primary">Quickstart</Button>
+        <Button href={url('mcp')} variant="secondary">Test an MCP server</Button>
+        <Button href={url('agents')} variant="ghost">Test an agent →</Button>
+      </div>
+
+      <div class="mt-9 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-xs text-faint">
+        <span class="flex items-center gap-1.5"><span class="dot bg-gradeA"></span> deterministic</span>
+        <span class="flex items-center gap-1.5"><span class="dot bg-gradeA"></span> runs offline</span>
+        <span class="flex items-center gap-1.5"><span class="dot bg-gradeA"></span> $0 per run</span>
+        <span class="flex items-center gap-1.5"><span class="dot bg-gradeA"></span> pytest-native</span>
+      </div>
+    </div>
+
+    <div class="relative">
+      <div
+        class="pointer-events-none absolute -inset-4 -z-10 rounded-3xl bg-brandgrad opacity-[0.07] blur-2xl"
+      >
+      </div>
+      <ScorecardDemo />
+    </div>
+  </div>
+</section>

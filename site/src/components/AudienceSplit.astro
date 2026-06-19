@@ -1,0 +1,49 @@
+---
+import { audiences } from '../data/site';
+---
+
+<section class="section">
+  <div class="wrap">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="eyebrow mb-3">Two sides of one handshake</p>
+      <h2 class="h2">Pick your side of the LLM ↔ tool handshake</h2>
+      <p class="lead mx-auto mt-4 max-w-xl">
+        Toolscore tests both ends of the same contract between a model and a tool — whether you
+        ship the tool, or build the agent that calls it.
+      </p>
+    </div>
+
+    <div class="mt-12 grid gap-6 md:grid-cols-2">
+      {
+        audiences.map((a) => (
+          <a
+            href={a.href}
+            class="card group relative flex flex-col p-7 transition-all duration-200 hover:border-brand/40 hover:shadow-glow-soft"
+          >
+            <p class="eyebrow mb-3">{a.eyebrow}</p>
+            <h3 class="text-2xl font-bold tracking-tight text-ink">{a.title}</h3>
+            <p class="mt-3 text-pretty text-muted">{a.blurb}</p>
+
+            <div class="mt-5 rounded-lg border border-line2/60 bg-elevated px-4 py-3 font-mono text-[12px] text-ink">
+              <span class="text-brand">$</span> {a.cmd}
+            </div>
+
+            <ul class="mt-5 space-y-2 text-sm text-muted">
+              {a.points.map((p) => (
+                <li class="flex items-start gap-2">
+                  <span class="mt-1 text-brand">✓</span>
+                  <span>{p}</span>
+                </li>
+              ))}
+            </ul>
+
+            <span class="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand">
+              {a.cta}
+              <span class="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>

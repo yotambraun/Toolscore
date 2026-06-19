@@ -1,0 +1,49 @@
+---
+import { site, url, nav } from '../data/site';
+const path = Astro.url.pathname.replace(/\/$/, '');
+const isActive = (href: string) => {
+  const h = href.replace(/\/$/, '');
+  return h !== url('').replace(/\/$/, '') && path.startsWith(h);
+};
+---
+
+<header class="sticky top-0 z-50 border-b border-line/80 bg-bg/70 backdrop-blur-md">
+  <nav class="wrap flex h-16 items-center justify-between gap-4">
+    <a href={url('')} class="flex shrink-0 items-center gap-2.5" aria-label="Toolscore home">
+      <img src={url('logo-dark.svg')} alt="Toolscore" class="h-7 w-auto" />
+    </a>
+
+    <div class="hidden items-center gap-7 md:flex">
+      {
+        nav.map((item) => (
+          <a
+            href={item.href}
+            class:list={[
+              'text-sm transition-colors',
+              isActive(item.href) ? 'text-ink' : 'text-muted hover:text-ink',
+            ]}
+          >
+            {item.label}
+          </a>
+        ))
+      }
+    </div>
+
+    <div class="flex items-center gap-3">
+      <a
+        href={site.repo}
+        target="_blank"
+        rel="noopener"
+        class="hidden text-sm text-muted transition-colors hover:text-ink sm:inline"
+        >GitHub</a
+      >
+      <a
+        href={site.pypi}
+        target="_blank"
+        rel="noopener"
+        class="rounded-lg border border-line bg-surface px-3 py-1.5 font-mono text-xs text-brand transition-colors hover:border-brand/50"
+        >pip install tool-scorer</a
+      >
+    </div>
+  </nav>
+</header>

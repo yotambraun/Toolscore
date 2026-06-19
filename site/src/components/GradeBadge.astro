@@ -1,0 +1,38 @@
+---
+interface Props {
+  grade: string; // A | B | C | D | F
+  size?: 'sm' | 'md' | 'lg';
+  class?: string;
+}
+const { grade, size = 'md', class: extra = '' } = Astro.props;
+const g = grade.toUpperCase().charAt(0);
+
+// Each grade gets its own slot in the A–F palette.
+const colors: Record<string, { text: string; ring: string; bg: string; glow: string }> = {
+  A: { text: 'text-gradeA', ring: 'border-gradeA/40', bg: 'bg-gradeA/10', glow: 'shadow-[0_0_22px_-6px_rgba(34,224,122,.55)]' },
+  B: { text: 'text-gradeB', ring: 'border-gradeB/40', bg: 'bg-gradeB/10', glow: 'shadow-[0_0_22px_-6px_rgba(95,206,98,.5)]' },
+  C: { text: 'text-gradeC', ring: 'border-gradeC/40', bg: 'bg-gradeC/10', glow: 'shadow-[0_0_22px_-6px_rgba(242,180,49,.5)]' },
+  D: { text: 'text-gradeD', ring: 'border-gradeD/40', bg: 'bg-gradeD/10', glow: 'shadow-[0_0_22px_-6px_rgba(240,133,55,.5)]' },
+  F: { text: 'text-gradeF', ring: 'border-gradeF/40', bg: 'bg-gradeF/10', glow: 'shadow-[0_0_22px_-6px_rgba(239,68,88,.5)]' },
+};
+const c = colors[g] ?? colors.C;
+
+const sizes: Record<string, string> = {
+  sm: 'h-8 w-8 text-base rounded-lg',
+  md: 'h-12 w-12 text-2xl rounded-xl',
+  lg: 'h-20 w-20 text-5xl rounded-2xl',
+};
+---
+
+<span
+  class:list={[
+    'inline-flex shrink-0 items-center justify-center border font-mono font-bold leading-none',
+    sizes[size],
+    c.text,
+    c.ring,
+    c.bg,
+    c.glow,
+    extra,
+  ]}
+  aria-label={`Grade ${g}`}>{g}</span
+>

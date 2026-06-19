@@ -11,12 +11,22 @@
   <em>The instant, free, deterministic health-check for LLM tool-calling</em>
 </p>
 
+[![Website](https://img.shields.io/badge/website-toolscore-2ea44f.svg)](https://yotambraun.github.io/Toolscore/)
 [![PyPI version](https://badge.fury.io/py/tool-scorer.svg)](https://badge.fury.io/py/tool-scorer)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Downloads](https://static.pepy.tech/badge/tool-scorer)](https://pepy.tech/project/tool-scorer)
 [![Python Versions](https://img.shields.io/pypi/pyversions/tool-scorer.svg)](https://pypi.org/project/tool-scorer/)
 [![CI](https://github.com/yotambraun/toolscore/workflows/CI/badge.svg)](https://github.com/yotambraun/toolscore/actions)
 [![GitHub stars](https://img.shields.io/github/stars/yotambraun/toolscore?style=social)](https://github.com/yotambraun/toolscore)
+
+### [**Visit the website → yotambraun.github.io/Toolscore**](https://yotambraun.github.io/Toolscore/)
+
+**[Website](https://yotambraun.github.io/Toolscore/)** ·
+**[Test your MCP server](https://yotambraun.github.io/Toolscore/mcp)** ·
+**[Test your agent](https://yotambraun.github.io/Toolscore/agents)** ·
+**[Compare](https://yotambraun.github.io/Toolscore/compare)** ·
+**[Quickstart](https://yotambraun.github.io/Toolscore/quickstart)** ·
+**[Docs](https://tool-scorer.readthedocs.io)**
 
 ---
 

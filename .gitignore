@@ -121,8 +121,10 @@ venv.bak/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
+# mkdocs documentation (legacy build output — the Astro marketing site lives in site/)
+/site/dist/
+/site/node_modules/
+/site/.astro/
 
 # mypy
 .mypy_cache/

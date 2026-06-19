@@ -1,0 +1,53 @@
+---
+interface Props {
+  cmd: string;
+  label?: string; // small caption above the line
+  class?: string;
+}
+const { cmd, label, class: extra = '' } = Astro.props;
+---
+
+<div class={extra}>
+  {label && <p class="mb-1.5 font-mono text-[11px] uppercase tracking-wider text-faint">{label}</p>}
+  <div
+    class="group flex items-center gap-3 rounded-xl border border-line2/70 bg-elevated px-4 py-3 font-mono text-sm"
+  >
+    <span class="select-none text-brand">$</span>
+    <code class="overflow-x-auto whitespace-nowrap text-ink scrollx">{cmd}</code>
+    <button
+      type="button"
+      class="ml-auto shrink-0 rounded-md border border-line px-2 py-1 text-xs text-muted transition-colors hover:border-brand/50 hover:text-brand"
+      data-copy={cmd}
+      aria-label="Copy command"
+    >
+      <span data-copy-label>Copy</span>
+    </button>
+  </div>
+</div>
+
+<script>
+  // Single shared copy handler for every [data-copy] on the page.
+  if (!(window as any).__toolscoreCopyBound) {
+    (window as any).__toolscoreCopyBound = true;
+    document.addEventListener('click', async (e) => {
+      const btn = (e.target as HTMLElement)?.closest<HTMLButtonElement>('[data-copy]');
+      if (!btn) return;
+      const text = btn.getAttribute('data-copy') ?? '';
+      try {
+        await navigator.clipboard.writeText(text);
+        const label = btn.querySelector('[data-copy-label]');
+        if (label) {
+          const prev = label.textContent;
+          label.textContent = 'Copied';
+          btn.classList.add('text-brand', 'border-brand/50');
+          setTimeout(() => {
+            label.textContent = prev;
+            btn.classList.remove('text-brand', 'border-brand/50');
+          }, 1400);
+        }
+      } catch {
+        /* clipboard unavailable */
+      }
+    });
+  }
+</script>

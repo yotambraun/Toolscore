@@ -1,0 +1,37 @@
+---
+import { steps } from '../data/site';
+---
+
+<section class="section">
+  <div class="wrap">
+    <div class="mx-auto max-w-2xl text-center">
+      <p class="eyebrow mb-3">How it works</p>
+      <h2 class="h2">From a launch command to a graded verdict</h2>
+      <p class="lead mx-auto mt-4 max-w-xl">
+        Four steps, all offline. No model in the loop by default, no API keys, no per-test cost.
+      </p>
+    </div>
+
+    <ol class="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+      {
+        steps.map((s, i) => (
+          <li class="card relative flex flex-col p-6">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-3xl font-bold text-line2">{s.n}</span>
+              {i < steps.length - 1 && (
+                <span class="hidden text-line2 lg:inline" aria-hidden="true">
+                  →
+                </span>
+              )}
+            </div>
+            <h3 class="mt-3 text-lg font-semibold text-ink">{s.title}</h3>
+            <p class="mt-2 flex-1 text-sm leading-relaxed text-muted">{s.body}</p>
+            <div class="mt-4 rounded-md border border-line/80 bg-bg/50 px-3 py-2 font-mono text-[11px] text-brand">
+              {s.code}
+            </div>
+          </li>
+        ))
+      }
+    </ol>
+  </div>
+</section>

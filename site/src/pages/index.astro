@@ -1,0 +1,59 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Hero from '../components/Hero.astro';
+import AudienceSplit from '../components/AudienceSplit.astro';
+import StepFlow from '../components/StepFlow.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import ComparisonMatrix from '../components/ComparisonMatrix.astro';
+import CTASection from '../components/CTASection.astro';
+import Button from '../components/Button.astro';
+import { features, url } from '../data/site';
+---
+
+<BaseLayout>
+  <Hero />
+
+  <AudienceSplit />
+
+  <StepFlow />
+
+  <!-- Feature grid -->
+  <section class="section">
+    <div class="wrap">
+      <div class="mx-auto max-w-2xl text-center">
+        <p class="eyebrow mb-3">What you get</p>
+        <h2 class="h2">Built to live in your test suite</h2>
+        <p class="lead mx-auto mt-4 max-w-xl">
+          Not a dashboard you check after the fact — a deterministic gate that fails the build the
+          moment tool-calling breaks.
+        </p>
+      </div>
+
+      <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {features.map((f) => <FeatureCard title={f.title} body={f.body} icon={f.icon} />)}
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison teaser -->
+  <section class="section">
+    <div class="wrap">
+      <div class="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+        <div class="max-w-xl">
+          <p class="eyebrow mb-3">Toolscore vs the field</p>
+          <h2 class="h2">The deterministic, in-CI option</h2>
+          <p class="lead mt-4">
+            Observability and LLM-eval platforms watch your agent in production. Toolscore is the
+            free, deterministic health-check that runs in CI and fails the build on drift. Here is
+            where it fits.
+          </p>
+        </div>
+        <Button href={url('compare')} variant="secondary" class="shrink-0">See the full matrix →</Button>
+      </div>
+
+      <ComparisonMatrix />
+    </div>
+  </section>
+
+  <CTASection />
+</BaseLayout>

@@ -1,0 +1,19 @@
+---
+interface Props {
+  eyebrow?: string;
+  title: string;
+  sub?: string;
+}
+const { eyebrow, title, sub } = Astro.props;
+---
+
+<section class="relative overflow-hidden border-b border-line/60 bg-hero-glow">
+  <div class="wrap py-14 sm:py-20">
+    {eyebrow && <p class="eyebrow mb-4">{eyebrow}</p>}
+    <h1 class="max-w-3xl text-balance text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl">
+      <Fragment set:html={title} />
+    </h1>
+    {sub && <p class="lead mt-5 max-w-2xl">{sub}</p>}
+    <slot />
+  </div>
+</section>

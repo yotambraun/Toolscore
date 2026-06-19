@@ -117,7 +117,7 @@ toolscore = "toolscore.cli:main"
 toolscore = "toolscore.pytest_plugin"
 
 [project.urls]
-Homepage = "https://github.com/yotambraun/toolscore"
+Homepage = "https://yotambraun.github.io/Toolscore"
 Documentation = "https://tool-scorer.readthedocs.io"
 Repository = "https://github.com/yotambraun/toolscore"
 Issues = "https://github.com/yotambraun/toolscore/issues"
