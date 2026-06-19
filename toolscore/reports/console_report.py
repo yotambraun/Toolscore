@@ -133,7 +133,7 @@ def _print_top_issues(result: EvaluationResult, console: Console, limit: int = 8
     fixes = build_eval_fix_list(result.gold_calls, result.trace_calls)
     if not fixes:
         console.print(
-            "[green]No tool-calling issues — the actual calls match the expected spec.[/green]"
+            "[green]No tool-calling issues - the actual calls match the expected spec.[/green]"
         )
         console.print()
         return

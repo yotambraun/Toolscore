@@ -350,7 +350,7 @@ def init(
     console = Console()
     output_dir = directory if directory is not None else Path.cwd()
 
-    console.print("\n[bold cyan]Toolscore init[/bold cyan] — scaffolding a tool-call test suite\n")
+    console.print("\n[bold cyan]Toolscore init[/bold cyan] - scaffolding a tool-call test suite\n")
 
     # --- resolve the framework -------------------------------------------------
     if framework is None:
@@ -360,7 +360,7 @@ def init(
             console.print(
                 f"Detected framework: [green]{_FRAMEWORK_LABELS[default]}[/green]"
                 if default != "generic"
-                else "No framework detected — using [green]generic[/green] (works anywhere)."
+                else "No framework detected - using [green]generic[/green] (works anywhere)."
             )
         else:
             labels = ", ".join(_FRAMEWORK_LABELS[f] for f in detected)
@@ -414,7 +414,7 @@ def init(
     )
     console.print(
         "  [bold]2.[/bold] [bold]See drift caught:[/bold] change a value in "
-        "[cyan]_fake_agent_response[/cyan] and run [cyan]pytest[/cyan] again — the test fails "
+        "[cyan]_fake_agent_response[/cyan] and run [cyan]pytest[/cyan] again - the test fails "
         "with a diff."
     )
     console.print(

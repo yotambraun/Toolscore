@@ -963,8 +963,9 @@ class TestInitCommand:
         assert ci_file.exists()
         assert "LangGraph" in test_file.read_text()
 
-        # The next steps are surfaced: instant demo, record/approve, see drift, swap real agent.
-        out = result.output
+        # The next steps are surfaced. Collapse whitespace first: rich wraps lines by
+        # console width, which differs across platforms and can split a phrase mid-line.
+        out = " ".join(result.output.split())
         assert "toolscore demo" in out
         assert "pytest" in out
         assert "toolscore approve --all" in out

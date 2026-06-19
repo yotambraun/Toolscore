@@ -448,7 +448,7 @@ def run_scenarios(client: MCPStdioClient, scenarios: list[Scenario]) -> list[Sce
 # Concrete remediation hints surfaced alongside lint issues so the verdict is
 # actionable ("here's what's wrong AND how to fix it"), not just diagnostic.
 _FIX_DESCRIPTION = (
-    "Describe what the tool does and when to use it — models choose tools by their description."
+    "Describe what the tool does and when to use it - models choose tools by their description."
 )
 _FIX_SNAKE_CASE = "Rename the tool to snake_case for predictable, consistent tool selection."
 _FIX_INPUT_SCHEMA = (

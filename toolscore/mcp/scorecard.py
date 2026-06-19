@@ -249,7 +249,7 @@ def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSugg
                     tool=tool,
                     problem=f"fails on valid input ({detail})",
                     fix=(
-                        "The tool errors on well-formed arguments — check the handler and that "
+                        "The tool errors on well-formed arguments - check the handler and that "
                         "the input schema matches what the tool actually accepts."
                     ),
                     priority=_PRIORITY_HAPPY_FAIL,
@@ -341,7 +341,7 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     fixes = build_fix_list(card)
     if not fixes:
         console.print(
-            "\n[green]No issues found — an LLM should be able to use this server cleanly.[/green]"
+            "\n[green]No issues found - an LLM should be able to use this server cleanly.[/green]"
         )
         return
 

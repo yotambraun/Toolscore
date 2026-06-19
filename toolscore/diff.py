@@ -380,7 +380,9 @@ def build_eval_fix_list(gold: list[ToolCall], trace: list[ToolCall]) -> list[Fix
                     continue
                 diff_lines = _arg_diff_lines(gold_call.args or {}, trace_call.args or {})
                 if diff_lines:
-                    detail = "; ".join(diff_lines)
+                    # ASCII-safe for legacy Windows consoles (this text is printed
+                    # to stdout, unlike the diff table which renders to a buffer).
+                    detail = "; ".join(diff_lines).replace("≠", "!=").replace("…", "...")
                     suggestions.append(
                         FixSuggestion(
                             tool=gold_call.tool,
