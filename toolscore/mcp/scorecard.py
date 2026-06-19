@@ -334,7 +334,7 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
         )
     console.print(table)
     console.print(
-        f"[dim]Tool definitions cost ~{card.total_tool_tokens} tokens of context "
+        f"[dim]Tool definitions cost ~{card.total_tool_tokens} estimated tokens of context "
         f"across {len(card.tools)} tool(s).[/dim]"
     )
 
@@ -383,7 +383,8 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         f"- Edge-case resilience: {card.edge_resilience_rate:.0%}\n"
         f"- Lint score: {card.lint_score:.0%} "
         f"({card.lint_error_count} errors, {card.lint_warning_count} warnings)\n"
-        f"- Tool-definition tokens: ~{card.total_tool_tokens} across {len(card.tools)} tool(s)"
+        f"- Tool-definition tokens (estimated): ~{card.total_tool_tokens} "
+        f"across {len(card.tools)} tool(s)"
     )
     lines.append("")
 

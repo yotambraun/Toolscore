@@ -147,7 +147,7 @@ A typical Markdown report looks like:
    - Happy-path pass rate: 100%
    - Edge-case resilience: 80%
    - Lint score: 70% (1 errors, 1 warnings)
-   - Tool-definition tokens: ~120 across 2 tool(s)
+   - Tool-definition tokens (estimated): ~120 across 2 tool(s)
 
    ## Tools
 
@@ -160,6 +160,11 @@ A typical Markdown report looks like:
 
    - **`fetch`** — property 'url' is missing a 'type'. _Fix:_ Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.
    - **`search`** — properties defined but no 'required' list declared. _Fix:_ Declare a 'required' list so callers know which parameters are mandatory.
+
+.. note::
+
+   Token counts are a rough heuristic (~4 characters per token) for relative
+   comparison and context budgeting, not exact per-model billing.
 
 Python API
 ----------

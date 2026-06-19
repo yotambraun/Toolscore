@@ -118,7 +118,7 @@ uvx tool-scorer mcp test --config claude_desktop_config.json --server my-server
 │ delete_note  │       6/6 │      0.1 ms │          52 │
 │ export_notes │       3/6 │      0.1 ms │          64 │
 └──────────────┴───────────┴─────────────┴─────────────┘
-Tool definitions cost ~303 tokens of context across 5 tool(s).
+Tool definitions cost ~303 estimated tokens of context across 5 tool(s).
 
 Top issues to fix
   1. export_notes  fails on valid input (export failed: storage backend not configured)
@@ -139,7 +139,7 @@ Export a Markdown report — for a CI artifact or your server's own README — w
 - Happy-path pass rate: 80%
 - Edge-case resilience: 100%
 - Lint score: 93% (1 errors, 1 warnings)
-- Tool-definition tokens: ~303 across 5 tool(s)
+- Tool-definition tokens (estimated): ~303 across 5 tool(s)
 
 ## Tools
 

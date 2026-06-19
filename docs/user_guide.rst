@@ -129,6 +129,12 @@ The composite ``score`` is a weighted blend of ``selection_accuracy``,
 ``weights=``, your values are **merged with the defaults and then renormalized so
 they sum to 1.0** before scoring — you do not have to make them add up yourself.
 
+Each result also exposes a letter ``grade`` (A--F, from the composite ``score``).
+The ``toolscore eval`` console summary prints that grade plus a ranked
+**"Top issues to fix"** list — missing calls, wrong tool, argument mismatches, and
+unexpected extra calls, each with a concrete suggestion — the same verdict style as
+the MCP scorecard.
+
 .. code-block:: python
 
    # Score on tool selection alone (other weights zeroed, then renormalized to 1.0).

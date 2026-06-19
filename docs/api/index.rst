@@ -14,6 +14,7 @@ This section contains the complete API documentation for Toolscore.
    mcp
    validators
    reports
+   verdict
 
 Overview
 --------

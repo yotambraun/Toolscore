@@ -30,25 +30,30 @@ uv run python examples/<file>.py     # or: python examples/<file>.py
 
 ## Quick Start
 
-### NEW in v1.4: Regression Testing & Self-Explaining Metrics
+### Try it in 10 seconds
 
-**Regression Testing:**
+```bash
+# Grade a bundled sample MCP server — no install, no API key:
+toolscore demo
+```
+
+You get an A–F grade, a per-tool token-cost estimate, and a ranked **"Top issues to fix"** list. Point it at your own server with `toolscore mcp test "python my_server.py"`.
+
+### Test your agent's tool-calling
+
+```bash
+# Compare a recorded trace against a gold spec — prints a grade + "Top issues to fix":
+toolscore eval gold_calls.json trace.json
+```
+
+### Regression testing
+
 ```bash
 # Save a baseline from your best evaluation
 toolscore eval gold_calls.json trace.json --save-baseline baseline.json
 
 # Run regression checks in CI
 toolscore regression baseline.json new_trace.json --gold-file gold_calls.json
-```
-
-**Self-Explaining Metrics** are now automatic - you'll see exactly what went wrong:
-```
-What Went Wrong:
-   MISSING: Expected tool 'search_web' was never called
-   MISMATCH: Position 2: Expected 'summarize' but got 'summary'
-
-Tips:
-   TIP: Use --llm-judge flag to catch semantic equivalence
 ```
 
 ### Generate Your Own Tests
