@@ -3,6 +3,7 @@ name: Deploy site
 # Builds the Astro marketing site (in site/) and deploys it to GitHub Pages.
 # Triggers ONLY on changes under site/ so it never runs on package-only commits.
 # (Keep the Python CI workflow path-filtered to ignore site/** for the reverse.)
+# One-time setup: enable Pages at Settings -> Pages -> Source: "GitHub Actions".
 on:
   push:
     branches: [main]
