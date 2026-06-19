@@ -42,6 +42,7 @@ from rich.table import Table
 from rich.text import Text
 
 from toolscore.mcp.harness import tool_definition_tokens
+from toolscore.verdict import GRADE_ORDER, FixSuggestion, letter_grade
 
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPToolDef
@@ -58,17 +59,6 @@ _WEIGHT_LINT = 0.2
 _LINT_ERROR_PENALTY = 0.25
 #: Per-warning penalty applied to the lint score.
 _LINT_WARNING_PENALTY = 0.1
-
-#: Grade thresholds, highest first.
-_GRADE_BANDS: tuple[tuple[float, str], ...] = (
-    (0.9, "A"),
-    (0.8, "B"),
-    (0.7, "C"),
-    (0.6, "D"),
-)
-
-#: Ordering of grades from best to worst, used for ``--fail-under`` comparisons.
-GRADE_ORDER: tuple[str, ...] = ("A", "B", "C", "D", "F")
 
 #: Rich color per grade for console rendering.
 _GRADE_COLORS: dict[str, str] = {
@@ -148,11 +138,7 @@ class MCPScorecard:
     @property
     def grade(self) -> str:
         """The letter grade (``"A"`` … ``"F"``) for :attr:`score`."""
-        score = self.score
-        for threshold, letter in _GRADE_BANDS:
-            if score >= threshold:
-                return letter
-        return "F"
+        return letter_grade(self.score)
 
     @property
     def total_tool_tokens(self) -> int:
@@ -225,23 +211,6 @@ _PRIORITY_COLORS: dict[int, str] = {
 
 #: Max number of fix items rendered in the console verdict before truncating.
 _MAX_FIXES_SHOWN = 8
-
-
-@dataclass
-class FixSuggestion:
-    """A single ranked, actionable item in the "Top issues to fix" verdict.
-
-    Attributes:
-        tool: The tool the issue concerns.
-        problem: A short statement of what is wrong.
-        fix: A concrete suggestion for how to resolve it.
-        priority: Ordering key; lower is more urgent (``0`` = breaks on valid input).
-    """
-
-    tool: str
-    problem: str
-    fix: str
-    priority: int
 
 
 def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSuggestion]:

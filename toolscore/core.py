@@ -43,6 +43,7 @@ from toolscore.validators import (
     SQLValidator,
     calculate_schema_validation_metrics,
 )
+from toolscore.verdict import letter_grade
 
 
 class EvaluationResult:
@@ -88,6 +89,11 @@ class EvaluationResult:
         return composite
 
     @property
+    def grade(self) -> str:
+        """Letter grade (``"A"`` … ``"F"``) for :attr:`score`."""
+        return letter_grade(self.score)
+
+    @property
     def selection_accuracy(self) -> float:
         """Selection accuracy: proportion of calls matching expected tool names."""
         return float(self.metrics.get("selection_accuracy", 0.0))
@@ -111,6 +117,7 @@ class EvaluationResult:
         return {
             "metrics": self.metrics,
             "score": self.score,
+            "grade": self.grade,
             "gold_calls_count": len(self.gold_calls),
             "trace_calls_count": len(self.trace_calls),
         }

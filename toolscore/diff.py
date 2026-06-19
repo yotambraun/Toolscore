@@ -15,6 +15,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+from toolscore.verdict import FixSuggestion
+
 if TYPE_CHECKING:
     from toolscore.adapters.base import ToolCall
     from toolscore.core import EvaluationResult
@@ -314,3 +316,104 @@ def render_failure(
             console.print(f"  • {tip}")
 
     return console.export_text(styles=color)
+
+
+# ---------------------------------------------------------------------------
+# Agent-side "Top issues to fix" verdict
+# ---------------------------------------------------------------------------
+
+#: Priority bands for agent-side fix suggestions (lower is more urgent).
+_PRIORITY_MISSING = 0
+_PRIORITY_WRONG_TOOL = 1
+_PRIORITY_ARG_MISMATCH = 2
+_PRIORITY_EXTRA = 3
+
+
+def _missing_fix(call: ToolCall) -> FixSuggestion:
+    """Build a fix suggestion for an expected call that never happened."""
+    return FixSuggestion(
+        tool=call.tool,
+        problem=f"expected call to `{call.tool}` never happened",
+        fix="Ensure the agent has this tool available and is prompted to use it for this task.",
+        priority=_PRIORITY_MISSING,
+    )
+
+
+def _extra_fix(call: ToolCall) -> FixSuggestion:
+    """Build a fix suggestion for an unexpected extra call."""
+    return FixSuggestion(
+        tool=call.tool,
+        problem=f"unexpected extra call to `{call.tool}`",
+        fix="Remove the redundant call, or add it to the expected spec if it is intended.",
+        priority=_PRIORITY_EXTRA,
+    )
+
+
+def build_eval_fix_list(gold: list[ToolCall], trace: list[ToolCall]) -> list[FixSuggestion]:
+    """Turn an expected-vs-actual tool-call diff into a ranked fix list.
+
+    Aligns the two sequences by tool name (like :func:`build_diff_table`) and
+    surfaces, worst first: **missing** expected calls, **wrong tool** at a
+    position, **argument mismatches** on otherwise-correct calls, and
+    **extra/unexpected** calls. Gold calls whose ``args is None`` ("don't check
+    arguments") never raise an argument mismatch.
+
+    Args:
+        gold: Expected tool calls.
+        trace: Actual tool calls.
+
+    Returns:
+        Ranked :class:`~toolscore.verdict.FixSuggestion` items (empty when the
+        sequences match).
+    """
+    matcher = difflib.SequenceMatcher(
+        a=[c.tool for c in gold], b=[c.tool for c in trace], autojunk=False
+    )
+    suggestions: list[FixSuggestion] = []
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for gi, tj in zip(range(i1, i2), range(j1, j2), strict=True):
+                gold_call = gold[gi]
+                trace_call = trace[tj]
+                if gold_call.args is None:
+                    continue
+                diff_lines = _arg_diff_lines(gold_call.args or {}, trace_call.args or {})
+                if diff_lines:
+                    detail = "; ".join(diff_lines)
+                    suggestions.append(
+                        FixSuggestion(
+                            tool=gold_call.tool,
+                            problem=f"`{gold_call.tool}` called with unexpected arguments ({detail})",
+                            fix=(
+                                "Align the arguments with what's expected, or relax the spec "
+                                "with a matcher like ANY/Regex if the value may vary."
+                            ),
+                            priority=_PRIORITY_ARG_MISMATCH,
+                        )
+                    )
+        elif tag == "replace":
+            paired = min(i2 - i1, j2 - j1)
+            for offset in range(paired):
+                gold_call = gold[i1 + offset]
+                trace_call = trace[j1 + offset]
+                suggestions.append(
+                    FixSuggestion(
+                        tool=trace_call.tool,
+                        problem=f"called `{trace_call.tool}` where `{gold_call.tool}` was expected",
+                        fix=(
+                            "Adjust the prompt or tool descriptions so the agent picks "
+                            f"`{gold_call.tool}` here."
+                        ),
+                        priority=_PRIORITY_WRONG_TOOL,
+                    )
+                )
+            suggestions.extend(_missing_fix(gold[gi]) for gi in range(i1 + paired, i2))
+            suggestions.extend(_extra_fix(trace[tj]) for tj in range(j1 + paired, j2))
+        elif tag == "delete":
+            suggestions.extend(_missing_fix(gold[gi]) for gi in range(i1, i2))
+        elif tag == "insert":
+            suggestions.extend(_extra_fix(trace[tj]) for tj in range(j1, j2))
+
+    suggestions.sort(key=lambda s: s.priority)
+    return suggestions

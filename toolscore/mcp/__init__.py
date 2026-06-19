@@ -28,7 +28,6 @@ from toolscore.mcp.harness import (
     tool_definition_tokens,
 )
 from toolscore.mcp.scorecard import (
-    FixSuggestion,
     MCPScorecard,
     build_fix_list,
     grade_meets,
@@ -36,6 +35,7 @@ from toolscore.mcp.scorecard import (
     scorecard_to_json,
     scorecard_to_markdown,
 )
+from toolscore.verdict import FixSuggestion
 
 __all__ = [
     "FixSuggestion",

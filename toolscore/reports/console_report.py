@@ -9,6 +9,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from toolscore.diff import build_eval_fix_list
 from toolscore.explainer import (
     MetricExplanation,
     generate_explanations,
@@ -119,6 +120,37 @@ def _print_metric_explanation(
         console.print(f"      [dim]... and {len(explanation.items) - max_items} more[/dim]")
 
 
+def _print_top_issues(result: EvaluationResult, console: Console, limit: int = 8) -> None:
+    """Print a ranked, actionable "Top issues to fix" list from the diff.
+
+    Mirrors the MCP scorecard verdict so the agent-side and server-side
+    evaluations read the same way.
+
+    Args:
+        result: The evaluation result to derive issues from.
+        console: The console to print to.
+        limit: Maximum number of issues to show before truncating.
+    """
+    fixes = build_eval_fix_list(result.gold_calls, result.trace_calls)
+    if not fixes:
+        console.print(
+            "[green]No tool-calling issues — the actual calls match the expected spec.[/green]"
+        )
+        console.print()
+        return
+
+    console.print("[bold]Top issues to fix[/bold]")
+    for index, suggestion in enumerate(fixes[:limit], start=1):
+        console.print(
+            f"  [bold]{index}.[/bold] [cyan]{suggestion.tool}[/cyan]  {suggestion.problem}"
+        )
+        console.print(f"     [dim]-> {suggestion.fix}[/dim]")
+    remaining = len(fixes) - min(len(fixes), limit)
+    if remaining > 0:
+        console.print(f"  [dim]... and {remaining} more issue(s).[/dim]")
+    console.print()
+
+
 def print_evaluation_summary(
     result: EvaluationResult,
     console: Console | None = None,
@@ -182,11 +214,18 @@ def print_evaluation_summary(
 
         console.print(
             Panel.fit(
-                Text(f"{verdict} ({overall_score:.1%})", style=f"bold {verdict_color}"),
+                Text(
+                    f"Grade {result.grade}   {verdict} ({overall_score:.1%})",
+                    style=f"bold {verdict_color}",
+                ),
                 border_style=verdict_color,
             )
         )
         console.print()
+
+        # Top issues to fix — the actionable verdict (mirrors the MCP scorecard).
+        _print_top_issues(result, console)
+
         console.print("[dim]Use --verbose for detailed metrics and failure analysis.[/dim]")
         console.print()
         return
