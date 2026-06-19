@@ -32,6 +32,7 @@ from toolscore.integrations import (
 from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
 from toolscore.metrics.llm_judge import JudgeConfig
 from toolscore.snapshots import Snapshot, SnapshotStore, snapshot_check
+from toolscore.verdict import FixSuggestion, letter_grade
 
 try:
     __version__ = _version("tool-scorer")
@@ -79,6 +80,7 @@ __all__ = [
     "Approx",
     "Contains",
     "Expectation",
+    "FixSuggestion",
     "IsType",
     "JudgeConfig",
     "Matcher",
@@ -104,6 +106,7 @@ __all__ = [
     "from_openai",
     "from_openai_agents",
     "from_pydantic_ai",
+    "letter_grade",
     "snapshot_check",
     "test_agent",
     "test_agent_async",

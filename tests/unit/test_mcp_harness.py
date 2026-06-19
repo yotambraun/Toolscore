@@ -500,3 +500,21 @@ def test_print_scorecard_shows_top_issues(client: MCPStdioClient) -> None:
     # The fake server has a flaky tool and a bad schema, so there must be fixes shown.
     assert "Top issues to fix" in text
     assert isinstance(build_fix_list(card)[0], FixSuggestion)
+
+
+def test_lint_flags_large_tool_definition() -> None:
+    big = MCPToolDef(
+        name="big_tool",
+        description="This description is deliberately very long. " * 30,
+        input_schema={"type": "object", "properties": {"a": {"type": "string"}}},
+    )
+    issues = lint_tools([big])
+    large = [i for i in issues if "large tool definition" in i.message]
+    assert large, "expected a large-definition warning for a bloated tool"
+    assert large[0].severity == "warning"
+    assert large[0].fix.strip()
+
+
+def test_lint_small_tool_no_large_warning() -> None:
+    issues = lint_tools([ADD_TOOL])
+    assert not any("large tool definition" in i.message for i in issues)

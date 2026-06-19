@@ -403,18 +403,23 @@ def init(
             shown = path
         console.print(f"[green]created[/green] {shown}")
 
-    # --- exactly three next steps ---------------------------------------------
+    # --- next steps: lead with an instant aha, then a hands-on one ------------
     console.print("\n[bold green]Done![/bold green] Next steps:\n")
     console.print(
-        "  [bold]1.[/bold] Edit [cyan]tests/test_agent_tools.py[/cyan] — replace the "
-        "[cyan]# TODO: import your agent[/cyan] block with your real agent call."
+        "  [bold]0.[/bold] See a full health-check right now, no setup: [cyan]toolscore demo[/cyan]"
     )
     console.print(
-        "  [bold]2.[/bold] Run [cyan]pytest[/cyan] — the first run records snapshots and passes."
+        "  [bold]1.[/bold] Run [cyan]pytest[/cyan] (records the sample agent's calls), then "
+        "[cyan]toolscore approve --all[/cyan] to set the baseline."
     )
     console.print(
-        "  [bold]3.[/bold] Review the recorded calls, then approve them with "
-        "[cyan]toolscore approve --all[/cyan]."
+        "  [bold]2.[/bold] [bold]See drift caught:[/bold] change a value in "
+        "[cyan]_fake_agent_response[/cyan] and run [cyan]pytest[/cyan] again — the test fails "
+        "with a diff."
+    )
+    console.print(
+        "  [bold]3.[/bold] Swap [cyan]_fake_agent_response[/cyan] for your real agent in "
+        "[cyan]tests/test_agent_tools.py[/cyan]."
     )
     console.print()
 

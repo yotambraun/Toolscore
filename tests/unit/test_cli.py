@@ -963,11 +963,12 @@ class TestInitCommand:
         assert ci_file.exists()
         assert "LangGraph" in test_file.read_text()
 
-        # Exactly the three next steps are surfaced.
+        # The next steps are surfaced: instant demo, record/approve, see drift, swap real agent.
         out = result.output
-        assert "TODO: import your agent" in out
+        assert "toolscore demo" in out
         assert "pytest" in out
         assert "toolscore approve --all" in out
+        assert "_fake_agent_response" in out
 
     def test_init_no_ci_skips_workflow(self, runner, tmp_path):
         target = tmp_path / "proj"

@@ -14,7 +14,6 @@ from toolscore.explainer import (
     MetricExplanation,
     generate_explanations,
     get_all_tips,
-    get_top_issues,
 )
 
 if TYPE_CHECKING:
@@ -322,18 +321,15 @@ def print_evaluation_summary(
     console.print(metrics_table)
     console.print()
 
-    # Show self-explaining details for metrics with issues
-    if show_explanations and explanations:
-        issues = get_top_issues(explanations, max_issues=8)
-        if issues:
-            console.print("[bold]What Went Wrong:[/bold]")
-            for item in issues:
-                style = _get_severity_style(item.severity)
-                icon = _get_category_icon(item.category)
-                console.print(f"   [{style}]{icon}:[/{style}] {item.message}")
-            console.print()
+    # Actionable verdict — the same grade + "Top issues to fix" list as the
+    # non-verbose view and the MCP scorecard, so there is one source of truth for
+    # what to fix (per call), with the explainer Tips below as metric-level detail.
+    console.print(f"[bold]Grade {result.grade}[/bold]")
+    console.print()
+    _print_top_issues(result, console)
 
-        # Show tips
+    # Metric-level tips (complementary to the per-call issues above).
+    if show_explanations and explanations:
         tips = get_all_tips(explanations)
         if tips:
             console.print("[bold cyan]Tips:[/bold cyan]")

@@ -27,6 +27,11 @@ if TYPE_CHECKING:
 #: Minimum acceptable length for a tool description before a lint warning fires.
 _MIN_DESCRIPTION_LENGTH = 10
 
+#: A tool definition larger than this (estimated tokens) earns a lint warning;
+#: every tool's definition is sent to the model on each request, so bloat is a
+#: real, recurring context cost.
+_LARGE_TOOL_DEF_TOKENS = 200
+
 #: Regular expression matching a ``snake_case`` (or lowercase) tool name.
 _SNAKE_CASE_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -456,6 +461,10 @@ _FIX_PROP_TYPE = (
 )
 _FIX_REQUIRED_MISSING = "List only properties that actually exist in the 'required' array."
 _FIX_NO_REQUIRED = "Declare a 'required' list so callers know which parameters are mandatory."
+_FIX_LARGE_DEFINITION = (
+    "Trim the description and tighten the schema (or split the tool); large "
+    "definitions consume context on every request."
+)
 
 
 def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
@@ -506,6 +515,18 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                     severity="warning",
                     message=f"description is very short (< {_MIN_DESCRIPTION_LENGTH} chars)",
                     fix=_FIX_DESCRIPTION,
+                )
+            )
+
+        # -- token-bloat warning -----------------------------------------
+        def_tokens = tool_definition_tokens(tool)
+        if def_tokens > _LARGE_TOOL_DEF_TOKENS:
+            issues.append(
+                LintIssue(
+                    tool=name,
+                    severity="warning",
+                    message=f"large tool definition (~{def_tokens} estimated tokens)",
+                    fix=_FIX_LARGE_DEFINITION,
                 )
             )
 
