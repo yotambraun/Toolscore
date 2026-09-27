@@ -7,6 +7,10 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Identical-call (loop) metric.** `efficiency_metrics` now also reports `identical_count` and `identical_rate`: calls that exactly repeat an earlier call (same tool, same arguments, key order ignored). `redundant_rate` keeps its meaning (calls beyond the gold's per-tool expectation), so a research agent that runs many *different* searches is no longer indistinguishable from one stuck repeating the same call. Additive; composite scores are unchanged.
+
 ### Highlights
 
 - **Snapshot testing — record, approve, replay.** Stop hand-writing expected tool calls: `toolscore init` scaffolds a suite, the first `pytest` run records your agent's calls, `toolscore approve --all` blesses the baseline, and CI replays it forever. Jest snapshots for agents.
