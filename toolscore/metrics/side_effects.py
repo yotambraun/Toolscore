@@ -3,6 +3,7 @@
 from typing import Any
 
 from toolscore.adapters.base import ToolCall
+from toolscore.metrics.arguments import _best_pairing
 
 
 def calculate_side_effect_success_rate(
@@ -34,6 +35,10 @@ def calculate_side_effect_success_rate(
     passed_checks = 0
     details: list[dict[str, Any]] = []
 
+    # Same one-to-one pairing as argument scoring: a missing or reordered call
+    # must not shift which actual call is checked.
+    pairing = _best_pairing(gold_calls, trace_calls, strict=False)
+
     for i, gold_call in enumerate(gold_calls):
         # Get side_effects from metadata
         side_effects = gold_call.metadata.get("side_effects", {})
@@ -42,11 +47,8 @@ def calculate_side_effect_success_rate(
             continue
 
         # Find corresponding trace call
-        trace_call = None
-        for j, tc in enumerate(trace_calls):
-            if tc.tool == gold_call.tool and j >= i:
-                trace_call = tc
-                break
+        j = pairing.get(i)
+        trace_call = trace_calls[j] if j is not None else None
 
         if not trace_call:
             # Call wasn't made, all side effects fail
