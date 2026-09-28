@@ -492,6 +492,33 @@ _FIX_LARGE_DEFINITION = (
 )
 
 
+def _is_typed(prop_schema: Any) -> bool:
+    """Report whether a property schema tells the model what shape to send.
+
+    ``type``, ``enum``, ``const`` and ``$ref`` all do. ``anyOf``/``oneOf`` do
+    when every branch does (pydantic writes optional fields as
+    ``anyOf: [{type: string}, {type: null}]``); ``allOf`` when any branch does.
+
+    Args:
+        prop_schema: The JSON-schema fragment for a single property.
+
+    Returns:
+        ``True`` if the property's shape is declared.
+    """
+    if not isinstance(prop_schema, dict):
+        return False
+    if any(key in prop_schema for key in ("type", "enum", "const", "$ref")):
+        return True
+    for key in ("anyOf", "oneOf"):
+        branches = prop_schema.get(key)
+        if isinstance(branches, list) and branches:
+            return all(_is_typed(b) for b in branches)
+    branches = prop_schema.get("allOf")
+    if isinstance(branches, list):
+        return any(_is_typed(b) for b in branches)
+    return False
+
+
 def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
     """Statically lint tool schemas for common quality problems.
 
@@ -591,7 +618,7 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
         properties = schema.get("properties")
         if isinstance(properties, dict):
             for prop_name, prop_schema in properties.items():
-                if not isinstance(prop_schema, dict) or "type" not in prop_schema:
+                if not _is_typed(prop_schema):
                     issues.append(
                         LintIssue(
                             tool=name,

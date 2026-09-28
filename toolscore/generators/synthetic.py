@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +42,53 @@ def primary_schema_type(param_schema: dict[str, Any]) -> str:
     return non_null[0] if non_null else types[0]
 
 
+_DESCRIPTION_EXAMPLE = re.compile(r"e\.g\.,?\s*['\"`]([^'\"`]+)['\"`]")
+
+_FORMAT_VALUES: dict[str, str] = {
+    "uri": "https://example.com",
+    "url": "https://example.com",
+    "date-time": "2026-01-15T10:30:00Z",
+    "date": "2026-01-15",
+    "time": "10:30:00",
+    "email": "user@example.com",
+    "uuid": "123e4567-e89b-12d3-a456-426614174000",
+    "ipv4": "192.0.2.1",
+    "hostname": "example.com",
+}
+
+
+def _hinted_value(param_schema: dict[str, Any], rng: Any) -> tuple[bool, Any]:
+    """Return a value the schema itself suggests, if it suggests one.
+
+    Order: ``examples``, a non-null ``default``, an example quoted in the
+    description ("e.g., 'America/New_York'"), then a well-formed value for a
+    known string ``format``.
+
+    Args:
+        param_schema: JSON schema for the parameter.
+        rng: Random source for choosing among examples.
+
+    Returns:
+        ``(True, value)`` when a hint applies, else ``(False, None)``.
+    """
+    examples = param_schema.get("examples")
+    if isinstance(examples, list) and examples:
+        return True, rng.choice(examples)
+    if param_schema.get("default") is not None:
+        return True, param_schema["default"]
+    if primary_schema_type(param_schema) != "string":
+        return False, None
+    description = param_schema.get("description")
+    if isinstance(description, str):
+        match = _DESCRIPTION_EXAMPLE.search(description)
+        if match:
+            return True, match.group(1)
+    fmt = param_schema.get("format")
+    if isinstance(fmt, str) and fmt in _FORMAT_VALUES:
+        return True, _FORMAT_VALUES[fmt]
+    return False, None
+
+
 def generate_value_from_schema(
     param_name: str,
     param_schema: dict[str, Any],
@@ -61,6 +109,12 @@ def generate_value_from_schema(
     """
     r: Any = rng if rng is not None else random
     param_type = primary_schema_type(param_schema)
+
+    # Well-formed values come first from what the schema itself suggests.
+    if variation == "normal" and "enum" not in param_schema:
+        hinted, value = _hinted_value(param_schema, r)
+        if hinted:
+            return value
 
     # Handle enum values
     if "enum" in param_schema:
