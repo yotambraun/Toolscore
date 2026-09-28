@@ -37,6 +37,13 @@ It's two sides of the same handshake between an LLM and a tool:
 - **Building an MCP server?** `toolscore mcp test` runs your server through generated happy-path *and* adversarial edge-case scenarios and grades whether an LLM can actually use it — catching broken tools, untyped schemas, and context bloat *before you publish*.
 - **Building an agent?** Snapshot your agent's tool-calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order.
 
+## What's new in 1.9
+
+- **Loop detection.** `identical_rate` counts calls that repeat an earlier call exactly (same tool, same arguments). `redundant_rate` counts calls beyond what you expected, so it can't tell an agent stuck in a loop from one running many *different* searches. Now you can.
+- **Fairer argument scoring.** Expected and actual calls are paired one-to-one by best match, not by position. One missing, extra or reordered call no longer zeroes the argument score of every later call. Scores can rise, so **re-approve baselines and snapshots after upgrading**.
+
+See the [CHANGELOG](CHANGELOG.md) for details.
+
 ## See it in 10 seconds
 
 ```bash
