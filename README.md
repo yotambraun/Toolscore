@@ -42,6 +42,8 @@ It's two sides of the same handshake between an LLM and a tool:
 - **Loop detection.** `identical_rate` counts calls that repeat an earlier call exactly (same tool, same arguments). `redundant_rate` counts calls beyond what you expected, so it can't tell an agent stuck in a loop from one running many *different* searches. Now you can.
 - **Fairer argument scoring.** Expected and actual calls are paired one-to-one by best match, not by position. One missing, extra or reordered call no longer zeroes the argument score of every later call. Scores can rise, so **re-approve baselines and snapshots after upgrading**.
 
+- **Claude judge fixed** for current `anthropic` SDKs, which no longer accept `temperature`.
+
 See the [CHANGELOG](CHANGELOG.md) for details.
 
 ## See it in 10 seconds
