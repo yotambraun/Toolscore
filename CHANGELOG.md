@@ -7,6 +7,10 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-09-28
+
+Found while evaluating a real research agent (DeerFlow) with Agent Eval Flow + Toolscore: `redundant_rate` could not tell a looping agent from one running many different searches, and one missing call could zero the argument score of every later call.
+
 ### Added
 
 - **Identical-call (loop) metric.** `efficiency_metrics` now also reports `identical_count` and `identical_rate`: calls that exactly repeat an earlier call (same tool, same arguments, key order ignored). `redundant_rate` keeps its meaning (calls beyond the gold's per-tool expectation), so a research agent that runs many *different* searches is no longer indistinguishable from one stuck repeating the same call. Additive; composite scores are unchanged.
@@ -14,6 +18,10 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 ### Fixed
 
 - **Argument and side-effect matching now pairs calls one-to-one.** Each expected call used to be matched to the first actual call with the same tool name at the same or a later *position*. One missing, extra or reordered call therefore shifted every later comparison, and a correct call could score 0. Expected calls are now paired with actual calls of the same tool by the best one-to-one assignment (exact for up to 12 calls per tool, greedy above). Examples: a missed earlier call went from `argument_f1` 0.00 to 0.67; two same-tool calls in swapped order, and a wrong attempt followed by the right one, went from 0.00 to 1.00 (the extra attempt is still penalised by `redundant_rate` and `sequence_accuracy`). An agent that correctly calls no tools when none are expected now gets `argument_f1` 1.0 (was 0.0). **Scores can rise for existing baselines and snapshots; re-approve after upgrading.**
+
+## [1.8.1] - 2026-06-19
+
+This entry covers 1.7.0 through 1.8.1 (released 2026-06-13 to 2026-06-19).
 
 ### Highlights
 

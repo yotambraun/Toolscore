@@ -96,7 +96,7 @@ Scoring Semantics
 -----------------
 
 The in-memory :func:`toolscore.evaluate` (and ``assert_tools``, the snapshot
-fixture, and the fluent ``expect()`` API) share three behaviors worth
+fixture, and the fluent ``expect()`` API) share these behaviors worth
 understanding.
 
 Omitted args vs ``{}``
@@ -162,6 +162,46 @@ by ``strict``.
             actual=[{"tool": "f", "args": {"n": 1.0}}]).argument_f1                 # 1.0
    evaluate(expected=[{"tool": "f", "args": {"n": 1}}],
             actual=[{"tool": "f", "args": {"n": 1.0}}], strict=True).argument_f1    # 0.0
+
+Calls are paired one-to-one
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Argument and side-effect checks pair each expected call with **one** actual call of
+the same tool, choosing the pairing that matches the most arguments (exact for up to
+12 calls per tool, greedy above that). Order is scored separately by
+``sequence_accuracy``, so a missing, extra or reordered call does not shift the
+argument comparison for the calls after it.
+
+.. code-block:: python
+
+   evaluate(expected=[{"tool": "search", "args": {"q": "a"}},
+                      {"tool": "search", "args": {"q": "b"}}],
+            actual=[{"tool": "search", "args": {"q": "b"}},
+                    {"tool": "search", "args": {"q": "a"}}]).argument_f1   # 1.0
+
+.. versionchanged:: 1.9.0
+   Calls were previously matched by position, so the example above scored 0.0.
+
+Loops vs. exploration
+^^^^^^^^^^^^^^^^^^^^^
+
+``redundant_rate`` counts calls beyond the expected number per tool. It cannot tell
+an agent repeating the same call from one making several *different* calls.
+``identical_rate`` counts only exact repeats (same tool, same arguments, key order
+ignored). Both are in ``result.metrics["efficiency_metrics"]``.
+
+.. code-block:: python
+
+   expected = [{"tool": "search", "args": {"q": "x"}}]
+
+   loop = evaluate(expected=expected, actual=[{"tool": "search", "args": {"q": "x"}}] * 3)
+   loop.metrics["efficiency_metrics"]["identical_rate"]      # 0.67 (redundant_rate 0.67)
+
+   explore = evaluate(expected=expected, actual=[
+       {"tool": "search", "args": {"q": q}} for q in ("x", "y", "z")])
+   explore.metrics["efficiency_metrics"]["identical_rate"]   # 0.0  (redundant_rate 0.67)
+
+.. versionadded:: 1.9.0
 
 Working with Trace Formats
 ---------------------------
