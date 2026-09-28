@@ -17,6 +17,7 @@ cleanly even when no provider SDK is installed.
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 from dataclasses import dataclass
@@ -212,14 +213,22 @@ class _AnthropicBackend:
         )
         self._model = config.model
         self._temperature = config.temperature
+        self._accepts_temperature = (
+            "temperature" in inspect.signature(self._client.messages.create).parameters
+        )
 
     def complete(self, system: str, prompt: str) -> str:
+        # Newer anthropic SDKs removed ``temperature`` from ``messages.create``
+        # and raise TypeError on it; pass it only where the SDK still accepts it.
+        extra: dict[str, Any] = {}
+        if self._accepts_temperature:
+            extra["temperature"] = self._temperature
         response = self._client.messages.create(
             model=self._model,
             max_tokens=4096,
-            temperature=self._temperature,
             system=system,
             messages=[{"role": "user", "content": prompt}],
+            **extra,
         )
         parts: list[str] = []
         for block in response.content:

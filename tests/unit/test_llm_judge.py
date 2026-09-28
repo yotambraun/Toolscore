@@ -654,3 +654,60 @@ class TestCliWiring:
         assert judge.model == "llama3.1"
         assert judge.base_url == "http://localhost:11434/v1"
         assert infer_provider(judge) == "openai_compatible"
+
+
+# --------------------------------------------------------------------------- #
+# Anthropic SDK compatibility
+# --------------------------------------------------------------------------- #
+
+
+def _fake_anthropic(monkeypatch, create):
+    """Install a fake ``anthropic`` module whose ``messages.create`` is ``create``."""
+    import sys
+    import types
+
+    class _Messages:
+        pass
+
+    _Messages.create = create  # type: ignore[attr-defined]
+
+    class _Client:
+        def __init__(self, **kwargs):
+            self.messages = _Messages()
+
+    module = types.ModuleType("anthropic")
+    module.Anthropic = _Client  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "anthropic", module)
+
+
+def _text_response():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(content=[SimpleNamespace(type="text", text="[]")])
+
+
+class TestAnthropicSdkCompat:
+    def test_sdk_without_temperature_parameter(self, monkeypatch):
+        """Current SDKs dropped ``temperature`` from ``messages.create``."""
+        seen = {}
+
+        def create(self, *, model, max_tokens, messages, system=None):
+            seen["called"] = True
+            return _text_response()
+
+        _fake_anthropic(monkeypatch, create)
+        backend = llm_judge._AnthropicBackend(JudgeConfig(model="claude-sonnet-5", api_key="k"))
+        assert backend.complete("sys", "prompt") == "[]"
+        assert seen["called"]
+
+    def test_sdk_with_temperature_parameter_receives_it(self, monkeypatch):
+        seen = {}
+
+        def create(self, *, model, max_tokens, messages, system=None, temperature=None):
+            seen["temperature"] = temperature
+            return _text_response()
+
+        _fake_anthropic(monkeypatch, create)
+        backend = llm_judge._AnthropicBackend(JudgeConfig(model="claude-3-5-haiku", api_key="k"))
+        backend.complete("sys", "prompt")
+        assert seen["temperature"] == 0.0

@@ -18,6 +18,7 @@ Found while evaluating a real research agent (DeerFlow) with Agent Eval Flow + T
 ### Fixed
 
 - **Argument and side-effect matching now pairs calls one-to-one.** Each expected call used to be matched to the first actual call with the same tool name at the same or a later *position*. One missing, extra or reordered call therefore shifted every later comparison, and a correct call could score 0. Expected calls are now paired with actual calls of the same tool by the best one-to-one assignment (exact for up to 12 calls per tool, greedy above). Examples: a missed earlier call went from `argument_f1` 0.00 to 0.67; two same-tool calls in swapped order, and a wrong attempt followed by the right one, went from 0.00 to 1.00 (the extra attempt is still penalised by `redundant_rate` and `sequence_accuracy`). An agent that correctly calls no tools when none are expected now gets `argument_f1` 1.0 (was 0.0). **Scores can rise for existing baselines and snapshots; re-approve after upgrading.**
+- **Claude LLM judge works with current `anthropic` SDKs.** Recent SDK releases removed `temperature` from `messages.create`, so the Anthropic judge raised `TypeError: unexpected keyword argument 'temperature'`. `temperature` is now passed only when the installed SDK accepts it.
 
 ## [1.8.1] - 2026-06-19
 
