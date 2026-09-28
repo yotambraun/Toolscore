@@ -7,6 +7,19 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+Found by running `toolscore mcp test` against the official MCP reference servers (modelcontextprotocol/servers). Several failing grades were Toolscore's mistakes, not the servers'.
+
+### Fixed
+
+- **Union schema types.** A property whose `type` is a list (`["boolean", "string"]`, as in the official sequential-thinking server) crashed the scorecard with `unhashable type: 'list'`, and the value generator produced `None` for it. Values are now generated for the first non-null type, and wrong-type probes match none of the listed types.
+- **Reproducible scenarios.** Scenario values came from the unseeded global `random`, so two runs against the same server could differ. Each tool now gets a generator seeded by its name.
+- **Optional fields are typed.** The linter reported pydantic optional fields (`anyOf: [{"type": "string"}, {"type": "null"}]`) and `enum`/`const`/`$ref` properties as "missing a 'type'" (5 false errors on the official git server).
+- **Schema hints are used.** Happy-path values now come from `examples`, a non-null `default`, an example quoted in the description ("e.g., 'America/New_York'"), or a well-formed value for `format` (uri, date-time, date, email, uuid, …) before falling back to synthetic values. The official time server previously received `"sample_timezone"`, and its correct rejection was scored as a failure.
+
+### Known limitation
+
+- Servers that restrict paths to allowed roots (filesystem, git) still reject generated paths, which lowers their happy-path rate. Read those failures as "input outside the server's sandbox", not as server defects.
+
 ## [1.9.0] - 2026-09-28
 
 Found while evaluating a real research agent (DeerFlow) with Agent Eval Flow + Toolscore: `redundant_rate` could not tell a looping agent from one running many different searches, and one missing call could zero the argument score of every later call.
