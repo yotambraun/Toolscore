@@ -14,11 +14,16 @@ formatting live in :mod:`toolscore.mcp.scorecard`, while the
 from __future__ import annotations
 
 import json
+import random
 import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from toolscore.generators.synthetic import generate_value_from_schema
+from toolscore.generators.synthetic import (
+    generate_value_from_schema,
+    primary_schema_type,
+    schema_types,
+)
 from toolscore.mcp.client import MCPError, MCPTimeoutError
 
 if TYPE_CHECKING:
@@ -163,7 +168,7 @@ def _schema_is_usable(schema: dict[str, Any]) -> bool:
     )
 
 
-def _happy_arguments(schema: dict[str, Any]) -> dict[str, Any]:
+def _happy_arguments(schema: dict[str, Any], rng: random.Random) -> dict[str, Any]:
     """Build a well-formed argument mapping satisfying a tool's schema.
 
     Required properties are always populated; optional properties are included
@@ -171,18 +176,21 @@ def _happy_arguments(schema: dict[str, Any]) -> dict[str, Any]:
 
     Args:
         schema: The tool's ``inputSchema`` (assumed usable).
+        rng: Seeded random source, so scenarios are reproducible.
 
     Returns:
         A mapping of argument name to a generated value.
     """
     properties: dict[str, Any] = schema.get("properties", {})
     return {
-        name: generate_value_from_schema(name, prop if isinstance(prop, dict) else {}, "normal")
+        name: generate_value_from_schema(
+            name, prop if isinstance(prop, dict) else {}, "normal", rng
+        )
         for name, prop in properties.items()
     }
 
 
-def _edge_arguments(schema: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
+def _edge_arguments(schema: dict[str, Any], rng: random.Random) -> list[tuple[dict[str, Any], str]]:
     """Build edge-case argument mappings for a tool, if its schema permits.
 
     Produces, where applicable:
@@ -193,13 +201,14 @@ def _edge_arguments(schema: dict[str, Any]) -> list[tuple[dict[str, Any], str]]:
 
     Args:
         schema: The tool's ``inputSchema`` (assumed usable).
+        rng: Seeded random source, so scenarios are reproducible.
 
     Returns:
         A list of ``(arguments, description)`` tuples (possibly empty).
     """
     properties: dict[str, Any] = schema.get("properties", {})
     required: list[str] = [r for r in schema.get("required", []) if isinstance(r, str)]
-    base = _happy_arguments(schema)
+    base = _happy_arguments(schema, rng)
 
     cases: list[tuple[dict[str, Any], str]] = []
 
@@ -239,7 +248,21 @@ def _wrong_type_value(prop_schema: dict[str, Any]) -> Any:
     Returns:
         A value of an intentionally incorrect type.
     """
-    prop_type = prop_schema.get("type", "string")
+    types = schema_types(prop_schema)
+    if len(types) > 1:
+        # Union type: return the first probe value that none of the types accept.
+        allowed = set(types) | ({"integer"} if "number" in types else set())
+        probes: list[tuple[Any, str]] = [
+            (12345, "integer"),
+            ("not_a_valid_value", "string"),
+            (["not_a_valid_value"], "array"),
+            ({"not_a_valid": "value"}, "object"),
+            (True, "boolean"),
+        ]
+        for value, json_type in probes:
+            if json_type not in allowed:
+                return value
+    prop_type = types[0]
     if prop_type in ("number", "integer"):
         return "not_a_number"
     if prop_type == "boolean":
@@ -259,7 +282,7 @@ def _empty_value(prop_schema: dict[str, Any]) -> Any:
     Returns:
         An empty string, zero, ``False``, or an empty collection.
     """
-    prop_type = prop_schema.get("type", "string")
+    prop_type = primary_schema_type(prop_schema)
     return {
         "string": "",
         "number": 0,
@@ -311,18 +334,20 @@ def generate_scenarios(
             )
             continue
 
+        # Seeded per tool name: the same server yields the same scenarios every run.
+        rng = random.Random(tool.name)
         for index in range(max(cases_per_tool, 0)):
             scenarios.append(
                 Scenario(
                     tool=tool.name,
-                    arguments=_happy_arguments(schema),
+                    arguments=_happy_arguments(schema, rng),
                     kind="happy",
                     description=f"happy path #{index + 1}",
                 )
             )
 
         if include_edge_cases:
-            for arguments, description in _edge_arguments(schema):
+            for arguments, description in _edge_arguments(schema, rng):
                 scenarios.append(
                     Scenario(
                         tool=tool.name,

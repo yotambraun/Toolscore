@@ -8,8 +8,44 @@ from pathlib import Path
 from typing import Any
 
 
+def schema_types(param_schema: dict[str, Any]) -> list[str]:
+    """Return the JSON types a schema allows, in declared order.
+
+    JSON Schema allows ``"type"`` to be a single name or a list of names
+    (``["string", "null"]``). A missing type is treated as ``"string"``.
+
+    Args:
+        param_schema: JSON schema for the parameter.
+
+    Returns:
+        The allowed type names (never empty).
+    """
+    declared = param_schema.get("type", "string")
+    if isinstance(declared, list):
+        names = [t for t in declared if isinstance(t, str)]
+        return names or ["string"]
+    return [declared] if isinstance(declared, str) else ["string"]
+
+
+def primary_schema_type(param_schema: dict[str, Any]) -> str:
+    """Return the type to generate values for: the first non-null allowed type.
+
+    Args:
+        param_schema: JSON schema for the parameter.
+
+    Returns:
+        A single JSON type name.
+    """
+    types = schema_types(param_schema)
+    non_null = [t for t in types if t != "null"]
+    return non_null[0] if non_null else types[0]
+
+
 def generate_value_from_schema(
-    param_name: str, param_schema: dict[str, Any], variation: str = "normal"
+    param_name: str,
+    param_schema: dict[str, Any],
+    variation: str = "normal",
+    rng: random.Random | None = None,
 ) -> Any:
     """Generate a value based on parameter schema and variation type.
 
@@ -17,23 +53,26 @@ def generate_value_from_schema(
         param_name: Name of the parameter
         param_schema: JSON schema for the parameter
         variation: Type of variation ("normal", "edge", "boundary", "invalid")
+        rng: Random source; pass a seeded ``random.Random`` for reproducible
+            values. Defaults to the module-level generator.
 
     Returns:
         Generated value matching the schema
     """
-    param_type = param_schema.get("type", "string")
+    r: Any = rng if rng is not None else random
+    param_type = primary_schema_type(param_schema)
 
     # Handle enum values
     if "enum" in param_schema:
         enum_values = param_schema["enum"]
         if variation == "normal":
-            return random.choice(enum_values)
+            return r.choice(enum_values)
         elif variation == "edge":
             return enum_values[0]  # First value
         elif variation == "boundary":
             return enum_values[-1]  # Last value
         else:
-            return random.choice(enum_values)
+            return r.choice(enum_values)
 
     # String type
     if param_type == "string":
@@ -60,7 +99,7 @@ def generate_value_from_schema(
                     min_len = param_schema.get("minLength", 1)
                     return "a" * min_len if min_len else "x"
                 else:
-                    return random.choice(values)
+                    return r.choice(values)
 
         # Default string values
         if variation == "boundary":
@@ -82,7 +121,7 @@ def generate_value_from_schema(
         elif variation == "edge":
             return maximum
         else:
-            return random.randint(minimum, min(maximum, minimum + 20))
+            return r.randint(minimum, min(maximum, minimum + 20))
 
     # Number type
     elif param_type == "number":
@@ -94,14 +133,14 @@ def generate_value_from_schema(
         elif variation == "edge":
             return maximum
         else:
-            return round(random.uniform(minimum, min(maximum, minimum + 50.0)), 2)
+            return round(r.uniform(minimum, min(maximum, minimum + 50.0)), 2)
 
     # Boolean type
     elif param_type == "boolean":
         if variation == "edge":
             return True
         else:
-            return random.choice([True, False])
+            return r.choice([True, False])
 
     # Array type
     elif param_type == "array":
@@ -114,10 +153,10 @@ def generate_value_from_schema(
         elif variation == "edge":
             count = min(max_items, 3)
         else:
-            count = random.randint(min_items, min(max_items, 3))
+            count = r.randint(min_items, min(max_items, 3))
 
         return [
-            generate_value_from_schema(f"{param_name}_item", items_schema, "normal")
+            generate_value_from_schema(f"{param_name}_item", items_schema, "normal", rng)
             for _ in range(count)
         ]
 
@@ -125,7 +164,7 @@ def generate_value_from_schema(
     elif param_type == "object":
         properties = param_schema.get("properties", {})
         return {
-            key: generate_value_from_schema(key, value, variation)
+            key: generate_value_from_schema(key, value, variation, rng)
             for key, value in properties.items()
         }
 
