@@ -1,5 +1,6 @@
 """Argument matching metrics."""
 
+import functools
 from typing import Any
 
 from toolscore.adapters.base import ToolCall
@@ -95,6 +96,69 @@ def _calculate_argument_match(
     return correct_count, expected_count, actual_count
 
 
+_EXACT_PAIRING_LIMIT = 12
+
+
+def _best_pairing(
+    gold_calls: list[ToolCall], trace_calls: list[ToolCall], strict: bool
+) -> dict[int, int]:
+    """One-to-one pairing of gold to trace calls with the same tool name.
+
+    Maximizes (matched pairs, correctly matched arguments), so every gold call
+    that has a same-name trace call gets one, preferring the closest arguments.
+    Exact for up to ``_EXACT_PAIRING_LIMIT`` calls of one tool, greedy beyond.
+    """
+    pairing: dict[int, int] = {}
+    for tool in {g.tool for g in gold_calls}:
+        gold_idx = [i for i, g in enumerate(gold_calls) if g.tool == tool]
+        trace_idx = [j for j, t in enumerate(trace_calls) if t.tool == tool]
+        if not trace_idx:
+            continue
+
+        def weight(i: int, j: int) -> int:
+            gold_args = gold_calls[i].args
+            if gold_args is None:
+                return 0
+            correct, _, _ = _calculate_argument_match(gold_args, trace_calls[j].args, strict=strict)
+            return correct
+
+        weights = {(i, j): weight(i, j) for i in gold_idx for j in trace_idx}
+        if len(trace_idx) <= _EXACT_PAIRING_LIMIT:
+            pairing.update(_exact_assignment(gold_idx, trace_idx, weights))
+        else:
+            used: set[int] = set()
+            for i in gold_idx:
+                free = [j for j in trace_idx if j not in used]
+                if free:
+                    j = max(free, key=lambda k: (weights[(i, k)], -k))
+                    pairing[i] = j
+                    used.add(j)
+    return pairing
+
+
+def _exact_assignment(
+    gold_idx: list[int], trace_idx: list[int], weights: dict[tuple[int, int], int]
+) -> dict[int, int]:
+    """Maximum (pairs, weight) assignment via DP over subsets of trace calls."""
+
+    @functools.cache
+    def best(g: int, used: int) -> tuple[tuple[int, int], tuple[tuple[int, int], ...]]:
+        if g == len(gold_idx):
+            return (0, 0), ()
+        skip_score, skip_pairs = best(g + 1, used)
+        choice = (skip_score, skip_pairs)
+        for k, j in enumerate(trace_idx):
+            if used & (1 << k):
+                continue
+            (pairs, total), rest = best(g + 1, used | (1 << k))
+            candidate = ((pairs + 1, total + weights[(gold_idx[g], j)]), ((gold_idx[g], j), *rest))
+            if candidate[0] > choice[0]:
+                choice = candidate
+        return choice
+
+    return dict(best(0, 0)[1])
+
+
 def calculate_argument_f1(
     gold_calls: list[ToolCall],
     trace_calls: list[ToolCall],
@@ -124,6 +188,9 @@ def calculate_argument_f1(
         - recall: Proportion of expected arguments that were provided
         - f1: Harmonic mean of precision and recall
     """
+    if not gold_calls and not trace_calls:
+        # Expected no calls and made none: nothing to get wrong.
+        return {"precision": 1.0, "recall": 1.0, "f1": 1.0}
     if not gold_calls or not trace_calls:
         return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
 
@@ -137,14 +204,15 @@ def calculate_argument_f1(
     # f1 == 1.0 rather than an undefined 0/0 -> 0.
     vacuous_matches = 0
 
-    # Match calls by tool name and position
+    # Pair each gold call with a trace call of the same tool, one-to-one, so
+    # that the pairing maximizes correctly matched arguments.  Call order is
+    # scored by the sequence metric and extra calls by the redundancy metric;
+    # neither should hide the arguments of a call the agent got right.
+    pairing = _best_pairing(gold_calls, trace_calls, strict)
+
     for i, gold_call in enumerate(gold_calls):
-        # Find corresponding trace call
-        trace_call = None
-        for j, tc in enumerate(trace_calls):
-            if tc.tool == gold_call.tool and j >= i:
-                trace_call = tc
-                break
+        j = pairing.get(i)
+        trace_call = trace_calls[j] if j is not None else None
 
         # Gold call with args omitted (None) → "do not check arguments".
         # Skip it from argument counting entirely; a matched call is a perfect

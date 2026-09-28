@@ -11,6 +11,10 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 - **Identical-call (loop) metric.** `efficiency_metrics` now also reports `identical_count` and `identical_rate`: calls that exactly repeat an earlier call (same tool, same arguments, key order ignored). `redundant_rate` keeps its meaning (calls beyond the gold's per-tool expectation), so a research agent that runs many *different* searches is no longer indistinguishable from one stuck repeating the same call. Additive; composite scores are unchanged.
 
+### Fixed
+
+- **Argument and side-effect matching now pairs calls one-to-one.** Each expected call used to be matched to the first actual call with the same tool name at the same or a later *position*. One missing, extra or reordered call therefore shifted every later comparison, and a correct call could score 0. Expected calls are now paired with actual calls of the same tool by the best one-to-one assignment (exact for up to 12 calls per tool, greedy above). Examples: a missed earlier call went from `argument_f1` 0.00 to 0.67; two same-tool calls in swapped order, and a wrong attempt followed by the right one, went from 0.00 to 1.00 (the extra attempt is still penalised by `redundant_rate` and `sequence_accuracy`). An agent that correctly calls no tools when none are expected now gets `argument_f1` 1.0 (was 0.0). **Scores can rise for existing baselines and snapshots; re-approve after upgrading.**
+
 ### Highlights
 
 - **Snapshot testing — record, approve, replay.** Stop hand-writing expected tool calls: `toolscore init` scaffolds a suite, the first `pytest` run records your agent's calls, `toolscore approve --all` blesses the baseline, and CI replays it forever. Jest snapshots for agents.
