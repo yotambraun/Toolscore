@@ -7,6 +7,8 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+## [1.9.1] - 2026-10-01
+
 Found by running `toolscore mcp test` against the official MCP reference servers (modelcontextprotocol/servers). Several failing grades were Toolscore's mistakes, not the servers'.
 
 ### Fixed
