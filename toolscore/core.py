@@ -31,6 +31,7 @@ from toolscore.metrics import (
     calculate_invocation_accuracy,
     calculate_latency,
     calculate_redundant_call_rate,
+    calculate_required_call_recall,
     calculate_selection_accuracy,
     calculate_semantic_correctness,
     calculate_side_effect_success_rate,
@@ -108,19 +109,91 @@ class EvaluationResult:
         """Sequence accuracy based on edit distance."""
         return float(self.metrics.get("sequence_metrics", {}).get("sequence_accuracy", 0.0))
 
+    @property
+    def required_call_recall(self) -> float | None:
+        """Share of required (expected) calls that were made, counting repeats.
+
+        ``None`` when nothing was required. See
+        :func:`toolscore.metrics.calculate_required_call_recall`.
+        """
+        value = self.metrics.get("required_call_recall")
+        return None if value is None else float(value)
+
+    #: Version of the :meth:`to_dict` record layout. Bumped on any change that
+    #: could break a consumer; new keys alone do not bump it.
+    RECORD_SCHEMA_VERSION: ClassVar[str] = "2"
+
     def to_dict(self) -> dict[str, Any]:
-        """Convert result to dictionary.
+        """Return a complete, JSON-safe record of the evaluation.
+
+        The record is meant to be stored or handed to other tools as-is:
+
+        - ``schema_version``: layout version of this record (``"2"``).
+        - ``score``, ``grade``, ``weights``: the composite score, its letter
+          grade and the normalized weights that produced it.
+        - ``required_call_recall``: see :attr:`required_call_recall`.
+        - ``metrics``: every computed metric.
+        - ``calls``: ``expected`` and ``actual`` calls with their arguments and,
+          for actual calls, ``result``, ``is_error``, ``error``, ``duration``
+          and ``cost``. Values that are not JSON (matcher objects, arbitrary
+          result objects) are stored as their ``repr``.
+        - ``gold_calls_count``, ``trace_calls_count``: kept for compatibility.
 
         Returns:
             Dictionary representation of the evaluation result.
         """
-        return {
-            "metrics": self.metrics,
-            "score": self.score,
-            "grade": self.grade,
-            "gold_calls_count": len(self.gold_calls),
-            "trace_calls_count": len(self.trace_calls),
-        }
+        record = _json_safe(
+            {
+                "schema_version": self.RECORD_SCHEMA_VERSION,
+                "score": self.score,
+                "grade": self.grade,
+                "weights": dict(self._weights),
+                "required_call_recall": self.required_call_recall,
+                "metrics": self.metrics,
+                "calls": {
+                    "expected": [{"tool": c.tool, "args": c.args} for c in self.gold_calls],
+                    "actual": [_call_record(c) for c in self.trace_calls],
+                },
+                "gold_calls_count": len(self.gold_calls),
+                "trace_calls_count": len(self.trace_calls),
+            }
+        )
+        assert isinstance(record, dict)
+        return record
+
+
+def _json_safe(value: Any) -> Any:
+    """Return ``value`` with every non-JSON leaf replaced by its ``repr``."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return repr(value)
+
+
+def _call_record(call: ToolCall) -> dict[str, Any]:
+    """The record of one actual call in :meth:`EvaluationResult.to_dict`."""
+    error = call.metadata.get("error")
+    return {
+        "tool": call.tool,
+        "args": call.args,
+        "result": call.result,
+        "is_error": call.is_error,
+        "error": None if isinstance(error, bool) else error,
+        "duration": call.duration,
+        "cost": call.cost,
+    }
+
+
+def _add_trace_checks(
+    result: EvaluationResult,
+    gold_calls: list[ToolCall],
+    trace_calls: list[ToolCall],
+) -> None:
+    """Add the metrics shared by :func:`evaluate` and :func:`evaluate_trace`."""
+    result.metrics["required_call_recall"] = calculate_required_call_recall(gold_calls, trace_calls)
 
 
 def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
@@ -334,6 +407,7 @@ def evaluate_trace(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
+    _add_trace_checks(result, gold_calls, trace_calls)
 
     # Schema validation (if schemas are provided in metadata)
     schema_metrics = calculate_schema_validation_metrics(gold_calls, trace_calls)
@@ -557,6 +631,7 @@ def evaluate(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
+    _add_trace_checks(result, gold_calls, trace_calls)
 
     return result
 

@@ -6,6 +6,7 @@ proportion. It's a deterministic measure that complements semantic evaluation.
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -178,3 +179,34 @@ def calculate_tool_correctness_with_args(
         "match_count": len(matches),
         "total_expected": len(gold_calls),
     }
+
+
+def calculate_required_call_recall(
+    gold_calls: list[ToolCall],
+    trace_calls: list[ToolCall],
+) -> float | None:
+    """Share of required calls that the trace made, counting every required call.
+
+    Each expected call needs its own actual call with the same tool name, so a
+    contract that requires ``search`` twice is half met by one ``search``.
+    :func:`calculate_tool_correctness` compares *sets* of tool names and reports
+    that case as fully correct. Order and arguments are not considered here.
+
+    Args:
+        gold_calls: Expected tool calls (the requirements).
+        trace_calls: Actual tool calls.
+
+    Returns:
+        A value in ``[0, 1]``, or ``None`` when nothing is required (the metric
+        does not apply; it is not a zero).
+
+    Example:
+        >>> gold = [ToolCall(tool="search"), ToolCall(tool="search")]
+        >>> calculate_required_call_recall(gold, [ToolCall(tool="search")])
+        0.5
+    """
+    if not gold_calls:
+        return None
+    needed = Counter(call.tool for call in gold_calls)
+    made = Counter(call.tool for call in trace_calls)
+    return sum((needed & made).values()) / len(gold_calls)
