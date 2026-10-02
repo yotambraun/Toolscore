@@ -60,7 +60,9 @@ def main() -> None:
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
+    type=click.Choice(
+        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
+    ),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -263,7 +265,9 @@ def eval(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
+    type=click.Choice(
+        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
+    ),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -567,7 +571,9 @@ def generate(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
+    type=click.Choice(
+        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
+    ),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -700,7 +706,9 @@ def compare(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
+    type=click.Choice(
+        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
+    ),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -1244,7 +1252,9 @@ _DEFAULT_SNAP_DIR = ".toolscore/snapshots"
     "--format",
     "-f",
     "fmt",
-    type=click.Choice(["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "custom"]),
+    type=click.Choice(
+        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
+    ),
     default="auto",
     help="Trace format (auto-detect by default); only used with --from-trace.",
 )

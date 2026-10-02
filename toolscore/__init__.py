@@ -27,6 +27,7 @@ from toolscore.integrations import (
     from_langgraph,
     from_openai,
     from_openai_agents,
+    from_otel,
     from_pydantic_ai,
 )
 from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
@@ -105,6 +106,7 @@ __all__ = [
     "from_langgraph",
     "from_openai",
     "from_openai_agents",
+    "from_otel",
     "from_pydantic_ai",
     "letter_grade",
     "snapshot_check",
