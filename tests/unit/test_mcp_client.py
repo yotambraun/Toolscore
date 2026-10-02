@@ -147,8 +147,10 @@ def test_call_unknown_tool_is_jsonrpc_error(client: MCPStdioClient) -> None:
 
 
 def test_call_tool_timeout() -> None:
-    c = MCPStdioClient(_server_command("--sleep", "2"), timeout=0.5)
+    # Start with room for process startup, then test the per-call timeout alone.
+    c = MCPStdioClient(_server_command("--sleep", "2"), timeout=10.0)
     c.start()
+    c.timeout = 0.5
     try:
         start = time.monotonic()
         with pytest.raises(MCPTimeoutError, match="Timed out"):

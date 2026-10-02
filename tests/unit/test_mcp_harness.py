@@ -216,8 +216,10 @@ def test_run_scenarios_flaky_happy_fails(client: MCPStdioClient) -> None:
 
 def test_run_scenarios_never_aborts_on_timeout() -> None:
     # A slow server triggers MCPTimeoutError per scenario; the run must continue.
-    c = MCPStdioClient(_server_command("--sleep", "2"), timeout=0.4)
+    # Start with room for process startup, then test the per-call timeout alone.
+    c = MCPStdioClient(_server_command("--sleep", "2"), timeout=10.0)
     c.start()
+    c.timeout = 0.4
     try:
         scenarios = generate_scenarios([ADD_TOOL], cases_per_tool=2, include_edge_cases=False)
         results = run_scenarios(c, scenarios)
