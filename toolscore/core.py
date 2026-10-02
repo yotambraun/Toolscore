@@ -24,6 +24,7 @@ from toolscore.adapters import (
     OpenAIAdapter,
 )
 from toolscore.adapters.base import BaseAdapter, ToolCall
+from toolscore.adapters.otel import OTelAdapter, looks_like_otel
 from toolscore.metrics import (
     calculate_argument_f1,
     calculate_cost_attribution,
@@ -264,7 +265,7 @@ def load_trace(
 
     Args:
         file_path: Path to trace file.
-        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel', 'custom').
 
     Returns:
         List of tool calls from the trace.
@@ -296,6 +297,8 @@ def load_trace(
         adapter = LangChainAdapter()
     elif format == "custom":
         adapter = CustomAdapter()
+    elif format == "otel":
+        adapter = OTelAdapter()
     else:
         raise ValueError(f"Unsupported format: {format}")
 
@@ -332,6 +335,10 @@ def _detect_format(data: Any) -> BaseAdapter:
         return MCPAdapter()
     if _is_jsonrpc_list(data):
         return MCPAdapter()
+
+    # OpenTelemetry GenAI tool spans (OTLP JSON export or a span list)
+    if looks_like_otel(data):
+        return OTelAdapter()
 
     # Check for Gemini format (candidates with function calls)
     if isinstance(data, dict) and "candidates" in data:
@@ -380,7 +387,7 @@ def evaluate_trace(
     Args:
         gold_file: Path to gold standard specification.
         trace_file: Path to agent trace.
-        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'custom').
+        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel', 'custom').
         validate_side_effects: Whether to validate side effects.
         judge: LLM-as-a-judge configuration for semantic evaluation. ``False``
             (default) disables it. ``True`` uses a default ``JudgeConfig()``.

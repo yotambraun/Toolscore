@@ -7,6 +7,7 @@ from toolscore.adapters.gemini import GeminiAdapter
 from toolscore.adapters.langchain import LangChainAdapter
 from toolscore.adapters.mcp import MCPAdapter
 from toolscore.adapters.openai import OpenAIAdapter
+from toolscore.adapters.otel import OTelAdapter
 
 __all__ = [
     "AnthropicAdapter",
@@ -15,6 +16,7 @@ __all__ = [
     "GeminiAdapter",
     "LangChainAdapter",
     "MCPAdapter",
+    "OTelAdapter",
     "OpenAIAdapter",
     "ToolCall",
 ]

@@ -394,6 +394,32 @@ def from_claude_agent_sdk(result: Any) -> list[dict[str, Any]]:
     return calls
 
 
+def from_otel(spans: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from OpenTelemetry GenAI tool spans.
+
+    Works with any framework or platform that records tool executions with the
+    OpenTelemetry semantic conventions for generative AI (``execute_tool`` spans)
+    or for MCP (``tools/call`` spans). Pass an OTLP JSON export
+    (``{"resourceSpans": [...]}``), a list of span dicts, or a list of
+    OpenTelemetry SDK span objects (for example from an ``InMemorySpanExporter``).
+
+    Args:
+        spans: The exported spans.
+
+    Returns:
+        One dict per tool span, in start-time order, with ``tool``, ``args``,
+        ``result``, ``is_error``, ``error``, ``duration`` and ``id``. Failures
+        come from ``error.type`` or an ERROR span status.
+
+    Example:
+        >>> from toolscore import evaluate, from_otel
+        >>> result = evaluate(expected=[{"tool": "search_orders"}], actual=from_otel(otlp_export))
+    """
+    from toolscore.adapters.otel import tool_calls_from_otel
+
+    return tool_calls_from_otel(spans)
+
+
 def from_crewai(result: Any) -> list[dict[str, Any]]:
     """Extract tool calls from a CrewAI result (experimental).
 
@@ -537,6 +563,10 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK
     10. Bare list of messages where some message has ``tool_calls`` → LangGraph
 
+    OpenTelemetry GenAI tool spans (an OTLP export with ``resourceSpans``, or a
+    span list containing ``execute_tool`` / MCP ``tools/call`` spans) are
+    detected before step 2 and converted with :func:`from_otel`.
+
     Args:
         actual: A raw LLM provider response (object or dict), or an
             already-formatted list of tool-call dicts.
@@ -554,6 +584,12 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
         not actual or (isinstance(actual[0], dict) and "tool" in actual[0])
     ):
         return actual
+
+    # OpenTelemetry GenAI spans (OTLP export, span dicts or SDK span objects)
+    from toolscore.adapters.otel import looks_like_otel
+
+    if looks_like_otel(actual):
+        return from_otel(actual)
 
     # 2. Pydantic / SDK object → convert to dict first
     if hasattr(actual, "model_dump"):
