@@ -39,6 +39,8 @@ from toolscore.metrics import (
     calculate_tool_correctness,
     calculate_trajectory_accuracy,
 )
+from toolscore.metrics.policy import check_forbidden_calls
+from toolscore.metrics.security import find_secrets
 from toolscore.validators import (
     FileSystemValidator,
     HTTPValidator,
@@ -120,6 +122,13 @@ class EvaluationResult:
         value = self.metrics.get("required_call_recall")
         return None if value is None else float(value)
 
+    @property
+    def policy_violations(self) -> list[dict[str, Any]]:
+        """Calls that matched a ``forbidden`` rule (empty when no rules were given)."""
+        policy = self.metrics.get("policy_metrics") or {}
+        violations: list[dict[str, Any]] = policy.get("violations", [])
+        return violations
+
     #: Version of the :meth:`to_dict` record layout. Bumped on any change that
     #: could break a consumer; new keys alone do not bump it.
     RECORD_SCHEMA_VERSION: ClassVar[str] = "2"
@@ -192,9 +201,13 @@ def _add_trace_checks(
     result: EvaluationResult,
     gold_calls: list[ToolCall],
     trace_calls: list[ToolCall],
+    forbidden: list[dict[str, Any]] | None = None,
 ) -> None:
     """Add the metrics shared by :func:`evaluate` and :func:`evaluate_trace`."""
     result.metrics["required_call_recall"] = calculate_required_call_recall(gold_calls, trace_calls)
+    result.metrics["security_metrics"] = find_secrets(trace_calls)
+    if forbidden is not None:
+        result.metrics["policy_metrics"] = check_forbidden_calls(trace_calls, forbidden)
 
 
 def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
@@ -381,6 +394,7 @@ def evaluate_trace(
     format: str = "auto",
     validate_side_effects: bool = True,
     judge: JudgeConfig | str | bool = False,
+    forbidden: list[dict[str, Any]] | None = None,
 ) -> EvaluationResult:
     """Evaluate an agent's trace against gold standard.
 
@@ -396,6 +410,8 @@ def evaluate_trace(
             explicitly via ``JudgeConfig``): ``claude-*`` -> Anthropic,
             ``gemini-*`` -> Gemini, a ``base_url`` -> any OpenAI-compatible
             endpoint (Ollama/vLLM/Groq), otherwise OpenAI.
+        forbidden: Optional calls the agent must never make (see
+            :func:`evaluate`); violations go to ``metrics["policy_metrics"]``.
 
     Returns:
         EvaluationResult containing all computed metrics.
@@ -432,7 +448,7 @@ def evaluate_trace(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
-    _add_trace_checks(result, gold_calls, trace_calls)
+    _add_trace_checks(result, gold_calls, trace_calls, forbidden)
 
     # Schema validation (if schemas are provided in metadata)
     schema_metrics = calculate_schema_validation_metrics(gold_calls, trace_calls)
@@ -567,6 +583,7 @@ def evaluate(
     actual: list[dict[str, Any]] | Any,
     weights: dict[str, float] | None = None,
     strict: bool = False,
+    forbidden: list[dict[str, Any]] | None = None,
 ) -> EvaluationResult:
     """Evaluate tool calls by comparing actual against expected (in-memory).
 
@@ -586,6 +603,11 @@ def evaluate(
             weights sum to 1.0 before computing the composite score.
         strict: When True, argument comparison uses pure equality (no int/float
             coercion, no string strip).  Default is False (lenient matching).
+        forbidden: Optional calls the agent must never make, as rule dicts with
+            ``tool``, optional ``args`` (values or matchers) and optional
+            ``reason``. Violations are reported in ``metrics["policy_metrics"]``
+            and :attr:`EvaluationResult.policy_violations`; they do not change the
+            score. See :mod:`toolscore.metrics.policy`.
 
     Returns:
         EvaluationResult with metrics and a composite .score property.
@@ -656,7 +678,7 @@ def evaluate(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
-    _add_trace_checks(result, gold_calls, trace_calls)
+    _add_trace_checks(result, gold_calls, trace_calls, forbidden)
 
     return result
 
