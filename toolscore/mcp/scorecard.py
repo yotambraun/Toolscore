@@ -41,7 +41,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from toolscore.mcp.harness import tool_definition_tokens
+from toolscore.mcp.harness import estimate_tokens, tool_definition_tokens
 from toolscore.verdict import GRADE_ORDER, FixSuggestion, letter_grade
 
 if TYPE_CHECKING:
@@ -78,13 +78,17 @@ class MCPScorecard:
         server_info: The ``serverInfo`` dict reported during the handshake.
         tools: The tools advertised by the server.
         results: The executed scenario results.
-        lint: The lint issues found in the tool schemas.
+        lint: The lint issues found in the tool schemas and the text a model reads.
+        instructions: The server ``instructions`` from the handshake, if any.
+            MCP clients send them to the model with every session, so they count
+            toward the context cost.
     """
 
     server_info: dict[str, Any]
     tools: list[MCPToolDef]
     results: list[ScenarioResult]
     lint: list[LintIssue]
+    instructions: str | None = None
 
     # -- component rates ---------------------------------------------------
 
@@ -148,6 +152,16 @@ class MCPScorecard:
         proxy for how much of the context window the server's tools occupy.
         """
         return sum(tool_definition_tokens(t) for t in self.tools)
+
+    @property
+    def instructions_tokens(self) -> int:
+        """Estimated context tokens of the server ``instructions`` (``0`` if none)."""
+        return estimate_tokens(self.instructions) if self.instructions else 0
+
+    @property
+    def context_tokens(self) -> int:
+        """Estimated context the server costs on every request: tools plus instructions."""
+        return self.total_tool_tokens + self.instructions_tokens
 
 
 def _tool_summaries(card: MCPScorecard) -> list[dict[str, Any]]:
@@ -337,6 +351,11 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
         f"[dim]Tool definitions cost ~{card.total_tool_tokens} estimated tokens of context "
         f"across {len(card.tools)} tool(s).[/dim]"
     )
+    if card.instructions:
+        console.print(
+            f"[dim]Server instructions add ~{card.instructions_tokens} tokens "
+            f"(~{card.context_tokens} in total, sent with every request).[/dim]"
+        )
 
     fixes = build_fix_list(card)
     if not fixes:
@@ -386,6 +405,11 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         f"- Tool-definition tokens (estimated): ~{card.total_tool_tokens} "
         f"across {len(card.tools)} tool(s)"
     )
+    if card.instructions:
+        lines.append(
+            f"- Server instructions (estimated): ~{card.instructions_tokens} tokens "
+            f"(~{card.context_tokens} in total, sent with every request)"
+        )
     lines.append("")
 
     lines.append("## Tools")
@@ -433,6 +457,8 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
         "grade": card.grade,
         "score": card.score,
         "total_tool_tokens": card.total_tool_tokens,
+        "instructions_tokens": card.instructions_tokens,
+        "context_tokens": card.context_tokens,
         "scores": {
             "happy_pass_rate": card.happy_pass_rate,
             "edge_resilience_rate": card.edge_resilience_rate,

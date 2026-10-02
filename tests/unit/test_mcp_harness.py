@@ -518,3 +518,32 @@ def test_lint_flags_large_tool_definition() -> None:
 def test_lint_small_tool_no_large_warning() -> None:
     issues = lint_tools([ADD_TOOL])
     assert not any("large tool definition" in i.message for i in issues)
+
+
+def test_scorecard_reports_instructions_cost_in_every_format() -> None:
+    from toolscore.mcp import MCPScorecard, scorecard_to_json, scorecard_to_markdown
+
+    tool = MCPToolDef(name="add", description="Add two numbers.", input_schema={"type": "object"})
+    card = MCPScorecard(
+        server_info={"name": "s"},
+        tools=[tool],
+        results=[],
+        lint=[],
+        instructions="Use 'add' for sums. " * 20,
+    )
+
+    assert card.instructions_tokens > 0
+    assert card.context_tokens == card.total_tool_tokens + card.instructions_tokens
+    data = scorecard_to_json(card)
+    assert data["instructions_tokens"] == card.instructions_tokens
+    assert data["context_tokens"] == card.context_tokens
+    assert "Server instructions" in scorecard_to_markdown(card)
+
+
+def test_scorecard_without_instructions_has_zero_instruction_cost() -> None:
+    from toolscore.mcp import MCPScorecard
+
+    card = MCPScorecard(server_info={}, tools=[], results=[], lint=[])
+
+    assert card.instructions is None
+    assert card.instructions_tokens == 0
