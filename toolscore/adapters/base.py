@@ -22,7 +22,9 @@ class ToolCall:
         timestamp: Unix timestamp of when the call was made (optional).
         duration: Duration of the call in seconds (optional).
         cost: Cost associated with this call in USD (optional).
-        metadata: Additional metadata about the call.
+        metadata: Additional metadata about the call. Failures are recorded as
+            ``metadata["is_error"]`` and/or ``metadata["error"]`` (the message);
+            see :attr:`is_error`.
     """
 
     tool: str
@@ -43,6 +45,19 @@ class ToolCall:
         """
         if not self.tool:
             raise ValueError("Tool name cannot be empty")
+
+    @property
+    def is_error(self) -> bool:
+        """Whether the call failed.
+
+        Read from ``metadata["is_error"]`` or a non-empty ``metadata["error"]``,
+        which is how the MCP and custom adapters and :func:`toolscore.evaluate`
+        record failures. A call with no error information is not an error.
+        """
+        if self.metadata.get("is_error") is True:
+            return True
+        error = self.metadata.get("error")
+        return bool(error) and error is not False
 
 
 class BaseAdapter(ABC):

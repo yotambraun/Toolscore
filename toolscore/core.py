@@ -387,6 +387,25 @@ def evaluate_trace(
     return result
 
 
+def _call_metadata(item: dict[str, Any]) -> dict[str, Any]:
+    """Build a call's metadata from a trace dict: its ``metadata``, ``id`` and failure fields."""
+    metadata: dict[str, Any] = (
+        dict(item["metadata"]) if isinstance(item.get("metadata"), dict) else {}
+    )
+    if item.get("id") is not None:
+        metadata["id"] = item["id"]
+    if "error" in item:
+        error = item["error"]
+        if isinstance(error, bool):
+            metadata["is_error"] = error
+        elif error is not None:
+            metadata["error"] = str(error)
+            metadata["is_error"] = True
+    if isinstance(item.get("is_error"), bool):
+        metadata["is_error"] = item["is_error"]
+    return metadata
+
+
 def _dicts_to_tool_calls(items: list[dict[str, Any]]) -> list[ToolCall]:
     """Convert a list of dicts to ToolCall objects.
 
@@ -402,6 +421,12 @@ def _dicts_to_tool_calls(items: list[dict[str, Any]]) -> list[ToolCall]:
 
     For actual/trace dicts the same mapping applies, but a ``None`` there is
     harmless: trace-side metrics treat missing args as an empty mapping.
+
+    Optional fields describe what happened and are kept on the call:
+    ``result``, ``timestamp``, ``duration``, ``cost``, ``id``, a ``metadata``
+    dict, and failure information (``error`` as a message or ``True``, and/or
+    ``is_error``). They feed the error metrics and reports; they never change
+    how calls are matched or scored.
 
     Args:
         items: List of dicts with tool call data.
@@ -428,6 +453,11 @@ def _dicts_to_tool_calls(items: list[dict[str, Any]]) -> list[ToolCall]:
             ToolCall(
                 tool=tool_name,
                 args=item.get("args"),
+                result=item.get("result"),
+                timestamp=item.get("timestamp"),
+                duration=item.get("duration"),
+                cost=item.get("cost"),
+                metadata=_call_metadata(item),
             )
         )
     return calls

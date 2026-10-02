@@ -1,6 +1,7 @@
 """Tool usage efficiency metrics."""
 
 import json
+from itertools import pairwise
 
 from toolscore.adapters.base import ToolCall
 
@@ -33,6 +34,12 @@ def calculate_redundant_call_rate(
           beyond the gold's per-tool expectation, this isolates loop-like
           repetition from productive repeated use of a tool.
         - identical_rate: ``identical_count`` / ``total_calls`` (0-1)
+        - error_count: Calls that failed (see :attr:`ToolCall.is_error`). Zero
+          when the trace carries no error information.
+        - error_rate: ``error_count`` / ``total_calls`` (0-1)
+        - retry_after_error_count: Calls that repeat the immediately preceding
+          call exactly (same tool and arguments) after that call failed, i.e.
+          retrying a failure without changing anything.
     """
     if not trace_calls:
         return {
@@ -41,6 +48,9 @@ def calculate_redundant_call_rate(
             "redundant_rate": 0.0,
             "identical_count": 0,
             "identical_rate": 0.0,
+            "error_count": 0,
+            "error_rate": 0.0,
+            "retry_after_error_count": 0,
         }
 
     gold_tool_names = [call.tool for call in gold_calls]
@@ -67,6 +77,12 @@ def calculate_redundant_call_rate(
     total_calls = len(trace_calls)
     redundant_rate = redundant_count / total_calls if total_calls > 0 else 0.0
     identical_count = total_calls - len({_call_signature(call) for call in trace_calls})
+    error_count = sum(1 for call in trace_calls if call.is_error)
+    retry_after_error_count = sum(
+        1
+        for previous, current in pairwise(trace_calls)
+        if previous.is_error and _call_signature(previous) == _call_signature(current)
+    )
 
     return {
         "redundant_count": redundant_count,
@@ -74,4 +90,7 @@ def calculate_redundant_call_rate(
         "redundant_rate": redundant_rate,
         "identical_count": identical_count,
         "identical_rate": identical_count / total_calls,
+        "error_count": error_count,
+        "error_rate": error_count / total_calls,
+        "retry_after_error_count": retry_after_error_count,
     }
