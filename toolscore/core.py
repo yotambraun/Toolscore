@@ -302,6 +302,16 @@ def load_trace(
     return adapter.parse(data)
 
 
+def _is_jsonrpc_list(value: Any) -> bool:
+    """Whether ``value`` is a non-empty list whose first item is a JSON-RPC message."""
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and isinstance(value[0], dict)
+        and value[0].get("jsonrpc") == "2.0"
+    )
+
+
 def _detect_format(data: Any) -> BaseAdapter:
     """Auto-detect trace format.
 
@@ -311,8 +321,16 @@ def _detect_format(data: Any) -> BaseAdapter:
     Returns:
         Appropriate adapter for the detected format.
     """
-    # Check for MCP format (JSON-RPC 2.0)
+    # Check for MCP format (JSON-RPC 2.0): a single message, a recorded session
+    # ({"format": "mcp", "messages": [...]}, as written by `toolscore mcp record`),
+    # or a log of JSON-RPC messages. OpenAI "messages" carry "role", never "jsonrpc".
     if isinstance(data, dict) and "jsonrpc" in data:
+        return MCPAdapter()
+    if isinstance(data, dict) and (
+        data.get("format") == "mcp" or _is_jsonrpc_list(data.get("messages"))
+    ):
+        return MCPAdapter()
+    if _is_jsonrpc_list(data):
         return MCPAdapter()
 
     # Check for Gemini format (candidates with function calls)

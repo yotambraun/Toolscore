@@ -228,6 +228,7 @@ class MCPAdapter(BaseAdapter):
         """Merge a response into the call created from its request."""
         fields = self._response_fields(response)
         call.result = fields["result"]
+        call.duration = _duration(response)
         call.metadata.update(
             {
                 "error": fields["error"],
@@ -253,6 +254,7 @@ class MCPAdapter(BaseAdapter):
             tool=tool_name,
             args={},
             result=fields["result"],
+            duration=_duration(response),
             metadata={
                 "format": "mcp",
                 "jsonrpc_id": response.get("id"),
@@ -261,6 +263,14 @@ class MCPAdapter(BaseAdapter):
                 "is_error": fields["is_error"],
             },
         )
+
+
+def _duration(response: dict[str, Any]) -> float | None:
+    """Round-trip seconds recorded next to a response (``toolscore mcp record`` adds them)."""
+    value = response.get("duration")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
 
 
 def _hashable_id(request_id: Any) -> Any:

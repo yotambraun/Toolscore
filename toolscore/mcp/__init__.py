@@ -17,6 +17,7 @@ from toolscore.mcp.client import (
     MCPToolResult,
 )
 from toolscore.mcp.config import MCPServerSpec, load_mcp_config
+from toolscore.mcp.content import content_to_text
 from toolscore.mcp.harness import (
     LintIssue,
     Scenario,
@@ -27,6 +28,7 @@ from toolscore.mcp.harness import (
     run_scenarios,
     tool_definition_tokens,
 )
+from toolscore.mcp.recorder import MCPRecorder
 from toolscore.mcp.scorecard import (
     MCPScorecard,
     build_fix_list,
@@ -41,6 +43,7 @@ __all__ = [
     "FixSuggestion",
     "LintIssue",
     "MCPError",
+    "MCPRecorder",
     "MCPScorecard",
     "MCPServerSpec",
     "MCPStdioClient",
@@ -50,6 +53,7 @@ __all__ = [
     "Scenario",
     "ScenarioResult",
     "build_fix_list",
+    "content_to_text",
     "estimate_tokens",
     "generate_scenarios",
     "grade_meets",
