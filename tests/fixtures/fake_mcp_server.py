@@ -18,6 +18,10 @@ Flags:
     tool per page, using ``nextCursor``. Exercises the client's pagination loop.
     ``--paginate-loop``  Serve ``tools/list`` with a ``nextCursor`` that always
     repeats (``"loop"``), to drive the client's infinite-loop guard.
+    ``--resources``  Also advertise ``read_note``, which returns its file as an
+    embedded ``resource`` (the way GitHub's MCP server returns file contents).
+    ``--instructions <text>``  Return ``<text>`` as the server ``instructions``
+    in the ``initialize`` result.
 
 Run directly::
 
@@ -131,11 +135,33 @@ def _handle_call(request_id: Any, params: dict[str, Any], sleep: float) -> None:
         )
     elif name == "bad_schema":
         _result(request_id, {"content": [{"type": "text", "text": "ok"}]})
+    elif name == "read_note":
+        _result(
+            request_id,
+            {
+                "content": [
+                    {"type": "text", "text": "successfully downloaded text file"},
+                    {
+                        "type": "resource",
+                        "resource": {"uri": "file:///notes.md", "text": "# Notes\nStatus: draft\n"},
+                    },
+                ]
+            },
+        )
     else:
         _error(request_id, -32602, f"Unknown tool: {name!r}")
 
 
-def _handle_list_tools(request_id: Any, params: dict[str, Any], mode: str) -> None:
+READ_NOTE_TOOL: dict[str, Any] = {
+    "name": "read_note",
+    "description": "Return the notes file as an embedded resource.",
+    "inputSchema": {"type": "object", "properties": {}},
+}
+
+
+def _handle_list_tools(
+    request_id: Any, params: dict[str, Any], mode: str, tools: list[dict[str, Any]] | None = None
+) -> None:
     """Handle a ``tools/list`` request, optionally paginated.
 
     Args:
@@ -146,25 +172,26 @@ def _handle_list_tools(request_id: Any, params: dict[str, Any], mode: str) -> No
             (always returns a repeating ``nextCursor`` to drive the loop guard).
     """
     cursor = params.get("cursor")
+    tools = TOOLS if tools is None else tools
 
     if mode == "paginate-loop":
         # Always return the first tool and the same "loop" cursor forever.
-        _result(request_id, {"tools": TOOLS[:1], "nextCursor": "loop"})
+        _result(request_id, {"tools": tools[:1], "nextCursor": "loop"})
         return
 
     if mode == "paginate":
         # One tool per page; cursor encodes the next index. Terminate when
         # all tools have been served (no nextCursor on the final page).
         idx = int(cursor) if cursor is not None else 0
-        idx = max(0, min(idx, len(TOOLS)))
-        page = TOOLS[idx : idx + 1]
+        idx = max(0, min(idx, len(tools)))
+        page = tools[idx : idx + 1]
         response: dict[str, Any] = {"tools": page}
-        if idx + 1 < len(TOOLS):
+        if idx + 1 < len(tools):
             response["nextCursor"] = str(idx + 1)
         _result(request_id, response)
         return
 
-    _result(request_id, {"tools": TOOLS})
+    _result(request_id, {"tools": tools})
 
 
 def main(argv: list[str]) -> int:
@@ -188,6 +215,13 @@ def main(argv: list[str]) -> int:
     elif "--paginate" in argv:
         list_mode = "paginate"
 
+    tools = [*TOOLS, READ_NOTE_TOOL] if "--resources" in argv else TOOLS
+    instructions: str | None = None
+    if "--instructions" in argv:
+        idx = argv.index("--instructions")
+        if idx + 1 < len(argv):
+            instructions = argv[idx + 1]
+
     _log(f"starting (sleep={sleep}, list_mode={list_mode})")
 
     for line in sys.stdin:
@@ -209,16 +243,16 @@ def main(argv: list[str]) -> int:
             continue
 
         if method == "initialize":
-            _result(
-                request_id,
-                {
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "fake-mcp", "version": "0.1.0"},
-                },
-            )
+            init_result: dict[str, Any] = {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "fake-mcp", "version": "0.1.0"},
+            }
+            if instructions is not None:
+                init_result["instructions"] = instructions
+            _result(request_id, init_result)
         elif method == "tools/list":
-            _handle_list_tools(request_id, message.get("params", {}) or {}, list_mode)
+            _handle_list_tools(request_id, message.get("params", {}) or {}, list_mode, tools)
         elif method == "tools/call":
             _handle_call(request_id, message.get("params", {}) or {}, sleep)
         elif request_id is not None:
