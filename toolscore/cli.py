@@ -914,6 +914,53 @@ def mcp_list(
     console.print()
 
 
+@mcp.command("record")
+@click.argument("command", nargs=-1)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Claude Desktop style MCP config file (alternative to a command).",
+)
+@click.option("--server", default=None, help="Server name to select from --config.")
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    required=True,
+    help="Trace file to write (read it with --format mcp).",
+)
+def mcp_record(
+    command: tuple[str, ...], config: Path | None, server: str | None, output: Path
+) -> None:
+    """Record real tool calls between an MCP client and a server.
+
+    Put this command where your MCP client launches the server (for example in
+    claude_desktop_config.json or your agent's MCP settings). It starts the
+    server and relays every message unchanged, while writing each tools/call
+    request with its result, error and duration to OUTPUT. Score the recording
+    with: toolscore eval gold.json OUTPUT --format mcp
+
+    COMMAND: the server launch command as a single quoted string
+    (omit when using --config).
+    """
+    from toolscore.mcp.recorder import MCPRecorder
+
+    # stdout carries the MCP protocol, so every message from us goes to stderr.
+    console = Console(stderr=True)
+    cmd, env = _resolve_mcp_command(command, config, server, console)
+    recorder = MCPRecorder(cmd, output, env=env or None)
+    try:
+        exit_code = recorder.run()
+    except OSError as exc:
+        print_error(f"Failed to launch MCP server {cmd!r}: {exc}", console)
+        sys.exit(1)
+    console.print(
+        f"[dim]toolscore: recorded {recorder.calls_recorded} tool call(s) to {output}[/dim]"
+    )
+    sys.exit(exit_code)
+
+
 @mcp.command("lint")
 @click.argument("command", nargs=-1)
 @click.option(
