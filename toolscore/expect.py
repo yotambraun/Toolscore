@@ -26,6 +26,7 @@ from typing import Any
 
 from toolscore.core import EvaluationResult, ToolScoreAssertionError, _check_min_score, evaluate
 from toolscore.integrations import auto_extract
+from toolscore.metrics.policy import call_matches_rule
 
 
 class Expectation:
@@ -39,6 +40,7 @@ class Expectation:
         self._prompt: str | None = None
         self._expected: list[dict[str, Any]] = []
         self._forbidden: list[str] = []
+        self._forbidden_rules: list[dict[str, Any]] = []
         self._min_score: float = 0.9
         self._weights: dict[str, float] | None = None
         self._strict: bool = False
@@ -114,16 +116,22 @@ class Expectation:
         """
         return self.calls(tool, **args)
 
-    def does_not_call(self, tool: str) -> Expectation:
-        """Assert that the agent must NOT call *tool*.
+    def does_not_call(self, tool: str, **args: Any) -> Expectation:
+        """Assert that the agent must NOT call *tool* (optionally: with these arguments).
+
+        Without ``args`` any call to *tool* fails the expectation. With ``args``
+        only a call whose listed arguments all match does (values or matchers),
+        for example ``does_not_call("run_shell", command=Regex(r".*\\brm\\s+-rf\\b.*"))``.
 
         Args:
-            tool: Tool name that must not appear in the actual calls.
+            tool: Tool name that must not be called.
+            **args: Optional argument values or matchers that make a call forbidden.
 
         Returns:
             ``self`` for chaining.
         """
         self._forbidden.append(tool)
+        self._forbidden_rules.append({"tool": tool, "args": args or None})
         self._has_forbidden = True
         return self
 
@@ -224,15 +232,23 @@ class Expectation:
             return auto_extract(subject)
 
     def _check_forbidden(self, actual_calls: list[dict[str, Any]]) -> None:
-        """Raise ToolScoreAssertionError if any forbidden tool appears in actual_calls."""
-        if not self._forbidden:
+        """Raise ToolScoreAssertionError if any call matches a forbidden rule."""
+        if not self._forbidden_rules:
             return
-        actual_tools = {c.get("tool") for c in actual_calls}
-        violations = [tool for tool in self._forbidden if tool in actual_tools]
-        if violations:
-            names = ", ".join(repr(t) for t in violations)
+        offending = [
+            call
+            for call in actual_calls
+            if any(
+                call_matches_rule(str(call.get("tool")), call.get("args"), rule)
+                for rule in self._forbidden_rules
+            )
+        ]
+        if offending:
+            names = ", ".join(dict.fromkeys(repr(c.get("tool")) for c in offending))
+            details = "; ".join(f"{c.get('tool')}({c.get('args') or {}})" for c in offending)
             raise ToolScoreAssertionError(
                 f"Forbidden tool(s) were called: {names}\n"
+                f"Forbidden calls: {details}\n"
                 f"Actual calls: {[c.get('tool') for c in actual_calls]}"
             )
 
