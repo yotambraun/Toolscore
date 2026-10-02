@@ -37,6 +37,8 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from typing import TYPE_CHECKING, Any
 
+from toolscore.mcp.content import content_to_text
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -96,6 +98,16 @@ class MCPToolResult:
     is_error: bool
     raw: dict[str, Any]
     duration: float
+
+    @property
+    def text(self) -> str:
+        """The result as the text an MCP client would show a model.
+
+        Renders every content item, not only ``text``: embedded resources (how
+        many servers return file contents), resource links, and placeholders for
+        images and audio. See :func:`toolscore.mcp.content.content_to_text`.
+        """
+        return content_to_text(self.content)
 
 
 # Safety cap on tools/list pagination to bound a misbehaving server.
@@ -163,6 +175,12 @@ class MCPStdioClient:
         self.protocol_version: str = DEFAULT_PROTOCOL_VERSION
         #: ``serverInfo`` returned by the initialize handshake.
         self.server_info: dict[str, Any] = {}
+        #: The server's ``instructions`` from the initialize result, or ``None``.
+        #: MCP clients pass these to the model with every session, so they are
+        #: part of what the model reads (and of its context cost).
+        self.server_instructions: str | None = None
+        #: The ``capabilities`` object from the initialize result.
+        self.server_capabilities: dict[str, Any] = {}
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -257,6 +275,9 @@ class MCPStdioClient:
     def _handshake(self) -> dict[str, Any]:
         """Perform the MCP initialize handshake.
 
+        Also records :attr:`protocol_version`, :attr:`server_instructions` and
+        :attr:`server_capabilities` from the initialize result.
+
         Returns:
             The ``serverInfo`` dictionary from the initialize response.
 
@@ -275,6 +296,11 @@ class MCPStdioClient:
         negotiated = result.get("protocolVersion")
         if isinstance(negotiated, str) and negotiated:
             self.protocol_version = negotiated
+
+        instructions = result.get("instructions")
+        self.server_instructions = instructions if isinstance(instructions, str) else None
+        capabilities = result.get("capabilities")
+        self.server_capabilities = capabilities if isinstance(capabilities, dict) else {}
 
         self._notify("notifications/initialized", {})
 

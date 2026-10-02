@@ -305,3 +305,35 @@ def test_load_config_missing_command_raises(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path, {"mcpServers": {"a": {"args": ["x"]}}})
     with pytest.raises(ValueError, match="command"):
         load_mcp_config(config_path)
+
+
+# -- full handshake result and rendered content (1.10) -------------------
+
+
+def test_server_instructions_and_capabilities_are_kept() -> None:
+    text = "Use the 'add' tool for arithmetic."
+    with MCPStdioClient(_server_command("--instructions", text), timeout=10.0) as c:
+        assert c.server_instructions == text
+        assert c.server_capabilities == {"tools": {}}
+
+
+def test_server_without_instructions_reports_none(client: MCPStdioClient) -> None:
+    assert client.server_instructions is None
+
+
+def test_result_text_renders_embedded_resources() -> None:
+    """A file returned as an embedded resource must reach the text, not only the text items."""
+    with MCPStdioClient(_server_command("--resources"), timeout=10.0) as c:
+        result = c.call_tool("read_note", {})
+
+    assert result.is_error is False
+    assert (
+        result.text
+        == "successfully downloaded text file\n[resource file:///notes.md]\n# Notes\nStatus: draft\n"
+    )
+
+
+def test_result_text_for_error_and_plain_results(client: MCPStdioClient) -> None:
+    assert client.call_tool("add", {"a": 2, "b": 3}).text == "5"
+    assert client.call_tool("flaky", {}).text == "flaky tool failed"
+    assert client.call_tool("no_such_tool", {}).text == "Unknown tool: 'no_such_tool'"
