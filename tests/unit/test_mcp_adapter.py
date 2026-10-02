@@ -289,3 +289,122 @@ class TestMCPAdapter:
 
         assert len(calls) == 1
         assert calls[0].result == {"status": "success", "value": 42}
+
+
+class TestMCPAdapterPairsResponses:
+    """A recorded MCP session holds each request and its response; they are one tool call."""
+
+    @staticmethod
+    def _request(call_id: int, name: str, arguments: dict) -> dict:
+        return {
+            "jsonrpc": "2.0",
+            "id": call_id,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": arguments},
+        }
+
+    def test_request_and_response_become_one_call_with_result(self) -> None:
+        trace = [
+            self._request(1, "get_weather", {"location": "SF"}),
+            {"jsonrpc": "2.0", "id": 1, "result": {"content": [{"type": "text", "text": "72F"}]}},
+        ]
+
+        calls = MCPAdapter().parse(trace)
+
+        assert [(c.tool, c.args, c.result) for c in calls] == [
+            ("get_weather", {"location": "SF"}, "72F")
+        ]
+        assert calls[0].metadata["is_error"] is False
+
+    def test_responses_pair_by_id_even_out_of_order(self) -> None:
+        trace = [
+            self._request(1, "a", {}),
+            self._request(2, "b", {}),
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"content": [{"type": "text", "text": "from b"}]},
+            },
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"content": [{"type": "text", "text": "from a"}]},
+            },
+        ]
+
+        calls = MCPAdapter().parse(trace)
+
+        assert [(c.tool, c.result) for c in calls] == [("a", "from a"), ("b", "from b")]
+
+    def test_embedded_resource_result_is_kept(self) -> None:
+        """GitHub's MCP server returns file contents as an embedded resource, not as text."""
+        trace = [
+            self._request(3, "get_file_contents", {"path": "notes.md"}),
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "result": {
+                    "content": [
+                        {"type": "text", "text": "successfully downloaded text file"},
+                        {
+                            "type": "resource",
+                            "resource": {"uri": "repo://notes.md", "text": "Status: draft"},
+                        },
+                    ]
+                },
+            },
+        ]
+
+        calls = MCPAdapter().parse(trace)
+
+        assert len(calls) == 1
+        assert (
+            calls[0].result
+            == "successfully downloaded text file\n[resource repo://notes.md]\nStatus: draft"
+        )
+
+    def test_tool_error_keeps_its_message(self) -> None:
+        trace = [
+            self._request(4, "create_label", {"name": "bug"}),
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "result": {
+                    "content": [{"type": "text", "text": "Name has already been taken"}],
+                    "isError": True,
+                },
+            },
+        ]
+
+        calls = MCPAdapter().parse(trace)
+
+        assert len(calls) == 1
+        assert calls[0].tool == "create_label"
+        assert calls[0].result is None
+        assert calls[0].metadata["is_error"] is True
+        assert calls[0].metadata["error"] == "Name has already been taken"
+
+    def test_json_rpc_error_response_pairs_with_its_request(self) -> None:
+        trace = [
+            self._request(5, "missing_tool", {}),
+            {"jsonrpc": "2.0", "id": 5, "error": {"code": -32602, "message": "Unknown tool"}},
+        ]
+
+        calls = MCPAdapter().parse(trace)
+
+        assert len(calls) == 1
+        assert calls[0].tool == "missing_tool"
+        assert calls[0].metadata["is_error"] is True
+        assert calls[0].metadata["error"] == "Unknown tool"
+        assert calls[0].metadata["error_code"] == -32602
+
+    def test_response_without_a_request_is_still_reported(self) -> None:
+        """Logs that hold only responses keep the previous behaviour (one call per response)."""
+        trace = [
+            {"jsonrpc": "2.0", "id": 9, "result": {"content": [{"type": "text", "text": "ok"}]}}
+        ]
+
+        calls = MCPAdapter().parse(trace)
+
+        assert len(calls) == 1
+        assert calls[0].result == "ok"

@@ -8,6 +8,7 @@ import json
 from typing import Any
 
 from toolscore.adapters.base import BaseAdapter, ToolCall
+from toolscore.mcp.content import content_to_text
 
 
 class MCPAdapter(BaseAdapter):
@@ -21,6 +22,12 @@ class MCPAdapter(BaseAdapter):
     - Tool call results (JSON-RPC 2.0 responses)
     - Error handling (JSON-RPC 2.0 errors)
     - Both single requests and batch requests
+
+    A recorded session (for example from ``toolscore mcp record``) holds each
+    request followed by its response. A response whose ``id`` matches an earlier
+    request in the same trace is merged into that request's call (result, error,
+    ``is_error``), so one tool call stays one :class:`ToolCall`. A response with
+    no matching request is reported on its own, as before.
 
     Example MCP tool call request:
         {
@@ -58,37 +65,40 @@ class MCPAdapter(BaseAdapter):
         self._validate_trace_data(trace_data)
 
         tool_calls: list[ToolCall] = []
+        # Requests still waiting for their response, keyed by JSON-RPC id.
+        pending: dict[Any, ToolCall] = {}
 
-        # Handle both single and batch requests
-        if isinstance(trace_data, dict):
-            # Single request/response
-            if "jsonrpc" in trace_data:
-                tool_call = self._parse_mcp_message(trace_data)
-                if tool_call:
-                    tool_calls.append(tool_call)
-            # Object containing messages array
-            elif "messages" in trace_data:
-                for message in trace_data["messages"]:
-                    tool_call = self._parse_mcp_message(message)
-                    if tool_call:
-                        tool_calls.append(tool_call)
-            # Object containing calls/tools array
-            elif "calls" in trace_data or "tools" in trace_data:
-                messages = trace_data.get("calls", trace_data.get("tools", []))
-                for message in messages:
-                    tool_call = self._parse_mcp_message(message)
-                    if tool_call:
-                        tool_calls.append(tool_call)
+        for message in self._messages(trace_data):
+            request_id = message.get("id")
+            is_response = "method" not in message and ("result" in message or "error" in message)
+            key = _hashable_id(request_id)
+            if is_response and key is not None and key in pending:
+                self._apply_response(pending.pop(key), message)
+                continue
 
-        elif isinstance(trace_data, list):
-            # Array of requests/responses
-            for item in trace_data:
-                if isinstance(item, dict):
-                    tool_call = self._parse_mcp_message(item)
-                    if tool_call:
-                        tool_calls.append(tool_call)
+            tool_call = self._parse_mcp_message(message)
+            if tool_call is None:
+                continue
+            tool_calls.append(tool_call)
+            if "method" in message and key is not None:
+                pending[key] = tool_call
 
         return tool_calls
+
+    @staticmethod
+    def _messages(trace_data: dict[str, Any] | list[Any]) -> list[dict[str, Any]]:
+        """Return the JSON-RPC messages held by any supported trace shape, in order."""
+        if isinstance(trace_data, list):
+            items: Any = trace_data
+        elif "jsonrpc" in trace_data:
+            items = [trace_data]
+        elif "messages" in trace_data:
+            items = trace_data["messages"]
+        elif "calls" in trace_data or "tools" in trace_data:
+            items = trace_data.get("calls", trace_data.get("tools", []))
+        else:
+            items = []
+        return [item for item in items if isinstance(item, dict)] if isinstance(items, list) else []
 
     def _parse_mcp_message(self, message: dict[str, Any]) -> ToolCall | None:
         """Parse a single MCP JSON-RPC message.
@@ -174,8 +184,60 @@ class MCPAdapter(BaseAdapter):
 
         return None
 
+    @staticmethod
+    def _response_fields(response: dict[str, Any]) -> dict[str, Any]:
+        """Extract result, error and ``is_error`` from a JSON-RPC response.
+
+        The result is ``structuredContent`` when present, otherwise the
+        ``content`` rendered the way an MCP client shows it (text, embedded
+        resources, resource links; see :func:`toolscore.mcp.content.content_to_text`),
+        otherwise the raw ``result`` object. Error results carry no result value;
+        their message goes to ``error`` (the JSON-RPC error message, or the tool's
+        own text for ``isError`` results).
+        """
+        raw_result = response.get("result")
+        result = raw_result if isinstance(raw_result, dict) else {}
+        rpc_error = response.get("error")
+        rpc_error = rpc_error if isinstance(rpc_error, dict) else None
+
+        content = result.get("content", [])
+        structured_content = result.get("structuredContent")
+        if structured_content:
+            result_value: Any = structured_content
+        elif isinstance(content, list) and content:
+            result_value = content_to_text(content)
+        else:
+            result_value = result
+
+        is_error = bool(result.get("isError", False)) or rpc_error is not None
+        if rpc_error is not None:
+            error: str | None = rpc_error.get("message")
+        elif is_error:
+            error = content_to_text(content) or None
+        else:
+            error = None
+
+        return {
+            "result": None if is_error else result_value,
+            "error": error,
+            "error_code": rpc_error.get("code") if rpc_error else None,
+            "is_error": is_error,
+        }
+
+    def _apply_response(self, call: ToolCall, response: dict[str, Any]) -> None:
+        """Merge a response into the call created from its request."""
+        fields = self._response_fields(response)
+        call.result = fields["result"]
+        call.metadata.update(
+            {
+                "error": fields["error"],
+                "error_code": fields["error_code"],
+                "is_error": fields["is_error"],
+            }
+        )
+
     def _parse_tool_result(self, response: dict[str, Any]) -> ToolCall | None:
-        """Parse MCP tool call result.
+        """Parse a tool call result that has no matching request in the trace.
 
         Args:
             response: JSON-RPC response message.
@@ -183,40 +245,28 @@ class MCPAdapter(BaseAdapter):
         Returns:
             ToolCall object with result populated, or None.
         """
-        result = response.get("result", {})
-        error = response.get("error")
-
-        # Extract tool name from metadata if available
-        # (MCP responses don't include tool name, so we use ID to match)
-        tool_name = result.get("_tool_name", "unknown")
-
-        # Extract result content
-        content = result.get("content", [])
-        structured_content = result.get("structuredContent")
-
-        # Build result value
-        if structured_content:
-            result_value = structured_content
-        elif content and isinstance(content, list) and content:
-            # Extract text from content array
-            result_value = " ".join(
-                item.get("text", "") for item in content if item.get("type") == "text"
-            )
-        else:
-            result_value = result
-
-        # Check for errors
-        is_error = result.get("isError", False) or error is not None
-
+        result = response.get("result")
+        # MCP responses do not carry the tool name; some logs add it as ``_tool_name``.
+        tool_name = result.get("_tool_name", "unknown") if isinstance(result, dict) else "unknown"
+        fields = self._response_fields(response)
         return ToolCall(
             tool=tool_name,
             args={},
-            result=result_value if not is_error else None,
+            result=fields["result"],
             metadata={
                 "format": "mcp",
                 "jsonrpc_id": response.get("id"),
-                "error": error.get("message") if error else None,
-                "error_code": error.get("code") if error else None,
-                "is_error": is_error,
+                "error": fields["error"],
+                "error_code": fields["error_code"],
+                "is_error": fields["is_error"],
             },
         )
+
+
+def _hashable_id(request_id: Any) -> Any:
+    """Return a JSON-RPC id usable as a dict key, or ``None`` when absent or unusable."""
+    if request_id is None or isinstance(request_id, bool):
+        return None
+    if isinstance(request_id, (int, str)):
+        return (type(request_id).__name__, request_id)
+    return None
