@@ -6,9 +6,15 @@ import json
 from typing import TYPE_CHECKING
 
 import pytest
+from click.testing import CliRunner
+from rich.console import Console
 
-from toolscore import Contains, Regex, ToolScoreAssertionError, evaluate, expect
+from toolscore import Contains, OneOf, Regex, ToolScoreAssertionError, evaluate, expect
+from toolscore.cli import main
 from toolscore.core import evaluate_trace
+from toolscore.metrics.policy import rules_from_json
+from toolscore.reports import generate_markdown_report, print_evaluation_summary
+from toolscore.reports.findings import behavior_findings
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -150,3 +156,123 @@ def test_ordinary_values_are_not_reported_as_secrets() -> None:
     security = evaluate(expected=[], actual=actual).metrics["security_metrics"]
 
     assert security == {"secret_count": 0, "secrets": []}
+
+
+# -- JSON rules, reports and the CLI ---------------------------------------------
+
+
+def test_json_rules_turn_dollar_operators_into_matchers() -> None:
+    rules = rules_from_json(
+        [
+            {"tool": "run_shell", "args": {"command": {"$regex": r".*\brm\s+-rf\b.*"}}},
+            {"tool": "read_file", "args": {"path": {"$contains": ".ssh"}}},
+            {"tool": "deploy", "args": {"env": {"$one_of": ["prod", "production"]}}},
+            {"tool": "set", "args": {"value": {"a": 1}}},
+        ]
+    )
+
+    assert isinstance(rules[0]["args"]["command"], Regex)
+    assert rules[0]["args"]["command"].matches("sudo rm -rf /")
+    assert not rules[0]["args"]["command"].matches("rmdir build")
+    assert isinstance(rules[1]["args"]["path"], Contains)
+    assert isinstance(rules[2]["args"]["env"], OneOf)
+    # A dict that is not a one-key $ operator stays an exact value.
+    assert rules[3]["args"]["value"] == {"a": 1}
+
+    trace = [*SHELL_TRACE, {"tool": "deploy", "args": {"env": "prod"}}]
+    found = evaluate(expected=[], actual=trace, forbidden=rules).policy_violations
+    assert [v["index"] for v in found] == [1, 2, 3]
+
+
+@pytest.mark.parametrize(
+    "rules",
+    [
+        {"tool": "x"},
+        [{"args": {}}],
+        [{"tool": "x", "args": {"a": {"$regex": 3}}}],
+        [{"tool": "x", "args": {"a": {"$one_of": "prod"}}}],
+    ],
+)
+def test_malformed_json_rules_are_rejected(rules: object) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        rules_from_json(rules)
+
+
+def test_reports_list_behavior_and_safety_findings(tmp_path: Path) -> None:
+    trace = [
+        {"tool": "run_shell", "args": {"command": "rm -rf /"}},
+        {"tool": "fetch", "args": {"url": "x"}, "is_error": True, "error": "timeout"},
+        {"tool": "fetch", "args": {"url": "x"}, "is_error": True, "error": "timeout"},
+        {"tool": "http_request", "args": {"headers": {"Authorization": GITHUB_TOKEN}}},
+    ]
+    result = evaluate(
+        expected=[{"tool": "fetch"}],
+        actual=trace,
+        forbidden=[{"tool": "run_shell", "reason": "no shell access"}],
+    )
+
+    findings = behavior_findings(result)
+
+    assert findings == [
+        ("error", "call 1 run_shell matches forbidden rule 1: no shell access"),
+        (
+            "error",
+            "call 4 http_request passes a github_token in 'headers.Authorization' "
+            f"({GITHUB_TOKEN[:4]}…{GITHUB_TOKEN[-2:]})",
+        ),
+        ("warning", "2 of 4 tool calls failed (fetch x2)"),
+        ("warning", "1 call(s) retried a failed call with the same arguments"),
+    ]
+
+    report = generate_markdown_report(result, tmp_path / "report.md").read_text(encoding="utf-8")
+    assert "## 🛡️ Behavior and Safety" in report
+    assert "matches forbidden rule 1: no shell access" in report
+    assert "| Failed Calls | 2 |" in report
+
+    console = Console(record=True, width=200)
+    print_evaluation_summary(result, console=console)
+    text = console.export_text()
+    assert "Behavior and safety" in text
+    assert "2 of 4 tool calls failed (fetch x2)" in text
+    assert GITHUB_TOKEN not in text
+
+
+def test_clean_trace_has_no_findings() -> None:
+    result = evaluate(expected=[{"tool": "run_shell"}], actual=SHELL_TRACE[:1])
+
+    assert behavior_findings(result) == []
+
+
+def test_cli_forbidden_file_and_fail_on_violations(tmp_path: Path) -> None:
+    gold, trace, rules = tmp_path / "gold.json", tmp_path / "trace.json", tmp_path / "rules.json"
+    gold.write_text(json.dumps([{"tool": "run_shell"}]))
+    trace.write_text(json.dumps(SHELL_TRACE))
+    rules.write_text(json.dumps([{"tool": "read_file", "args": {"path": {"$contains": ".ssh"}}}]))
+    out = tmp_path / "report.json"
+    base = ["eval", str(gold), str(trace), "-o", str(out), "--forbidden", str(rules)]
+
+    reported = CliRunner().invoke(main, base)
+    assert reported.exit_code == 0, reported.output
+    assert "call 3 read_file matches forbidden rule 1" in reported.output
+    assert json.loads(out.read_text())["metrics"]["policy_metrics"]["violation_count"] == 1
+
+    failed = CliRunner().invoke(main, [*base, "--fail-on-violations"])
+    assert failed.exit_code == 1
+    assert "--fail-on-violations" in failed.output
+
+    clean = tmp_path / "clean.json"
+    clean.write_text(json.dumps(SHELL_TRACE[:1]))
+    passed = CliRunner().invoke(
+        main,
+        [
+            "eval",
+            str(gold),
+            str(clean),
+            "-o",
+            str(out),
+            "--forbidden",
+            str(rules),
+            "--fail-on-violations",
+        ],
+    )
+    assert passed.exit_code == 0, passed.output

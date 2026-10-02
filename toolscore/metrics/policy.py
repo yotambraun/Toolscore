@@ -14,16 +14,30 @@ Example rules::
         {"tool": "read_file", "args": {"path": Contains(".ssh")}},
         {"tool": "delete_repository"},
     ]
+
+The same rules as JSON (for ``toolscore eval --forbidden rules.json``), where an
+argument value may be ``{"$regex": ...}``, ``{"$contains": ...}`` or
+``{"$one_of": [...]}`` (see :func:`rules_from_json`)::
+
+    [
+        {"tool": "run_shell", "args": {"command": {"$regex": ".*rm -rf.*"}}, "reason": "destructive"},
+        {"tool": "read_file", "args": {"path": {"$contains": ".ssh"}}},
+        {"tool": "delete_repository"}
+    ]
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from toolscore.matchers import Contains, OneOf, Regex
 from toolscore.metrics.arguments import _compare_values
 
 if TYPE_CHECKING:
     from toolscore.adapters.base import ToolCall
+    from toolscore.matchers import Matcher
 
 
 def _validate(rules: list[dict[str, Any]]) -> None:
@@ -35,6 +49,67 @@ def _validate(rules: list[dict[str, Any]]) -> None:
             raise ValueError(f"forbidden rule {position} needs a non-empty 'tool' string: {rule!r}")
         if rule.get("args") is not None and not isinstance(rule["args"], dict):
             raise ValueError(f"forbidden rule {position} 'args' must be a dict: {rule!r}")
+
+
+def _matcher_from_json(value: dict[str, Any]) -> Matcher | None:
+    """The matcher a one-key ``{"$regex"|"$contains"|"$one_of": ...}`` dict stands for."""
+    if len(value) != 1:
+        return None
+    ((key, operand),) = value.items()
+    if key == "$regex":
+        if not isinstance(operand, str):
+            raise ValueError(f"$regex needs a pattern string, got {operand!r}")
+        return Regex(operand)
+    if key == "$contains":
+        return Contains(operand)
+    if key == "$one_of":
+        if not isinstance(operand, list):
+            raise ValueError(f"$one_of needs a list, got {operand!r}")
+        return OneOf(*operand)
+    return None
+
+
+def rules_from_json(data: Any) -> list[dict[str, Any]]:
+    """Build forbidden rules from JSON data, turning ``$`` operators into matchers.
+
+    An argument value that is a one-key dict ``{"$regex": pattern}``,
+    ``{"$contains": item}`` or ``{"$one_of": [values]}`` becomes
+    :class:`~toolscore.matchers.Regex`, :class:`~toolscore.matchers.Contains` or
+    :class:`~toolscore.matchers.OneOf`. Any other value is compared exactly.
+
+    Args:
+        data: A list of rule dicts, e.g. parsed from a JSON file.
+
+    Returns:
+        Rules ready for :func:`check_forbidden_calls`.
+
+    Raises:
+        TypeError: If ``data`` is not a list.
+        ValueError: If a rule or an operator is malformed.
+    """
+    _validate(data)
+    rules: list[dict[str, Any]] = []
+    for rule in data:
+        converted = dict(rule)
+        if rule.get("args"):
+            converted["args"] = {
+                key: (_matcher_from_json(value) or value) if isinstance(value, dict) else value
+                for key, value in rule["args"].items()
+            }
+        rules.append(converted)
+    return rules
+
+
+def load_forbidden_rules(path: str | Path) -> list[dict[str, Any]]:
+    """Read forbidden rules from a JSON file (see :func:`rules_from_json`).
+
+    Args:
+        path: Path to a JSON file holding a list of rules.
+
+    Returns:
+        Rules ready for :func:`check_forbidden_calls`.
+    """
+    return rules_from_json(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
 def call_matches_rule(
