@@ -942,11 +942,12 @@ def mcp_lint(
     try:
         with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
             tools = client.list_tools()
+            instructions = client.server_instructions
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to query MCP server: {exc}", console)
         sys.exit(1)
 
-    issues = lint_tools(tools)
+    issues = lint_tools(tools, instructions=instructions)
     errors = sum(1 for i in issues if i.severity == "error")
     warnings = sum(1 for i in issues if i.severity == "warning")
 
@@ -1062,6 +1063,7 @@ def mcp_test(
             )
             results = run_scenarios(client, scenarios)
             server_info = client.server_info
+            instructions = client.server_instructions
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to test MCP server: {exc}", console)
         sys.exit(1)
@@ -1070,7 +1072,8 @@ def mcp_test(
         server_info=server_info,
         tools=tools,
         results=results,
-        lint=lint_tools(tools),
+        lint=lint_tools(tools, instructions=instructions),
+        instructions=instructions,
     )
 
     wrote_file = False
@@ -1145,6 +1148,7 @@ def demo() -> None:
             scenarios = generate_scenarios(tools, cases_per_tool=3, include_edge_cases=True)
             results = run_scenarios(client, scenarios)
             server_info = client.server_info
+            instructions = client.server_instructions
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to run the sample server: {exc}", console)
         sys.exit(1)
@@ -1153,7 +1157,8 @@ def demo() -> None:
         server_info=server_info,
         tools=tools,
         results=results,
-        lint=lint_tools(tools),
+        lint=lint_tools(tools, instructions=instructions),
+        instructions=instructions,
     )
     print_scorecard(card, console=console)
     console.print(

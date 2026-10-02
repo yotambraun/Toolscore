@@ -25,6 +25,7 @@ from toolscore.generators.synthetic import (
     schema_types,
 )
 from toolscore.mcp.client import MCPError, MCPTimeoutError
+from toolscore.mcp.lint_rules import dangling_reference_issues, poisoning_issues
 
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPStdioClient, MCPToolDef
@@ -519,8 +520,8 @@ def _is_typed(prop_schema: Any) -> bool:
     return False
 
 
-def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
-    """Statically lint tool schemas for common quality problems.
+def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list[LintIssue]:
+    """Statically lint tool schemas and the text a model reads.
 
     Errors (real defects):
 
@@ -535,10 +536,21 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
     * a tool name that is not ``snake_case``,
     * properties present but no ``required`` list declared.
 
-    Each issue carries a concrete ``fix`` hint.
+    Text checks over tool names, descriptions, parameter descriptions and the
+    server ``instructions`` (see :mod:`toolscore.mcp.lint_rules`):
+
+    * a reference to a tool the server does not expose (warning),
+    * hidden Unicode tag characters or bidirectional controls (error),
+    * tool-poisoning directives such as "do not tell the user" (error),
+    * other invisible format characters (warning).
+
+    Each issue carries a concrete ``fix`` hint. Issues found in the instructions
+    are reported under the tool name ``"<instructions>"``.
 
     Args:
         tools: The tool definitions to lint.
+        instructions: The server's ``instructions`` from the initialize result
+            (:attr:`MCPStdioClient.server_instructions`), if any.
 
     Returns:
         Every issue found, across all tools.
@@ -650,4 +662,6 @@ def lint_tools(tools: list[MCPToolDef]) -> list[LintIssue]:
                     )
                 )
 
+    issues.extend(dangling_reference_issues(tools, instructions))
+    issues.extend(poisoning_issues(tools, instructions))
     return issues
