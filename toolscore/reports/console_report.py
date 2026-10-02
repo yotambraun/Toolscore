@@ -15,6 +15,7 @@ from toolscore.explainer import (
     generate_explanations,
     get_all_tips,
 )
+from toolscore.reports.findings import behavior_findings
 
 if TYPE_CHECKING:
     from toolscore.core import EvaluationResult
@@ -150,6 +151,24 @@ def _print_top_issues(result: EvaluationResult, console: Console, limit: int = 8
     console.print()
 
 
+def _print_behavior_findings(result: EvaluationResult, console: Console) -> None:
+    """Print failed calls, blind retries, credentials and forbidden calls, if any.
+
+    Args:
+        result: The evaluation result to report on.
+        console: The console to print to.
+    """
+    findings = behavior_findings(result)
+    if not findings:
+        return
+
+    console.print("[bold]Behavior and safety[/bold]")
+    for severity, message in findings:
+        style = _get_severity_style(severity)
+        console.print(f"  [{style}]{severity.upper()}[/{style}]  {message}")
+    console.print()
+
+
 def print_evaluation_summary(
     result: EvaluationResult,
     console: Console | None = None,
@@ -224,6 +243,7 @@ def print_evaluation_summary(
 
         # Top issues to fix — the actionable verdict (mirrors the MCP scorecard).
         _print_top_issues(result, console)
+        _print_behavior_findings(result, console)
 
         console.print("[dim]Use --verbose for detailed metrics and failure analysis.[/dim]")
         console.print()
@@ -327,6 +347,7 @@ def print_evaluation_summary(
     console.print(f"[bold]Grade {result.grade}[/bold]")
     console.print()
     _print_top_issues(result, console)
+    _print_behavior_findings(result, console)
 
     # Metric-level tips (complementary to the per-call issues above).
     if show_explanations and explanations:

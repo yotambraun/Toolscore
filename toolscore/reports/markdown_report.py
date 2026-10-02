@@ -4,6 +4,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from toolscore.reports.findings import behavior_findings
+
 if TYPE_CHECKING:
     from toolscore.core import EvaluationResult
 
@@ -86,6 +88,16 @@ def generate_markdown_report(
 
     lines.append("")
 
+    # Behavior and safety: failed calls, blind retries, credentials, forbidden calls
+    findings = behavior_findings(result)
+    if findings:
+        lines.append("## 🛡️ Behavior and Safety")
+        lines.append("")
+        for severity, message in findings:
+            icon = "🔴" if severity == "error" else "🟡"
+            lines.append(f"- {icon} **{severity}**: {message}")
+        lines.append("")
+
     # Efficiency Metrics
     if "efficiency_metrics" in metrics:
         lines.append("## ⚡ Efficiency Metrics")
@@ -105,6 +117,12 @@ def generate_markdown_report(
         if "extra_rate" in eff_metrics:
             value = eff_metrics["extra_rate"]
             lines.append(f"| Extra Call Rate | {value * 100:.2f}% |")
+
+        if eff_metrics.get("error_count"):
+            lines.append(f"| Failed Calls | {eff_metrics['error_count']} |")
+            lines.append(
+                f"| Retries After Failure | {eff_metrics.get('retry_after_error_count', 0)} |"
+            )
 
         lines.append("")
 

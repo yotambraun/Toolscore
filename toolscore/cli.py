@@ -31,6 +31,7 @@ from toolscore.debug import run_interactive_debug
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
 from toolscore.metrics.llm_judge import JudgeConfig, Provider
+from toolscore.metrics.policy import load_forbidden_rules
 from toolscore.reports import (
     generate_csv_report,
     generate_html_report,
@@ -149,6 +150,21 @@ def main() -> None:
     default=None,
     help="Save evaluation as baseline for regression testing",
 )
+@click.option(
+    "--forbidden",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "JSON file of calls the agent must never make, e.g. "
+        '[{"tool": "run_shell", "args": {"command": {"$regex": ".*rm -rf.*"}}}]'
+    ),
+)
+@click.option(
+    "--fail-on-violations",
+    is_flag=True,
+    default=False,
+    help="Exit with status 1 if a forbidden call or a credential in tool arguments is found",
+)
 def eval(
     gold_file: Path,
     trace_file: Path,
@@ -165,6 +181,8 @@ def eval(
     verbose: bool,
     debug: bool,
     save_baseline: Path | None,
+    forbidden: Path | None,
+    fail_on_violations: bool,
 ) -> None:
     """Evaluate an agent trace against gold standard.
 
@@ -201,6 +219,7 @@ def eval(
             format=format,
             validate_side_effects=not no_side_effects,
             judge=judge,
+            forbidden=load_forbidden_rules(forbidden) if forbidden else None,
         )
 
         # Generate reports
@@ -246,6 +265,16 @@ def eval(
         if markdown:
             console.print(f"[dim]>[/dim] Markdown report: [cyan]{markdown}[/cyan]")
         console.print()
+
+        violations = len(result.policy_violations) + (
+            result.metrics.get("security_metrics") or {}
+        ).get("secret_count", 0)
+        if fail_on_violations and violations:
+            print_error(
+                f"{violations} forbidden call(s) or credential(s) found (--fail-on-violations)",
+                console,
+            )
+            sys.exit(1)
 
     except FileNotFoundError as e:
         print_error(f"File not found: {e}", console)

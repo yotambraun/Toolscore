@@ -22,6 +22,12 @@ from toolscore.metrics.llm_judge import (
     calculate_batch_semantic_correctness,
     calculate_semantic_correctness,
 )
+from toolscore.metrics.policy import (
+    check_forbidden_calls,
+    load_forbidden_rules,
+    rules_from_json,
+)
+from toolscore.metrics.security import find_secrets
 from toolscore.metrics.sequence import calculate_edit_distance
 from toolscore.metrics.side_effects import calculate_side_effect_success_rate
 from toolscore.metrics.tool_correctness import (
@@ -53,7 +59,11 @@ __all__ = [
     "calculate_tool_correctness",
     "calculate_tool_correctness_with_args",
     "calculate_trajectory_accuracy",
+    "check_forbidden_calls",
     "estimate_tokens",
     "estimate_trace_cost",
+    "find_secrets",
     "format_cost",
+    "load_forbidden_rules",
+    "rules_from_json",
 ]
