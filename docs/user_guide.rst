@@ -50,6 +50,28 @@ Percentage of unnecessary or duplicate tool calls.
 * **0.0**: No redundant calls
 * **> 0.0**: Some calls were unnecessary
 
+Required Call Recall
+^^^^^^^^^^^^^^^^^^^^
+
+Share of expected calls that were made **and did not fail**, counting repeats
+(``None`` when nothing is expected). Selection accuracy only judges the calls
+that were made, so this is the metric that drops when an agent skips required
+calls or gives up after an error. Read it as ``result.required_call_recall``.
+
+Failed Calls and Blind Retries
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``error_count``, ``error_rate`` and ``retry_after_error_count`` in
+``metrics["efficiency_metrics"]`` count calls whose trace marks them as failed,
+and calls that repeat a failed call unchanged.
+
+Credentials and Forbidden Calls
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+``metrics["security_metrics"]`` lists credentials found in tool arguments, and
+``metrics["policy_metrics"]`` the calls that match ``forbidden=`` rules. See
+:doc:`behavior_safety` for all four checks.
+
 Side-Effect Success Rate
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -124,8 +146,10 @@ full contract.
 Custom weights are renormalized
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The composite ``score`` is a weighted blend of ``selection_accuracy``,
-``argument_f1``, ``sequence_accuracy``, and ``redundant_rate``. When you pass
+The composite ``score`` is a weighted blend of ``selection_accuracy`` (0.4),
+``argument_f1`` (0.3), ``sequence_accuracy`` (0.2) and ``redundant_rate`` (0.1),
+plus an opt-in ``required_call_recall`` weight (0 by default, so existing scores
+are unchanged). When you pass
 ``weights=``, your values are **merged with the defaults and then renormalized so
 they sum to 1.0** before scoring — you do not have to make them add up yourself.
 
@@ -147,6 +171,22 @@ the MCP scorecard.
 
 Unknown weight keys, negative/non-finite values, and an all-zero total are
 rejected with a ``ValueError``.
+
+To make skipped or failed required calls lower the score, weight
+``required_call_recall``. The same weights work in :func:`~toolscore.evaluate_trace`
+and on the command line:
+
+.. code-block:: python
+
+   evaluate(expected, actual, weights={"required_call_recall": 0.3})
+
+.. code-block:: bash
+
+   toolscore eval gold.json trace.json --weight required_call_recall=0.3
+
+.. versionadded:: 1.10.0
+   The ``required_call_recall`` weight, ``evaluate_trace(weights=...)`` and
+   ``--weight``.
 
 Strict mode
 ^^^^^^^^^^^
@@ -232,7 +272,21 @@ For better performance, specify the format:
        format="openai"
    )
 
-Supported formats: ``"auto"``, ``"openai"``, ``"anthropic"``, ``"langchain"``, ``"custom"``
+Supported formats: ``"auto"``, ``"openai"``, ``"anthropic"``, ``"gemini"``,
+``"mcp"`` (JSON-RPC 2.0 messages and sessions recorded by ``toolscore mcp
+record``), ``"langchain"``, ``"otel"`` (OpenTelemetry GenAI spans) and
+``"custom"``.
+
+Each call in a custom trace may carry what happened, not only what was called:
+``result``, ``error`` or ``is_error``, ``duration``, ``cost`` and ``id``. They
+are kept on the loaded calls and feed the :doc:`behavior_safety`:
+
+.. code-block:: json
+
+   [
+     {"tool": "deploy", "args": {"env": "production"}, "is_error": true,
+      "error": "deploy timed out", "duration": 30.0}
+   ]
 
 Capturing Traces
 ----------------
@@ -441,6 +495,12 @@ Machine-readable format for programmatic access:
 
    json_path = generate_json_report(result, "report.json")
 
+The report's ``summary`` holds the verdict (``score``, ``grade``, ``weights``,
+``required_call_recall``, ``failed_calls``, ``policy_violations``, ``secrets``);
+``metrics`` holds every metric and ``gold_calls``/``trace_calls`` the calls.
+For a versioned, JSON-safe record of one evaluation, use
+:meth:`EvaluationResult.to_dict <toolscore.core.EvaluationResult.to_dict>`.
+
 HTML Reports
 ^^^^^^^^^^^^
 
@@ -455,6 +515,10 @@ Human-friendly format with visualization:
    from toolscore.reports import generate_html_report
 
    html_path = generate_html_report(result, "report.html")
+
+The Markdown report (``--markdown report.md``) suits pull-request comments and
+GitHub job summaries. The console, Markdown and HTML reports all show the score,
+the grade, the required calls completed and the behavior and safety findings.
 
 Batch Evaluation
 ----------------

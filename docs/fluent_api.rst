@@ -85,15 +85,19 @@ Chain-Method Reference
        name but do not check arguments".
    * - ``.then_calls(tool, **args)``
      - Alias for :meth:`calls` — reads more naturally when describing sequences.
-   * - ``.does_not_call(tool)``
-     - Assert that *tool* must **not** appear in the actual calls.  Can be combined
-       with :meth:`calls` or used alone (forbidden-only contract).
+   * - ``.does_not_call(tool, **args)``
+     - Assert that *tool* must **not** be called.  With keyword arguments, only
+       calls whose arguments match them (values or :doc:`matchers`) are
+       forbidden, e.g. ``does_not_call("run_shell", command=Regex(r".*rm -rf.*"))``.
+       Can be combined with :meth:`calls` or used alone (forbidden-only contract).
    * - ``.with_score(min_score)``
      - Set the minimum composite score (default: **0.9**).  Raises
        :class:`~toolscore.ToolScoreAssertionError` with a diff table when not met.
    * - ``.with_weights(**weights)``
      - Override composite-score weights.  Valid keys: ``selection_accuracy``,
-       ``argument_f1``, ``sequence_accuracy``, ``redundant_rate``.
+       ``argument_f1``, ``sequence_accuracy``, ``redundant_rate``,
+       ``required_call_recall`` (0 by default; weight it to penalize required
+       calls that were skipped or failed).
    * - ``.with_strict_args()``
      - Enable strict argument comparison: no int/float coercion, no string strip.
    * - ``.run()``
@@ -166,6 +170,20 @@ forbidden-call check is applied:
 
     # Assert the agent never calls the dangerous tool, regardless of what else it does
     expect(actual).does_not_call("delete_all_files").run()
+
+Forbid only some calls to a tool by passing argument conditions. A safe
+``run_shell`` call passes; a destructive one fails the assertion and the
+message lists the offending call:
+
+.. code-block:: python
+
+    from toolscore import Regex, expect
+
+    expect(actual).does_not_call("run_shell", command=Regex(r".*rm -rf.*")).run()
+
+``Regex`` matches the whole string, so wrap the pattern in ``.*`` to match it
+anywhere.  For policies over whole traces, files and CI, see
+:doc:`behavior_safety`.
 
 API Reference
 -------------

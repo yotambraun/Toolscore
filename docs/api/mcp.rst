@@ -28,6 +28,15 @@ Client
 
 .. autoexception:: MCPTimeoutError
 
+.. autofunction:: content_to_text
+
+Recording sessions
+------------------
+
+.. autoclass:: MCPRecorder
+   :members:
+   :undoc-members:
+
 Server configuration
 --------------------
 
@@ -45,6 +54,10 @@ Scorecard harness
 .. autofunction:: run_scenarios
 
 .. autofunction:: lint_tools
+
+.. autofunction:: toolscore.mcp.lint_rules.dangling_reference_issues
+
+.. autofunction:: toolscore.mcp.lint_rules.poisoning_issues
 
 .. autoclass:: Scenario
    :members:

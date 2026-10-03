@@ -26,6 +26,8 @@ Main Functions
 
 .. autofunction:: auto_extract
 
+.. autofunction:: from_otel
+
 .. currentmodule:: toolscore.core
 
 Result Container

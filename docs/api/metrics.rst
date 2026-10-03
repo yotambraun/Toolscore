@@ -22,10 +22,34 @@ Argument Metrics
 
 .. autofunction:: calculate_argument_f1
 
+Required Calls
+--------------
+
+.. autofunction:: calculate_required_call_recall
+
 Efficiency Metrics
 ------------------
 
 .. autofunction:: calculate_redundant_call_rate
+
+Reports ``error_count``, ``error_rate`` and ``retry_after_error_count`` alongside
+the redundancy and loop (``identical_rate``) metrics.
+
+Safety: Credentials and Forbidden Calls
+---------------------------------------
+
+See :doc:`../behavior_safety` for the guide, the credential formats and the JSON
+rule operators.
+
+.. autofunction:: find_secrets
+
+.. autofunction:: check_forbidden_calls
+
+.. autofunction:: rules_from_json
+
+.. autofunction:: load_forbidden_rules
+
+.. autofunction:: toolscore.metrics.policy.call_matches_rule
 
 Side-Effect Metrics
 -------------------
