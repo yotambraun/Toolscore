@@ -235,12 +235,34 @@ Custom Format
      ]
    }
 
+Other Trace Sources
+^^^^^^^^^^^^^^^^^^^
+
+Sessions recorded with ``toolscore mcp record`` and OpenTelemetry exports
+(``{"resourceSpans": [...]}``) are detected automatically, so the same
+``toolscore eval gold.json trace.json`` command scores them. See
+:doc:`frameworks`.
+
+Check behavior and safety
+-------------------------
+
+Every evaluation also reports failed calls, blind retries, the required calls
+completed and credentials passed into tool arguments. Add calls the agent must
+never make, and fail the build when one happens:
+
+.. code-block:: bash
+
+   toolscore eval gold.json trace.json --forbidden forbidden.json --fail-on-violations
+
+See :doc:`behavior_safety`.
+
 Next Steps
 ----------
 
 * Read the :doc:`user_guide` for detailed usage
 * Lock in behavior with :doc:`snapshot_testing`
 * Assert on argument shape with :doc:`matchers`
+* Catch failed calls, leaked credentials and forbidden calls with :doc:`behavior_safety`
 * Pass raw framework responses with the :doc:`frameworks` extractors
 * Test an MCP server with :doc:`mcp_testing` -- or run ``toolscore demo`` to grade a bundled sample server in seconds (no setup, no API key)
 * Add semantic scoring with the :doc:`llm_judge`

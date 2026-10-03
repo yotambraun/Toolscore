@@ -7,7 +7,9 @@ can pass raw responses directly to :func:`toolscore.evaluate` or
 dicts.
 
 All extractors return ``list[dict]`` with ``"tool"`` and ``"args"`` keys — the
-same format accepted by :func:`toolscore.evaluate`.
+same format accepted by :func:`toolscore.evaluate`. Where the source records
+them, calls also carry ``result``, ``error``, ``is_error`` and ``duration``,
+which feed the :doc:`behavior_safety`.
 
 .. contents::
    :local:
@@ -210,3 +212,74 @@ Accepted inputs:
     expected = [{"tool": "search", "args": {"q": "AI agents"}}]
     result = evaluate(expected=expected, actual=from_crewai(crew_result))
     print(result.score)
+
+OpenTelemetry (any instrumented framework)
+------------------------------------------
+
+Frameworks and observability platforms that follow the OpenTelemetry semantic
+conventions for generative AI record each tool execution as a span. Use
+:func:`toolscore.from_otel` (or pass the spans straight to
+:func:`toolscore.evaluate`; they are auto-detected) to turn those spans into
+tool calls, so any instrumented agent can be scored without a dedicated
+extractor.
+
+Recognized spans:
+
+- GenAI ``execute_tool`` spans: ``gen_ai.operation.name == "execute_tool"`` with
+  ``gen_ai.tool.name`` and, when recorded, ``gen_ai.tool.call.arguments``,
+  ``gen_ai.tool.call.result`` and ``gen_ai.tool.call.id``
+- MCP client spans: ``mcp.method.name == "tools/call"`` with
+  ``gen_ai.tool.name`` (the call id comes from ``jsonrpc.request.id``)
+
+Other spans (agent, chat, embeddings) are skipped. A call failed when the span
+has ``error.type`` or an ERROR status. Calls are returned in start-time order
+with ``tool``, ``args``, ``result``, ``is_error``, ``error``, ``duration``
+(seconds) and ``id``; arguments and results recorded as JSON strings are
+decoded.
+
+Accepted inputs:
+
+- An **OTLP JSON export** (``{"resourceSpans": [...]}``), as written by OTLP/JSON
+  exporters and the collector's file exporter
+- A **list of span dicts**
+- A **list of SDK span objects** (``ReadableSpan``), for example from an
+  ``InMemorySpanExporter`` in tests
+
+.. code-block:: python
+
+    import json
+    from toolscore import evaluate, from_otel
+
+    spans = json.load(open("examples/otel_genai_spans.json"))
+    for call in from_otel(spans):
+        print(call["tool"], call["is_error"], call["error"])
+
+    result = evaluate(
+        expected=[{"tool": "search_orders"}, {"tool": "issue_refund"}, {"tool": "send_email"}],
+        actual=spans,
+    )
+    print(result.required_call_recall)   # 0.67: the refund call failed
+
+From the command line, OTLP JSON files are auto-detected, or pass
+``--format otel``:
+
+.. code-block:: bash
+
+    toolscore eval gold.json spans.json --format otel
+
+.. note::
+
+    Tool arguments and results are opt-in attributes in the conventions
+    (they may contain sensitive data). Without them, Toolscore still scores
+    tool selection, order and failures, but not arguments.
+
+MCP sessions
+------------
+
+To score what an agent did against an MCP server, record the session with
+``toolscore mcp record`` (see :ref:`recording-sessions`) and evaluate the file;
+recorded sessions and plain JSON-RPC 2.0 message lists are auto-detected:
+
+.. code-block:: bash
+
+    toolscore eval gold.json session.json

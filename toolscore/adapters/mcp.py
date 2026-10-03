@@ -18,6 +18,7 @@ class MCPAdapter(BaseAdapter):
     using JSON-RPC 2.0 messaging format.
 
     Supports:
+
     - Tool call requests (JSON-RPC 2.0 method calls)
     - Tool call results (JSON-RPC 2.0 responses)
     - Error handling (JSON-RPC 2.0 errors)
@@ -29,7 +30,8 @@ class MCPAdapter(BaseAdapter):
     ``is_error``), so one tool call stays one :class:`ToolCall`. A response with
     no matching request is reported on its own, as before.
 
-    Example MCP tool call request:
+    Example MCP tool call request::
+
         {
             "jsonrpc": "2.0",
             "method": "tools/call",
@@ -40,7 +42,8 @@ class MCPAdapter(BaseAdapter):
             "id": 1
         }
 
-    Example MCP tool call result:
+    Example MCP tool call result::
+
         {
             "jsonrpc": "2.0",
             "id": 1,

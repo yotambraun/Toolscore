@@ -20,11 +20,13 @@ What is Toolscore?
 
 Toolscore evaluates LLM tool usage - it doesn't call LLM APIs directly. Think of it as a testing framework for function-calling agents:
 
-✅ **Evaluates** existing tool usage traces from OpenAI, Anthropic, or custom sources
+✅ **Evaluates** tool usage traces from OpenAI, Anthropic, Gemini, agent frameworks, recorded MCP sessions, OpenTelemetry spans, or custom sources
 
 ✅ **Compares** actual behavior against expected gold standards
 
-✅ **Reports** detailed metrics on accuracy, efficiency, and correctness
+✅ **Reports** detailed metrics on accuracy, efficiency, and correctness, plus failed calls, leaked credentials and forbidden calls
+
+✅ **Grades and lints** MCP servers, including references to missing tools and tool poisoning
 
 ❌ **Does NOT** call LLM APIs or execute tools (you capture traces separately)
 
@@ -36,15 +38,21 @@ Quick Start
    pip install tool-scorer
 
    # Run evaluation
-   tool-scorer eval examples/gold_calls.json examples/trace_openai.json --html report.html
+   toolscore eval examples/gold_calls.json examples/trace_openai.json --html report.html
+
+   # Grade an MCP server
+   toolscore mcp test "python my_server.py"
 
 Key Features
 ------------
 
-* **Comprehensive Metrics Suite**: Tool invocation accuracy, selection accuracy, sequence edit distance, argument matching, redundant calls, and side-effect validation
-* **Multiple Trace Adapters**: Built-in support for OpenAI, Anthropic Claude, and custom JSON formats
-* **CLI and Python API**: Command-line interface and programmatic usage
-* **Rich Reports**: Interactive HTML and machine-readable JSON reports
+* **Comprehensive Metrics Suite**: Tool invocation accuracy, selection accuracy, sequence edit distance, argument matching, redundant and repeated calls, required calls completed, and side-effect validation
+* **Behavior and Safety Checks**: Failed calls, blind retries, credentials passed into tool arguments, and forbidden-call policies, with a CI gate (:doc:`behavior_safety`)
+* **Snapshot Testing**: Record, approve and replay your agent's tool calls in pytest (:doc:`snapshot_testing`)
+* **MCP Scorecard, Lint and Recorder**: Grade any MCP server, lint it for missing-tool references and tool poisoning, and record real sessions (:doc:`mcp_testing`)
+* **Native Everywhere**: OpenAI, Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI, MCP and OpenTelemetry traces (:doc:`frameworks`)
+* **CLI, Python API and GitHub Action**: Command-line interface, programmatic usage and CI gates
+* **Rich Reports**: Console, HTML, Markdown, CSV and machine-readable JSON reports, plus a versioned record for evaluation harnesses
 * **Extensible**: Easy to add custom metrics and validators
 
 Contents
@@ -66,6 +74,7 @@ Contents
    matchers
    frameworks
    fluent_api
+   behavior_safety
    llm_judge
    mcp_testing
    extending

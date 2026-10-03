@@ -40,10 +40,11 @@ Main Components
 ---------------
 
 * :doc:`core` - Core evaluation logic
-* :doc:`adapters` - Trace format adapters (OpenAI, Anthropic, custom)
-* :doc:`metrics` - Metric calculators (accuracy, sequence, arguments, etc.)
+* :doc:`adapters` - Trace format adapters (OpenAI, Anthropic, Gemini, MCP, OpenTelemetry, LangChain, custom)
+* :doc:`metrics` - Metric calculators (accuracy, sequence, arguments, required calls, errors, credentials, forbidden calls)
 * :doc:`validators` - Side-effect validators (HTTP, filesystem, database)
-* :doc:`reports` - Report generators (JSON, HTML)
+* :doc:`mcp` - MCP client, session recorder, lint rules and scorecard
+* :doc:`reports` - Report generators (JSON, HTML, Markdown, CSV)
 
 Quick Reference
 ---------------
@@ -70,6 +71,9 @@ Adapters
 
    OpenAIAdapter
    AnthropicAdapter
+   GeminiAdapter
+   MCPAdapter
+   OTelAdapter
    CustomAdapter
    ToolCall
 
@@ -86,6 +90,9 @@ Metrics
    calculate_edit_distance
    calculate_argument_f1
    calculate_redundant_call_rate
+   calculate_required_call_recall
+   find_secrets
+   check_forbidden_calls
    calculate_side_effect_success_rate
    calculate_latency
    calculate_cost_attribution
@@ -112,3 +119,4 @@ Reports
 
    generate_json_report
    generate_html_report
+   generate_markdown_report

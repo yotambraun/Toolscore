@@ -43,6 +43,36 @@ LangChain Adapter
 
 Supports both legacy (AgentAction) and modern (ToolCall) LangChain formats.
 
+Gemini Adapter
+^^^^^^^^^^^^^^
+
+.. autoclass:: GeminiAdapter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+MCP Adapter
+^^^^^^^^^^^
+
+.. autoclass:: MCPAdapter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Reads JSON-RPC 2.0 message lists and sessions written by ``toolscore mcp record``.
+Each ``tools/call`` response is paired with its request by id, so the call keeps
+its result, error and duration.
+
+OpenTelemetry Adapter
+^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: OTelAdapter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. autofunction:: toolscore.adapters.otel.tool_calls_from_otel
+
 Custom Adapter
 ^^^^^^^^^^^^^^
 

@@ -74,7 +74,7 @@ class MCPRecorder:
     def __init__(
         self,
         command: list[str],
-        output: Path,
+        output: str | Path,
         env: dict[str, str] | None = None,
         cwd: str | Path | None = None,
     ) -> None:
