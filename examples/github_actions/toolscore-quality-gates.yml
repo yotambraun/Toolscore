@@ -31,7 +31,24 @@ jobs:
           threshold: '0.85'
           fail-on-regression: 'false'  # Don't fail yet
 
-  # Job 2: Regression check (only if threshold passes)
+  # Job 2: Safety gate - forbidden calls and credentials in tool arguments
+  safety-check:
+    runs-on: ubuntu-latest
+    name: Safety Check
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Agent Behavior
+        uses: yotambraun/toolscore@v1
+        with:
+          gold-file: tests/gold_standard.json
+          trace-file: tests/agent_trace.json
+          forbidden-file: tests/forbidden.json  # e.g. examples/guardrails/forbidden.json
+          fail-on-violations: 'true'
+          fail-on-regression: 'false'
+
+  # Job 3: Regression check (only if threshold passes)
   regression-check:
     runs-on: ubuntu-latest
     name: Regression Check
@@ -51,7 +68,7 @@ jobs:
           regression-threshold: '0.05'
           fail-on-regression: 'true'
 
-  # Job 3: Report summary
+  # Job 4: Report summary
   report:
     runs-on: ubuntu-latest
     name: Generate Report

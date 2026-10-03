@@ -13,7 +13,11 @@ from toolscore import Contains, OneOf, Regex, ToolScoreAssertionError, evaluate,
 from toolscore.cli import main
 from toolscore.core import evaluate_trace
 from toolscore.metrics.policy import rules_from_json
-from toolscore.reports import generate_markdown_report, print_evaluation_summary
+from toolscore.reports import (
+    generate_html_report,
+    generate_markdown_report,
+    print_evaluation_summary,
+)
 from toolscore.reports.findings import behavior_findings
 
 if TYPE_CHECKING:
@@ -217,17 +221,19 @@ def test_reports_list_behavior_and_safety_findings(tmp_path: Path) -> None:
         ("error", "call 1 run_shell matches forbidden rule 1: no shell access"),
         (
             "error",
-            "call 4 http_request passes a github_token in 'headers.Authorization' "
-            f"({GITHUB_TOKEN[:4]}…{GITHUB_TOKEN[-2:]})",
+            "call 4 http_request passes a credential (github_token) in "
+            f"'headers.Authorization': {GITHUB_TOKEN[:4]}…{GITHUB_TOKEN[-2:]}",
         ),
         ("warning", "2 of 4 tool calls failed (fetch x2)"),
-        ("warning", "1 call(s) retried a failed call with the same arguments"),
+        ("warning", "1 call repeats a failed call with the same arguments"),
     ]
 
     report = generate_markdown_report(result, tmp_path / "report.md").read_text(encoding="utf-8")
     assert "## 🛡️ Behavior and Safety" in report
     assert "matches forbidden rule 1: no shell access" in report
     assert "| Failed Calls | 2 |" in report
+    assert f"- **Score:** {result.score * 100:.1f}% (grade {result.grade})" in report
+    assert "- **Required Calls Completed:** 0 of 1" in report
 
     console = Console(record=True, width=200)
     print_evaluation_summary(result, console=console)
@@ -276,3 +282,16 @@ def test_cli_forbidden_file_and_fail_on_violations(tmp_path: Path) -> None:
         ],
     )
     assert passed.exit_code == 0, passed.output
+
+
+def test_html_report_shows_score_and_escapes_findings(tmp_path: Path) -> None:
+    trace = [{"tool": "<script>alert(1)</script>", "args": {}, "is_error": True}]
+    result = evaluate(expected=[{"tool": "search"}], actual=trace)
+
+    html = generate_html_report(result, tmp_path / "r.html").read_text(encoding="utf-8")
+
+    assert "Behavior and Safety" in html
+    assert "Required Calls Completed" in html
+    assert f"({result.grade})" in html
+    assert "<script>alert(1)</script>" not in html
+    assert "&lt;script&gt;" in html

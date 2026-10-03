@@ -41,6 +41,11 @@ def generate_markdown_report(
     lines.append("")
     lines.append(f"- **Gold Standard Calls:** {len(result.gold_calls)}")
     lines.append(f"- **Actual Trace Calls:** {len(result.trace_calls)}")
+    lines.append(f"- **Score:** {result.score * 100:.1f}% (grade {result.grade})")
+    recall = result.required_call_recall
+    if recall is not None:
+        completed = round(recall * len(result.gold_calls))
+        lines.append(f"- **Required Calls Completed:** {completed} of {len(result.gold_calls)}")
     lines.append("")
 
     # Key Metrics Table

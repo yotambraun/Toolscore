@@ -1,0 +1,4 @@
+[
+  {"tool": "run_shell", "args": {"command": "make test"}},
+  {"tool": "deploy", "args": {"env": "production"}}
+]
