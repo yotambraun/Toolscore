@@ -160,6 +160,16 @@ def main() -> None:
     ),
 )
 @click.option(
+    "--weight",
+    "weight_overrides",
+    multiple=True,
+    metavar="NAME=VALUE",
+    help=(
+        "Override a score weight (repeatable), e.g. --weight required_call_recall=0.3 "
+        "to make skipped or failed required calls lower the score"
+    ),
+)
+@click.option(
     "--fail-on-violations",
     is_flag=True,
     default=False,
@@ -182,6 +192,7 @@ def eval(
     debug: bool,
     save_baseline: Path | None,
     forbidden: Path | None,
+    weight_overrides: tuple[str, ...],
     fail_on_violations: bool,
 ) -> None:
     """Evaluate an agent trace against gold standard.
@@ -220,6 +231,7 @@ def eval(
             validate_side_effects=not no_side_effects,
             judge=judge,
             forbidden=load_forbidden_rules(forbidden) if forbidden else None,
+            weights=_parse_weights(weight_overrides),
         )
 
         # Generate reports
@@ -838,6 +850,22 @@ def regression(
         if verbose:
             raise
         sys.exit(2)
+
+
+def _parse_weights(overrides: tuple[str, ...]) -> dict[str, float] | None:
+    """Parse repeated ``--weight NAME=VALUE`` options into a weights dict."""
+    if not overrides:
+        return None
+    weights: dict[str, float] = {}
+    for item in overrides:
+        name, sep, value = item.partition("=")
+        try:
+            weights[name.strip()] = float(value)
+        except ValueError:
+            sep = ""
+        if not sep:
+            raise click.BadParameter(f"expected NAME=VALUE, got {item!r}", param_hint="--weight")
+    return weights
 
 
 def _resolve_mcp_command(

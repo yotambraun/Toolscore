@@ -151,6 +151,28 @@ def _print_top_issues(result: EvaluationResult, console: Console, limit: int = 8
     console.print()
 
 
+def _print_completion(result: EvaluationResult, console: Console) -> None:
+    """Print how many required calls were completed, when some were not.
+
+    The default score judges the calls that were made, so a trace that skips or
+    fails required calls can still grade well; this line makes that visible.
+
+    Args:
+        result: The evaluation result to report on.
+        console: The console to print to.
+    """
+    recall = result.required_call_recall
+    if recall is None or recall >= 1.0:
+        return
+    required = len(result.gold_calls)
+    completed = round(recall * required)
+    console.print(
+        f"[bold red]Required calls completed: {completed} of {required}[/bold red] "
+        "[dim](missing or failed; not part of the default score)[/dim]"
+    )
+    console.print()
+
+
 def _print_behavior_findings(result: EvaluationResult, console: Console) -> None:
     """Print failed calls, blind retries, credentials and forbidden calls, if any.
 
@@ -240,6 +262,7 @@ def print_evaluation_summary(
             )
         )
         console.print()
+        _print_completion(result, console)
 
         # Top issues to fix — the actionable verdict (mirrors the MCP scorecard).
         _print_top_issues(result, console)
@@ -346,6 +369,7 @@ def print_evaluation_summary(
     # what to fix (per call), with the explainer Tips below as metric-level detail.
     console.print(f"[bold]Grade {result.grade}[/bold]")
     console.print()
+    _print_completion(result, console)
     _print_top_issues(result, console)
     _print_behavior_findings(result, console)
 

@@ -185,12 +185,15 @@ def calculate_required_call_recall(
     gold_calls: list[ToolCall],
     trace_calls: list[ToolCall],
 ) -> float | None:
-    """Share of required calls that the trace made, counting every required call.
+    """Share of required calls that the trace completed, counting every required call.
 
-    Each expected call needs its own actual call with the same tool name, so a
-    contract that requires ``search`` twice is half met by one ``search``.
-    :func:`calculate_tool_correctness` compares *sets* of tool names and reports
-    that case as fully correct. Order and arguments are not considered here.
+    Each expected call needs its own actual call with the same tool name that did
+    not fail (see :attr:`ToolCall.is_error`), so a contract that requires
+    ``search`` twice is half met by one ``search``, and a required call whose
+    only attempt failed is not met. :func:`calculate_tool_correctness` compares
+    *sets* of tool names and reports both cases as fully correct. Order and
+    arguments are not considered here. Traces without error information count
+    every call as completed.
 
     Args:
         gold_calls: Expected tool calls (the requirements).
@@ -208,5 +211,5 @@ def calculate_required_call_recall(
     if not gold_calls:
         return None
     needed = Counter(call.tool for call in gold_calls)
-    made = Counter(call.tool for call in trace_calls)
+    made = Counter(call.tool for call in trace_calls if not call.is_error)
     return sum((needed & made).values()) / len(gold_calls)

@@ -151,7 +151,8 @@ class Expectation:
         """Override composite-score weights.
 
         Valid keys: ``selection_accuracy``, ``argument_f1``,
-        ``sequence_accuracy``, ``redundant_rate``.
+        ``sequence_accuracy``, ``redundant_rate``, ``required_call_recall``
+        (0 by default; weight it to penalize skipped or failed required calls).
 
         Args:
             **weights: Weight key/value pairs.
