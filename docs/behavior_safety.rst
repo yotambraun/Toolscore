@@ -48,7 +48,7 @@ Failed calls and blind retries
 ------------------------------
 
 A call failed when its trace says so: ``"is_error": true`` or a non-empty
-``"error"`` on the call (the MCP adapter sets both from a JSON-RPC error or an
+``"error"`` on the call (``""``, ``null``, ``{}`` and ``[]`` mean no error) (the MCP adapter sets both from a JSON-RPC error or an
 ``isError`` result; the OpenTelemetry importer from ``error.type`` or an ERROR
 span status). Traces without error information report zero failures.
 
@@ -105,15 +105,20 @@ scanned for credential formats with distinctive prefixes:
 
 Each finding has the call ``index``, ``tool``, argument ``path`` (for example
 ``headers.Authorization`` or ``files[0].content``), ``kind`` and a redacted
-``preview``; the credential itself is never repeated in the findings or the
-reports. Because only distinctive formats are matched, ordinary values (ids,
-hashes, UUIDs) are not reported: the scan found no false positives on 861 real
-agent tool calls.
+``preview``. Because only distinctive formats are matched (and OpenAI and
+Anthropic keys must also look random: digits and both letter cases), ordinary
+values such as ids, hashes, UUIDs and long slugs are not reported: the scan
+found no false positives on 861 real agent tool calls.
+
+The console, Markdown and HTML reports replace every credential they would print
+with ``[REDACTED kind: preview]``, so a Markdown report posted to a GitHub job
+summary does not publish a key. :func:`~toolscore.metrics.redact_secrets` does the
+same for your own output.
 
 .. note::
 
-   The trace's own arguments are kept as recorded, so a report that includes the
-   calls (the JSON report, ``to_dict()``) still contains the credential. Treat
+   The trace's own arguments are kept as recorded, so the JSON report and
+   ``to_dict()``, which hold every call, still contain the credential. Treat
    those files like the trace they came from.
 
 Forbidden calls
@@ -127,13 +132,13 @@ Policies are reported, not scored: they do not change the score.
 
 .. code-block:: python
 
-   from toolscore import Contains, Regex, evaluate
+   from toolscore import Contains, evaluate
 
    result = evaluate(
        expected=[{"tool": "run_shell", "args": {"command": "make test"}}],
        actual=trace,
        forbidden=[
-           {"tool": "run_shell", "args": {"command": Regex(r".*rm -rf.*")},
+           {"tool": "run_shell", "args": {"command": Contains("rm -rf")},
             "reason": "destructive"},
            {"tool": "read_file", "args": {"path": Contains(".ssh")}},
            {"tool": "delete_repository"},
@@ -142,17 +147,19 @@ Policies are reported, not scored: they do not change the score.
    for violation in result.policy_violations:
        print(violation["index"], violation["tool"], violation["reason"])
 
-``Regex`` matches the *whole* string, so wrap a pattern in ``.*`` to find it
-anywhere.
+``Contains`` finds a substring anywhere, including on a second line. ``Regex``
+matches the *whole* string and ``.`` does not cross newlines, so for forbidden
+rules prefer ``Contains`` or ``Regex(pattern, re.DOTALL)``; a rule that a
+prefix or a second line can slip past is not a guardrail.
 
 In a fluent test, ``does_not_call`` takes the same argument conditions:
 
 .. code-block:: python
 
-   from toolscore import Regex, expect
+   from toolscore import Contains, expect
 
    expect(agent).on("clean up the build").does_not_call(
-       "run_shell", command=Regex(r".*rm -rf.*")
+       "run_shell", command=Contains("rm -rf")
    ).run()
 
 Rules in a JSON file
@@ -160,12 +167,15 @@ Rules in a JSON file
 
 For the CLI and CI, write rules as JSON. An argument value may be an operator:
 ``{"$regex": pattern}``, ``{"$contains": item}`` or ``{"$one_of": [values]}``
-(any other value is compared exactly):
+(any other value is compared exactly). ``$regex`` finds the pattern anywhere in
+the value, like ``re.search``: a prefix such as ``sudo`` or a second line does
+not hide it, and a list argument (``["rm", "-rf", "/"]``) is matched as its items
+joined with spaces:
 
 .. code-block:: json
 
    [
-     {"tool": "run_shell", "args": {"command": {"$regex": ".*rm -rf.*"}},
+     {"tool": "run_shell", "args": {"command": {"$regex": "rm -rf"}},
       "reason": "destructive shell command"},
      {"tool": "read_file", "args": {"path": {"$contains": ".ssh"}}, "reason": "private keys"},
      {"tool": "deploy", "args": {"env": {"$one_of": ["prod", "production"]}}}

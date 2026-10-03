@@ -43,6 +43,8 @@ rule operators.
 
 .. autofunction:: find_secrets
 
+.. autofunction:: redact_secrets
+
 .. autofunction:: check_forbidden_calls
 
 .. autofunction:: rules_from_json

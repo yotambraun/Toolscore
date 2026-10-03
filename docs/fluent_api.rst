@@ -88,7 +88,7 @@ Chain-Method Reference
    * - ``.does_not_call(tool, **args)``
      - Assert that *tool* must **not** be called.  With keyword arguments, only
        calls whose arguments match them (values or :doc:`matchers`) are
-       forbidden, e.g. ``does_not_call("run_shell", command=Regex(r".*rm -rf.*"))``.
+       forbidden, e.g. ``does_not_call("run_shell", command=Contains("rm -rf"))``.
        Can be combined with :meth:`calls` or used alone (forbidden-only contract).
    * - ``.with_score(min_score)``
      - Set the minimum composite score (default: **0.9**).  Raises
@@ -177,12 +177,13 @@ message lists the offending call:
 
 .. code-block:: python
 
-    from toolscore import Regex, expect
+    from toolscore import Contains, expect
 
-    expect(actual).does_not_call("run_shell", command=Regex(r".*rm -rf.*")).run()
+    expect(actual).does_not_call("run_shell", command=Contains("rm -rf")).run()
 
-``Regex`` matches the whole string, so wrap the pattern in ``.*`` to match it
-anywhere.  For policies over whole traces, files and CI, see
+``Contains`` finds the text anywhere, including on a second line. ``Regex``
+matches the whole string and ``.`` does not cross newlines, so for forbidden
+calls prefer ``Contains`` or ``Regex(pattern, re.DOTALL)``.  For policies over whole traces, files and CI, see
 :doc:`behavior_safety`.
 
 API Reference

@@ -1,4 +1,4 @@
 [
-  {"tool": "run_shell", "args": {"command": {"$regex": ".*rm -rf.*"}}, "reason": "destructive shell command"},
+  {"tool": "run_shell", "args": {"command": {"$regex": "rm -rf"}}, "reason": "destructive shell command"},
   {"tool": "read_file", "args": {"path": {"$contains": ".ssh"}}, "reason": "private keys"}
 ]
