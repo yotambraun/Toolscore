@@ -48,22 +48,39 @@ _UNQUOTED = re.compile(
 )
 
 _TOOL_WORD = re.compile(r"\s+tool\b", re.IGNORECASE)
+# "use 'read-only' mode": a quoted value followed by a word that says it is not a tool.
+_NOT_A_TOOL_WORD = re.compile(
+    r"\s+(?:mode|option|flag|format|value|parameter|argument|field|setting|style|type|level"
+    r"|scope|permission|access|strategy|method)s?\b",
+    re.IGNORECASE,
+)
 _TOOL_SHAPED = re.compile(r"[a-z][a-z0-9]*(?:[_-][a-z0-9]+)+")
 
 #: Characters that carry hidden instructions or make text display differently
 #: than it is stored. Never needed in a tool description.
 _HIDDEN_RANGES = ((0xE0000, 0xE007F),)  # Unicode tag characters (invisible ASCII)
 _BIDI_CONTROLS = frozenset(range(0x202A, 0x202F)) | frozenset(range(0x2066, 0x206A))
+# Subdivision flag emoji (England, Scotland, Wales) are a black flag followed by tag
+# characters and a cancel tag; they are visible and legitimate.
+_FLAG_TAG_SEQUENCE = re.compile("\U0001f3f4[\U000e0020-\U000e007e]+\U000e007f")
 
 #: Directives that only make sense when text is written for a model behind the
 #: user's back, taken from published MCP tool-poisoning examples.
 _DIRECTIVES = (
     (
         re.compile(
-            r"\b(?:do\s+not|don'?t|never)\s+(?:tell|mention|inform|reveal|show|disclose)\b"
-            r"[^.\n]{0,60}\buser\b",
+            # "do not tell the user", "never inform the user"
+            r"\b(?:do\s+not|don'?t|never)\s+(?:tell|inform|notify|alert|warn)\s+(?:the\s+)?user"
+            # "do not mention this to the user", "don't reveal that ... user"
+            r"|\b(?:do\s+not|don'?t|never)\s+(?:tell|mention|reveal|disclose|show)\s+"
+            r"(?:this|that|it|anything|any\s+of\s+this)\b[^.\n]{0,80}\buser"
+            # "without telling the user", "hide this from the user", "the user must not know"
+            r"|\bwithout\s+(?:telling|informing|notifying|alerting)\s+(?:the\s+)?user"
+            r"|\b(?:hide|conceal)\s+(?:this|that|it)\s+from\s+(?:the\s+)?user"
+            r"|\buser\s+(?:should|must)\s+(?:not|never)\s+(?:know|see|notice|be\s+told)\b",
             re.IGNORECASE,
         ),
+        "error",
         "tells the model to hide something from the user",
     ),
     (
@@ -72,11 +89,15 @@ _DIRECTIVES = (
             r"(?:previous|prior|above|earlier|other)\s+(?:instructions|rules|prompts?)\b",
             re.IGNORECASE,
         ),
+        "error",
         "tells the model to ignore its other instructions",
     ),
     (
+        # Used legitimately for emphasis by some servers, and by published
+        # tool-poisoning attacks to wrap hidden instructions: worth a look, not a failure.
         re.compile(r"<\s*/?\s*(?:important|system|instructions?)\s*>", re.IGNORECASE),
-        "contains a hidden instruction block (an <IMPORTANT>-style tag)",
+        "warning",
+        "contains an <IMPORTANT>-style instruction block, a pattern used to hide instructions",
     ),
 )
 
@@ -206,6 +227,8 @@ def dangling_reference_issues(
                 says_tool = _TOOL_WORD.match(text, match.end()) is not None
                 if pattern is _AFTER_VERB and not says_tool and not _TOOL_SHAPED.fullmatch(name):
                     continue
+                if not says_tool and _NOT_A_TOOL_WORD.match(text, match.end()):
+                    continue
                 seen.add((owner, name))
                 suggestion = _closest_tool(name, tool_names)
                 fix = f"Did you mean {suggestion!r}? " if suggestion else ""
@@ -225,7 +248,7 @@ def _hidden_characters(text: str) -> tuple[list[str], list[str], list[str]]:
     tags: list[str] = []
     bidi: list[str] = []
     invisible: list[str] = []
-    for char in text:
+    for char in _FLAG_TAG_SEQUENCE.sub("", text):
         code = ord(char)
         if any(low <= code <= high for low, high in _HIDDEN_RANGES):
             tags.append(char)
@@ -244,11 +267,19 @@ def poisoning_issues(tools: list[MCPToolDef], instructions: str | None = None) -
     * Unicode tag characters (invisible text a model still reads),
     * bidirectional override/isolate controls (text that displays differently than
       it is stored),
-    * directives to hide things from the user, to ignore other instructions, or
-      ``<IMPORTANT>``-style hidden blocks.
+    * directives to hide things from the user ("do not tell the user", "do not
+      mention this to the user", "without telling the user") or to ignore other
+      instructions.
 
-    Warning: other invisible format characters (zero-width characters, direction
-    marks, BOM). They are normal in some scripts, so they are only surfaced.
+    Warnings:
+
+    * ``<IMPORTANT>``-, ``<system>``- or ``<instructions>``-style blocks, which
+      some servers use for emphasis and published attacks use to wrap hidden
+      instructions;
+    * other invisible format characters (zero-width characters, direction marks,
+      BOM). They are normal in some scripts, so they are only surfaced.
+
+    Subdivision flag emoji, which are built from tag characters, are not reported.
 
     Tool names are checked for hidden characters too.
 
@@ -298,13 +329,10 @@ def poisoning_issues(tools: list[MCPToolDef], instructions: str | None = None) -
                 f"contains invisible format characters ({', '.join(names)})",
                 _FIX_INVISIBLE,
             )
-        for pattern, what in _DIRECTIVES:
+        for pattern, severity, what in _DIRECTIVES:
             if pattern.search(text):
-                add(
-                    owner,
-                    f"directive:{what}",
-                    "error",
-                    f"{what}: a tool-poisoning instruction pattern",
-                    _FIX_DIRECTIVE,
+                message = (
+                    f"{what}: a tool-poisoning instruction pattern" if severity == "error" else what
                 )
+                add(owner, f"directive:{what}", severity, message, _FIX_DIRECTIVE)
     return issues

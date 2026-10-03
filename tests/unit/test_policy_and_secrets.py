@@ -13,6 +13,7 @@ from toolscore import Contains, OneOf, Regex, ToolScoreAssertionError, evaluate,
 from toolscore.cli import main
 from toolscore.core import evaluate_trace
 from toolscore.metrics.policy import rules_from_json
+from toolscore.metrics.security import redact_secrets
 from toolscore.reports import (
     generate_html_report,
     generate_markdown_report,
@@ -175,7 +176,6 @@ def test_json_rules_turn_dollar_operators_into_matchers() -> None:
         ]
     )
 
-    assert isinstance(rules[0]["args"]["command"], Regex)
     assert rules[0]["args"]["command"].matches("sudo rm -rf /")
     assert not rules[0]["args"]["command"].matches("rmdir build")
     assert isinstance(rules[1]["args"]["path"], Contains)
@@ -295,3 +295,68 @@ def test_html_report_shows_score_and_escapes_findings(tmp_path: Path) -> None:
     assert f"({result.grade})" in html
     assert "<script>alert(1)</script>" not in html
     assert "&lt;script&gt;" in html
+
+
+# -- review fixes ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["rm -rf /", "sudo rm -rf /", "echo ok\nrm -rf /", ["rm", "-rf", "/"]],
+)
+def test_json_regex_rule_finds_the_pattern_anywhere(command: object) -> None:
+    """A prefix, a second line or an argv list must not hide a forbidden command."""
+    rules = rules_from_json([{"tool": "run_shell", "args": {"command": {"$regex": "rm -rf"}}}])
+
+    found = evaluate(
+        expected=[], actual=[{"tool": "run_shell", "args": {"command": command}}], forbidden=rules
+    ).policy_violations
+
+    assert len(found) == 1
+
+
+def test_reports_never_copy_a_credential_in_full(tmp_path: Path) -> None:
+    actual = [
+        {"tool": "http_request", "args": {"headers": {"Authorization": f"token {GITHUB_TOKEN}"}}}
+    ]
+    result = evaluate(expected=[], actual=actual, forbidden=[{"tool": "http_request"}])
+
+    markdown = generate_markdown_report(result, tmp_path / "r.md").read_text(encoding="utf-8")
+    html = generate_html_report(result, tmp_path / "r.html").read_text(encoding="utf-8")
+
+    for report in (markdown, html):
+        assert GITHUB_TOKEN not in report
+    assert "[REDACTED github_token: ghp_…" in markdown
+
+
+def test_redact_secrets_and_slugs_that_only_look_like_keys() -> None:
+    assert redact_secrets(f"key={OPENAI_KEY}!") == (
+        f"key=[REDACTED openai_api_key: {OPENAI_KEY[:4]}…{OPENAI_KEY[-2:]}]!"
+    )
+    slugs = [
+        {"tool": "fetch", "args": {"path": "/docs/sk-some-very-long-kebab-case-identifier-name"}},
+        {"tool": "fetch", "args": {"id": "sk-" + "abcdefgh" * 5}},
+    ]
+    assert evaluate(expected=[], actual=slugs).metrics["security_metrics"]["secret_count"] == 0
+
+
+@pytest.mark.parametrize("empty", ["", None, {}, []])
+def test_an_empty_error_value_is_not_a_failure(empty: object) -> None:
+    result = evaluate(
+        expected=[{"tool": "search"}],
+        actual=[{"tool": "search", "args": {}, "result": "ok", "error": empty}],
+    )
+
+    assert result.metrics["efficiency_metrics"]["error_count"] == 0
+    assert result.required_call_recall == 1.0
+
+
+def test_cli_rejects_a_malformed_weight_as_a_usage_error(tmp_path: Path) -> None:
+    gold, trace = tmp_path / "gold.json", tmp_path / "trace.json"
+    gold.write_text(json.dumps([{"tool": "run_shell"}]))
+    trace.write_text(json.dumps(SHELL_TRACE))
+
+    ran = CliRunner().invoke(main, ["eval", str(gold), str(trace), "--weight", "x=abc"])
+
+    assert ran.exit_code == 2
+    assert "NAME=VALUE" in ran.output

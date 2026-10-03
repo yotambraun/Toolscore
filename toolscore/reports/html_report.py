@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Template
 
+from toolscore.metrics.security import redact_secrets
 from toolscore.reports.findings import behavior_findings
 
 if TYPE_CHECKING:
@@ -329,7 +330,7 @@ def generate_html_report(
 
     # Render template
     template = Template(HTML_TEMPLATE)
-    html_content = template.render(**template_data)
+    html_content = redact_secrets(template.render(**template_data))
 
     # Write to file
     with path.open("w", encoding="utf-8") as f:

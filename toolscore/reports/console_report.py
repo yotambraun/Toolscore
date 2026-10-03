@@ -15,6 +15,7 @@ from toolscore.explainer import (
     generate_explanations,
     get_all_tips,
 )
+from toolscore.metrics.security import redact_secrets
 from toolscore.reports.findings import behavior_findings
 
 if TYPE_CHECKING:
@@ -111,10 +112,11 @@ def _print_metric_explanation(
     for item in shown_items:
         style = _get_severity_style(item.severity)
         icon = _get_category_icon(item.category)
+        message = redact_secrets(item.message)
         if icon:
-            console.print(f"      [{style}]{icon}:[/{style}] {item.message}")
+            console.print(f"      [{style}]{icon}:[/{style}] {message}")
         else:
-            console.print(f"      [{style}]{item.message}[/{style}]")
+            console.print(f"      [{style}]{message}[/{style}]")
 
     if len(explanation.items) > max_items:
         console.print(f"      [dim]... and {len(explanation.items) - max_items} more[/dim]")
@@ -141,10 +143,9 @@ def _print_top_issues(result: EvaluationResult, console: Console, limit: int = 8
 
     console.print("[bold]Top issues to fix[/bold]")
     for index, suggestion in enumerate(fixes[:limit], start=1):
-        console.print(
-            f"  [bold]{index}.[/bold] [cyan]{suggestion.tool}[/cyan]  {suggestion.problem}"
-        )
-        console.print(f"     [dim]-> {suggestion.fix}[/dim]")
+        problem = redact_secrets(suggestion.problem)
+        console.print(f"  [bold]{index}.[/bold] [cyan]{suggestion.tool}[/cyan]  {problem}")
+        console.print(f"     [dim]-> {redact_secrets(suggestion.fix)}[/dim]")
     remaining = len(fixes) - min(len(fixes), limit)
     if remaining > 0:
         console.print(f"  [dim]... and {remaining} more issue(s).[/dim]")

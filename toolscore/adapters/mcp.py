@@ -201,6 +201,9 @@ class MCPAdapter(BaseAdapter):
         raw_result = response.get("result")
         result = raw_result if isinstance(raw_result, dict) else {}
         rpc_error = response.get("error")
+        if isinstance(rpc_error, str) and rpc_error:
+            # Not JSON-RPC, but hand-written and some proxy logs carry a bare message.
+            rpc_error = {"message": rpc_error}
         rpc_error = rpc_error if isinstance(rpc_error, dict) else None
 
         content = result.get("content", [])

@@ -57,6 +57,10 @@ def _messages(line: str) -> list[dict[str, Any]]:
     return []
 
 
+#: Seconds to wait for the server to exit after its input closes.
+_EXIT_TIMEOUT = 10.0
+
+
 class MCPRecorder:
     """A transparent stdio proxy that records ``tools/call`` traffic.
 
@@ -206,8 +210,22 @@ class MCPRecorder:
                 client_out.write(line)
                 client_out.flush()
                 self._note_server_line(line)
+        except (BrokenPipeError, OSError, ValueError):
+            pass  # the client went away; stop the server below
         finally:
-            return_code = process.wait()
+            # Close the server's stdin so it sees end-of-input and exits, even when
+            # the client stopped reading but has not closed its side.
+            with contextlib.suppress(OSError, ValueError):
+                server_in.close()
+            try:
+                return_code = process.wait(timeout=_EXIT_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                process.terminate()
+                try:
+                    return_code = process.wait(timeout=_EXIT_TIMEOUT)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    return_code = process.wait()
             errors.join(timeout=2.0)
             self.write()
         return return_code

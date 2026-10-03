@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("private_key", re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----")),
     ("anthropic_api_key", re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}")),
-    ("openai_api_key", re.compile(r"\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{32,}")),
+    ("openai_api_key", re.compile(r"\bsk-(?:proj|svcacct|admin)-[A-Za-z0-9_-]{32,}")),
+    ("openai_api_key", re.compile(r"\bsk-[A-Za-z0-9]{32,}")),
     ("github_token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b")),
     ("github_token", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{60,}")),
     ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
@@ -42,6 +43,55 @@ def _strings(value: Any, path: str) -> Iterator[tuple[str, str]]:
     elif isinstance(value, (list, tuple)):
         for position, item in enumerate(value):
             yield from _strings(item, f"{path}[{position}]")
+
+
+#: Kinds whose formats are only a prefix plus a charset: also require the mix of
+#: digits and both letter cases that random keys have, so slugs and identifiers
+#: such as ``sk-some-very-long-kebab-case-identifier-name`` are not reported.
+_RANDOM_KINDS = frozenset({"anthropic_api_key", "openai_api_key"})
+
+
+def _looks_random(secret: str) -> bool:
+    return (
+        any(c.isdigit() for c in secret)
+        and any(c.islower() for c in secret)
+        and any(c.isupper() for c in secret)
+    )
+
+
+def _matches(text: str) -> Iterator[tuple[str, re.Match[str]]]:
+    """Yield ``(kind, match)`` for each credential in ``text``, without overlaps."""
+    claimed: list[tuple[int, int]] = []
+    for kind, pattern in _PATTERNS:
+        for match in pattern.finditer(text):
+            start, end = match.span()
+            if any(start < c_end and c_start < end for c_start, c_end in claimed):
+                continue
+            if kind in _RANDOM_KINDS and not _looks_random(match.group(0)):
+                continue
+            claimed.append((start, end))
+            yield kind, match
+
+
+def redact_secrets(text: str) -> str:
+    """Replace every credential in ``text`` with its redacted preview.
+
+    Used for reports that may be published (Markdown job summaries, HTML), so a
+    credential found in a trace is not copied into them in full.
+
+    Args:
+        text: Any text.
+
+    Returns:
+        The text with each credential replaced by ``[REDACTED kind: preview]``.
+    """
+    spans = sorted(
+        ((m.start(), m.end(), kind, m.group(0)) for kind, m in _matches(text)),
+        reverse=True,
+    )
+    for start, end, kind, secret in spans:
+        text = f"{text[:start]}[REDACTED {kind}: {_preview(kind, secret)}]{text[end:]}"
+    return text
 
 
 def _preview(kind: str, secret: str) -> str:
@@ -65,20 +115,14 @@ def find_secrets(trace_calls: list[ToolCall]) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     for index, call in enumerate(trace_calls):
         for path, text in _strings(call.args or {}, ""):
-            claimed: list[tuple[int, int]] = []
-            for kind, pattern in _PATTERNS:
-                for match in pattern.finditer(text):
-                    start, end = match.span()
-                    if any(start < c_end and c_start < end for c_start, c_end in claimed):
-                        continue
-                    claimed.append((start, end))
-                    findings.append(
-                        {
-                            "index": index,
-                            "tool": call.tool,
-                            "path": path,
-                            "kind": kind,
-                            "preview": _preview(kind, match.group(0)),
-                        }
-                    )
+            for kind, match in _matches(text):
+                findings.append(
+                    {
+                        "index": index,
+                        "tool": call.tool,
+                        "path": path,
+                        "kind": kind,
+                        "preview": _preview(kind, match.group(0)),
+                    }
+                )
     return {"secret_count": len(findings), "secrets": findings}
