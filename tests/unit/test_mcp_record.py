@@ -136,3 +136,29 @@ def test_openai_messages_are_still_detected_as_openai(tmp_path: Path) -> None:
     path.write_text(json.dumps(trace))
 
     assert [c.tool for c in load_trace(path)] == ["search"]
+
+
+def test_argv_form_keeps_arguments_with_spaces(tmp_path: Path) -> None:
+    """MCP client configs pass the server command as an args array; keep it verbatim."""
+    spaced = tmp_path / "my servers"
+    spaced.mkdir()
+    server = spaced / "fake server.py"
+    server.write_text(FIXTURE_SERVER.read_text(encoding="utf-8"), encoding="utf-8")
+    out = tmp_path / "trace.json"
+    recorder = [
+        sys.executable,
+        "-c",
+        "from toolscore.cli import main; main()",
+        "mcp",
+        "record",
+        "-o",
+        str(out),
+        "--",
+        sys.executable,
+        str(server),
+    ]
+
+    with MCPStdioClient(recorder, timeout=20.0) as client:
+        assert client.call_tool("add", {"a": 1, "b": 2}).text == "3"
+
+    assert json.loads(out.read_text())["server_command"] == [sys.executable, str(server)]

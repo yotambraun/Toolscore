@@ -1,0 +1,230 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "python"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.45.0"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "fd1d5d36-d57f-4c5a-b00f-cd4ffeaf2d09"
+            }
+          },
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "demo-agent"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "demo.agent"
+          },
+          "spans": [
+            {
+              "traceId": "7YlqRQzb4aZSvPjrYGx/5w==",
+              "spanId": "1sXrwlWtteI=",
+              "parentSpanId": "leC/lcdTUsU=",
+              "name": "chat gpt-4.1-mini",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1790978944025450633",
+              "endTimeUnixNano": "1790978944025458500",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "chat"
+                  }
+                },
+                {
+                  "key": "gen_ai.request.model",
+                  "value": {
+                    "stringValue": "gpt-4.1-mini"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "7YlqRQzb4aZSvPjrYGx/5w==",
+              "spanId": "w4Mk+apkACI=",
+              "parentSpanId": "leC/lcdTUsU=",
+              "name": "execute_tool search_orders",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1790978944025514088",
+              "endTimeUnixNano": "1790978944045759604",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "search_orders"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "call_1"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.type",
+                  "value": {
+                    "stringValue": "function"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"customer\": \"ada@example.com\", \"status\": \"open\"}"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.result",
+                  "value": {
+                    "stringValue": "{\"orders\": [{\"id\": \"A-17\", \"total\": 42.5}]}"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "7YlqRQzb4aZSvPjrYGx/5w==",
+              "spanId": "yusSou91WGc=",
+              "parentSpanId": "leC/lcdTUsU=",
+              "name": "tools/call issue_refund",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1790978944045910035",
+              "endTimeUnixNano": "1790978944056282007",
+              "attributes": [
+                {
+                  "key": "mcp.method.name",
+                  "value": {
+                    "stringValue": "tools/call"
+                  }
+                },
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "issue_refund"
+                  }
+                },
+                {
+                  "key": "jsonrpc.request.id",
+                  "value": {
+                    "stringValue": "7"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"order_id\": \"A-17\", \"amount\": 42.5}"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "tool_error"
+                  }
+                }
+              ],
+              "status": {
+                "message": "Refund window has closed",
+                "code": "STATUS_CODE_ERROR"
+              },
+              "flags": 256
+            },
+            {
+              "traceId": "7YlqRQzb4aZSvPjrYGx/5w==",
+              "spanId": "ByF2B8aiSCE=",
+              "parentSpanId": "leC/lcdTUsU=",
+              "name": "execute_tool send_email",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1790978944056459914",
+              "endTimeUnixNano": "1790978944056478505",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "execute_tool"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.name",
+                  "value": {
+                    "stringValue": "send_email"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.id",
+                  "value": {
+                    "stringValue": "call_3"
+                  }
+                },
+                {
+                  "key": "gen_ai.tool.call.arguments",
+                  "value": {
+                    "stringValue": "{\"to\": \"ada@example.com\", \"subject\": \"Your refund\"}"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            },
+            {
+              "traceId": "7YlqRQzb4aZSvPjrYGx/5w==",
+              "spanId": "leC/lcdTUsU=",
+              "name": "invoke_agent support-bot",
+              "kind": "SPAN_KIND_INTERNAL",
+              "startTimeUnixNano": "1790978944025408624",
+              "endTimeUnixNano": "1790978944056893958",
+              "attributes": [
+                {
+                  "key": "gen_ai.operation.name",
+                  "value": {
+                    "stringValue": "invoke_agent"
+                  }
+                }
+              ],
+              "status": {},
+              "flags": 256
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
