@@ -9,6 +9,33 @@ import CTASection from '../components/CTASection.astro';
 import Button from '../components/Button.astro';
 import { mcpDimensions, mcpCommands, scorecard, site, url } from '../data/site';
 
+const githubLint = `$ toolscore mcp lint "github-mcp-server stdio --toolsets all"
+
+warning  label_write
+         refers to tool 'update_issue',
+         which this server does not expose`;
+
+const poisonLint = `$ toolscore mcp lint "python poisoned_server.py"
+
+error    add
+         tells the model to hide something from the user:
+         a tool-poisoning instruction pattern
+error    add
+         contains a hidden instruction block
+         (an <IMPORTANT>-style tag):
+         a tool-poisoning instruction pattern`;
+
+const recordConfig = `{
+  "mcpServers": {
+    "filesystem": {
+      "command": "toolscore",
+      "args": ["mcp", "record", "-o", "session.json", "--",
+               "npx", "-y", "@modelcontextprotocol/server-filesystem",
+               "./project"]
+    }
+  }
+}`;
+
 const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
 - run: pip install tool-scorer
 - run: toolscore mcp test "python my_server.py" --fail-under B --ci
@@ -17,7 +44,7 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
 
 <BaseLayout
   title="Test your MCP server"
-  description="Grade any MCP server with Toolscore: happy-path + adversarial edge-case scenarios, schema lint, token cost, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
+  description="Grade any MCP server with Toolscore: happy-path + adversarial edge-case scenarios, lint for missing tools and tool poisoning, token cost, session recording, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
 >
   <PageHeader
     eyebrow="For MCP server authors"
@@ -69,7 +96,7 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
         <p class="eyebrow mb-3">The scorecard, explained</p>
         <h2 class="h2">Four dimensions, one A–F grade</h2>
         <p class="lead mx-auto mt-4 max-w-xl">
-          The score blends happy-path pass rate, edge-case resilience, and schema-lint cleanliness;
+          The score blends happy-path pass rate, edge-case resilience, and lint cleanliness;
           token cost rides along as a signal. <span class="text-ink">≥ 90% is an A.</span>
         </p>
       </div>
@@ -96,6 +123,52 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
       <p class="mt-6 text-center font-mono text-xs text-faint">
         score = happy 60% + edge 20% + lint 20% &nbsp;·&nbsp; token cost reported per-tool
       </p>
+    </div>
+  </section>
+
+  <!-- Lint: missing tools + tool poisoning -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div>
+        <p class="eyebrow mb-3">Lint that reads like a model</p>
+        <h2 class="h2">Catch broken and hostile tool descriptions</h2>
+        <p class="lead mt-4">
+          Models follow what your tool descriptions say. Toolscore flags text that sends them to a
+          tool the server does not expose, in descriptions, parameter descriptions and the server's
+          own instructions — and the patterns used to smuggle instructions through tool metadata:
+          hidden Unicode, <code class="font-mono text-sm text-brand">&lt;IMPORTANT&gt;</code>-style
+          blocks, and text that tells the model to hide something from the user.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          On GitHub's official MCP server (v1.12.2), <code class="font-mono text-brand">label_write</code>
+          told models to use an <code class="font-mono text-brand">update_issue</code> tool that did not
+          exist. The lint found exactly the two real stale references in that server, with no false
+          positives across 254 tool definitions.
+        </p>
+      </div>
+      <div class="space-y-4">
+        <CodeBlock title="GitHub MCP server v1.12.2 — real output" lang="text" code={githubLint} />
+        <CodeBlock title="a deliberately poisoned test server" lang="text" code={poisonLint} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Record real sessions -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">Beyond generated tests</p>
+        <h2 class="h2">Record what real agents do with your server</h2>
+        <p class="lead mt-4">
+          Put <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">toolscore mcp record</code>
+          where your MCP client starts the server. It relays every message unchanged and saves each
+          tool call with its arguments, result, error and duration. Then
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">toolscore eval</code>
+          scores the session and lists failed calls, blind retries and leaked credentials.
+        </p>
+        <InstallCommand class="mt-6" cmd="toolscore eval gold.json session.json" />
+      </div>
+      <CodeBlock title="claude_desktop_config.json (any MCP client)" lang="json" code={recordConfig} />
     </div>
   </section>
 
