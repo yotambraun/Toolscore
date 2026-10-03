@@ -44,8 +44,8 @@ def behavior_findings(result: EvaluationResult) -> list[tuple[str, str]]:
         findings.append(
             (
                 "error",
-                f"call {secret['index'] + 1} {secret['tool']} passes a {secret['kind']} "
-                f"in '{secret['path']}' ({secret['preview']})",
+                f"call {secret['index'] + 1} {secret['tool']} passes a credential "
+                f"({secret['kind']}) in '{secret['path']}': {secret['preview']}",
             )
         )
 
@@ -65,11 +65,7 @@ def behavior_findings(result: EvaluationResult) -> list[tuple[str, str]]:
         )
     retries = efficiency.get("retry_after_error_count", 0)
     if retries:
-        findings.append(
-            (
-                "warning",
-                f"{retries} call(s) retried a failed call with the same arguments",
-            )
-        )
+        noun = "call repeats" if retries == 1 else "calls repeat"
+        findings.append(("warning", f"{retries} {noun} a failed call with the same arguments"))
 
     return findings

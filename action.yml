@@ -14,7 +14,7 @@ inputs:
     description: 'Path to agent trace JSON file to evaluate'
     required: true
   format:
-    description: 'Trace format (auto, openai, anthropic, gemini, langchain, custom)'
+    description: 'Trace format (auto, openai, anthropic, gemini, mcp, langchain, otel, custom)'
     required: false
     default: 'auto'
   threshold:
@@ -33,6 +33,14 @@ inputs:
     description: 'Fail the action if accuracy drops below threshold or regression is detected'
     required: false
     default: 'true'
+  forbidden-file:
+    description: 'Path to a JSON file of calls the agent must never make (see `toolscore eval --forbidden`).'
+    required: false
+    default: ''
+  fail-on-violations:
+    description: 'Fail the action if a forbidden call or a credential in tool arguments is found'
+    required: false
+    default: 'false'
   generate-report:
     description: 'Generate HTML report artifact'
     required: false
@@ -60,6 +68,18 @@ outputs:
   argument-f1:
     description: 'Argument match F1 score (0.0-1.0)'
     value: ${{ steps.eval.outputs.argument_f1 }}
+  score:
+    description: 'Composite score (0.0-1.0)'
+    value: ${{ steps.eval.outputs.score }}
+  grade:
+    description: 'Letter grade (A-F) for the composite score'
+    value: ${{ steps.eval.outputs.grade }}
+  required-call-recall:
+    description: 'Share of required calls that were made and did not fail (empty when nothing is required)'
+    value: ${{ steps.eval.outputs.required_call_recall }}
+  violations:
+    description: 'Number of forbidden calls plus credentials found in tool arguments'
+    value: ${{ steps.eval.outputs.violations }}
   passed:
     description: 'Whether all thresholds were met (true/false)'
     value: ${{ steps.eval.outputs.passed }}
@@ -103,6 +123,8 @@ runs:
         INPUT_REGRESSION_THRESHOLD: ${{ inputs.regression-threshold }}
         INPUT_FAIL_ON_REGRESSION: ${{ inputs.fail-on-regression }}
         INPUT_GENERATE_REPORT: ${{ inputs.generate-report }}
+        INPUT_FORBIDDEN_FILE: ${{ inputs.forbidden-file }}
+        INPUT_FAIL_ON_VIOLATIONS: ${{ inputs.fail-on-violations }}
       run: |
         # Run evaluation
         echo "Running Toolscore evaluation..."
@@ -112,9 +134,15 @@ runs:
           REPORT_FLAGS="--html toolscore-report.html --markdown toolscore-summary.md"
         fi
 
+        POLICY_FLAGS=()
+        if [ -n "$INPUT_FORBIDDEN_FILE" ]; then
+          POLICY_FLAGS=(--forbidden "$INPUT_FORBIDDEN_FILE")
+        fi
+
         toolscore eval "$INPUT_GOLD_FILE" "$INPUT_TRACE_FILE" \
           --format "$INPUT_FORMAT" \
           --output toolscore-results.json \
+          "${POLICY_FLAGS[@]}" \
           $REPORT_FLAGS \
           --verbose || true
 
@@ -133,6 +161,12 @@ runs:
             sys.exit(1)
 
         metrics = results.get('metrics', {})
+        summary = results.get('summary', {})
+        score = summary.get('score')
+        grade = summary.get('grade', '')
+        recall = summary.get('required_call_recall')
+        violations = summary.get('policy_violations', 0) + summary.get('secrets', 0)
+        fail_on_violations = os.environ.get('INPUT_FAIL_ON_VIOLATIONS', 'false').lower() == 'true'
 
         # Extract key metrics
         sel_acc = metrics.get('selection_accuracy', 0)
@@ -160,6 +194,10 @@ runs:
             f.write(f'argument_f1={arg_f1}\n')
             f.write(f'passed={str(passed).lower()}\n')
             f.write(f'regression_detected={regression_detected}\n')
+            f.write(f'score={"" if score is None else score}\n')
+            f.write(f'grade={grade}\n')
+            f.write(f'required_call_recall={"" if recall is None else recall}\n')
+            f.write(f'violations={violations}\n')
 
         # Print summary
         print(f"\n{'='*50}")
@@ -169,7 +207,16 @@ runs:
         print(f"Invocation Accuracy: {inv_acc:.1%}")
         print(f"Argument F1:         {arg_f1:.1%}")
         print(f"Threshold:           {threshold:.1%}")
+        if score is not None:
+            print(f"Score:               {score:.1%} (grade {grade})")
+        if recall is not None:
+            print(f"Required calls done: {recall:.1%}")
+        print(f"Violations:          {violations}")
         print(f"{'='*50}")
+
+        if violations and fail_on_violations:
+            print(f"::error::Toolscore found {violations} forbidden call(s) or credential(s) in tool arguments")
+            sys.exit(1)
 
         if not baseline_file:
             if passed:

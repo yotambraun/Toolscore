@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Template
 
+from toolscore.reports.findings import behavior_findings
+
 if TYPE_CHECKING:
     from toolscore.core import EvaluationResult
 
@@ -118,6 +120,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .metric-value.bad {
             color: #e74c3c;
         }
+        .findings {
+            list-style: none;
+        }
+        .finding {
+            padding: 8px 12px;
+            margin-bottom: 6px;
+            border-left: 4px solid #f0ad4e;
+            background: #fff8e6;
+            border-radius: 4px;
+        }
+        .finding.error {
+            border-left-color: #d9534f;
+            background: #fdecea;
+        }
         .calls-section {
             margin-top: 40px;
         }
@@ -170,8 +186,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     <strong>Actual Calls</strong>
                     <div class="value">{{ trace_count }}</div>
                 </div>
+                <div class="summary-item">
+                    <strong>Score</strong>
+                    <div class="value">{{ "%.1f"|format(score * 100) }}% ({{ grade }})</div>
+                </div>
+                {% if required_call_recall is not none %}
+                <div class="summary-item">
+                    <strong>Required Calls Completed</strong>
+                    <div class="value">{{ "%.0f"|format(required_call_recall * 100) }}%</div>
+                </div>
+                {% endif %}
             </div>
         </div>
+
+        {% if findings %}
+        <div class="metric-section">
+            <h2>Behavior and Safety</h2>
+            <ul class="findings">
+                {% for severity, message in findings %}
+                <li class="finding {{ severity }}"><strong>{{ severity|upper }}</strong> {{ message|e }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
         <div class="metric-section">
             <h2>Core Metrics</h2>
@@ -284,6 +321,10 @@ def generate_html_report(
         "total_duration": lat_metrics.get("total_duration", 0.0),
         "avg_duration": lat_metrics.get("average_duration", 0.0),
         "total_cost": cost_metrics.get("total_cost", 0.0),
+        "score": result.score,
+        "grade": result.grade,
+        "required_call_recall": result.required_call_recall,
+        "findings": behavior_findings(result),
     }
 
     # Render template

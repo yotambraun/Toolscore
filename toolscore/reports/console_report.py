@@ -187,7 +187,7 @@ def _print_behavior_findings(result: EvaluationResult, console: Console) -> None
     console.print("[bold]Behavior and safety[/bold]")
     for severity, message in findings:
         style = _get_severity_style(severity)
-        console.print(f"  [{style}]{severity.upper()}[/{style}]  {message}")
+        console.print(f"  [{style}]{severity.upper():<7}[/{style}]  {message}")
     console.print()
 
 

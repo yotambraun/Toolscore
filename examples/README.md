@@ -17,6 +17,16 @@ This directory contains example files and scripts demonstrating the usage of Too
 - **mcp_scorecard_demo.py** - run the MCP scorecard harness against the bundled fake MCP server and print an A–F scorecard
 - **test_example_with_pytest.py** - example pytest suite using the Toolscore plugin and fixtures
 
+### Guardrails (behavior and safety checks)
+- **guardrails/** - a deploy agent's trace with a destructive shell command, a credential posted to a webhook and a failed deploy retried unchanged, plus `forbidden.json` rules. Run:
+
+```bash
+toolscore eval examples/guardrails/gold.json examples/guardrails/trace.json \
+    --forbidden examples/guardrails/forbidden.json --fail-on-violations
+```
+
+The credential is AWS's documented example key (`AKIAIOSFODNN7EXAMPLE`), not a real secret.
+
 Run any of them with:
 
 ```bash
