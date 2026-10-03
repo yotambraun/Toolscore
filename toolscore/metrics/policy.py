@@ -10,7 +10,7 @@ that tool.
 Example rules::
 
     [
-        {"tool": "run_shell", "args": {"command": Regex(r".*\\brm\\s+-rf\\b.*")}, "reason": "destructive"},
+        {"tool": "run_shell", "args": {"command": Contains("rm -rf")}, "reason": "destructive"},
         {"tool": "read_file", "args": {"path": Contains(".ssh")}},
         {"tool": "delete_repository"},
     ]
@@ -20,7 +20,7 @@ argument value may be ``{"$regex": ...}``, ``{"$contains": ...}`` or
 ``{"$one_of": [...]}`` (see :func:`rules_from_json`)::
 
     [
-        {"tool": "run_shell", "args": {"command": {"$regex": ".*rm -rf.*"}}, "reason": "destructive"},
+        {"tool": "run_shell", "args": {"command": {"$regex": "rm -rf"}}, "reason": "destructive"},
         {"tool": "read_file", "args": {"path": {"$contains": ".ssh"}}},
         {"tool": "delete_repository"}
     ]
@@ -29,15 +29,15 @@ argument value may be ``{"$regex": ...}``, ``{"$contains": ...}`` or
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from toolscore.matchers import Contains, OneOf, Regex
+from toolscore.matchers import Contains, Matcher, OneOf
 from toolscore.metrics.arguments import _compare_values
 
 if TYPE_CHECKING:
     from toolscore.adapters.base import ToolCall
-    from toolscore.matchers import Matcher
 
 
 def _validate(rules: list[dict[str, Any]]) -> None:
@@ -51,6 +51,34 @@ def _validate(rules: list[dict[str, Any]]) -> None:
             raise ValueError(f"forbidden rule {position} 'args' must be a dict: {rule!r}")
 
 
+class _RegexSearch(Matcher):
+    """``$regex``: the pattern found anywhere in the value (``re.search``).
+
+    A forbidden rule must not be bypassed by a prefix, a suffix or a second line,
+    so unlike :class:`~toolscore.matchers.Regex` (a full match) this searches.
+    Lists and tuples are matched as their items joined with spaces (an argv
+    ``["rm", "-rf", "/"]`` reads ``rm -rf /``); other non-string values as text.
+    """
+
+    def __init__(self, pattern: str) -> None:
+        self._pattern = pattern
+        self._compiled = re.compile(pattern)
+
+    def matches(self, value: object) -> bool:
+        if isinstance(value, (list, tuple)):
+            text = " ".join(str(item) for item in value)
+        elif isinstance(value, str):
+            text = value
+        elif value is None:
+            return False
+        else:
+            text = str(value)
+        return self._compiled.search(text) is not None
+
+    def __repr__(self) -> str:
+        return f"$regex({self._pattern!r})"
+
+
 def _matcher_from_json(value: dict[str, Any]) -> Matcher | None:
     """The matcher a one-key ``{"$regex"|"$contains"|"$one_of": ...}`` dict stands for."""
     if len(value) != 1:
@@ -59,7 +87,7 @@ def _matcher_from_json(value: dict[str, Any]) -> Matcher | None:
     if key == "$regex":
         if not isinstance(operand, str):
             raise ValueError(f"$regex needs a pattern string, got {operand!r}")
-        return Regex(operand)
+        return _RegexSearch(operand)
     if key == "$contains":
         return Contains(operand)
     if key == "$one_of":
@@ -73,9 +101,12 @@ def rules_from_json(data: Any) -> list[dict[str, Any]]:
     """Build forbidden rules from JSON data, turning ``$`` operators into matchers.
 
     An argument value that is a one-key dict ``{"$regex": pattern}``,
-    ``{"$contains": item}`` or ``{"$one_of": [values]}`` becomes
-    :class:`~toolscore.matchers.Regex`, :class:`~toolscore.matchers.Contains` or
-    :class:`~toolscore.matchers.OneOf`. Any other value is compared exactly.
+    ``{"$contains": item}`` or ``{"$one_of": [values]}`` becomes a matcher:
+    ``$regex`` finds the pattern anywhere in the value (``re.search``, so a
+    second line or a prefix does not hide it; lists are matched as their items
+    joined with spaces), ``$contains`` is :class:`~toolscore.matchers.Contains`
+    and ``$one_of`` is :class:`~toolscore.matchers.OneOf`. Any other value is
+    compared exactly.
 
     Args:
         data: A list of rule dicts, e.g. parsed from a JSON file.

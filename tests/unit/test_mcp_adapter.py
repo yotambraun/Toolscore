@@ -408,3 +408,22 @@ class TestMCPAdapterPairsResponses:
 
         assert len(calls) == 1
         assert calls[0].result == "ok"
+
+
+def test_a_bare_string_error_in_a_response_is_a_failure() -> None:
+    """Not JSON-RPC, but hand-written logs carry it; it must not read as a success."""
+    calls = MCPAdapter().parse(
+        [
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": "fetch", "arguments": {}},
+            },
+            {"jsonrpc": "2.0", "id": 1, "error": "upstream timed out"},
+        ]
+    )
+
+    assert [(c.tool, c.is_error, c.metadata.get("error")) for c in calls] == [
+        ("fetch", True, "upstream timed out")
+    ]

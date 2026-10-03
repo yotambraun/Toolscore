@@ -156,7 +156,7 @@ def main() -> None:
     default=None,
     help=(
         "JSON file of calls the agent must never make, e.g. "
-        '[{"tool": "run_shell", "args": {"command": {"$regex": ".*rm -rf.*"}}}]'
+        '[{"tool": "run_shell", "args": {"command": {"$regex": "rm -rf"}}}]'
     ),
 )
 @click.option(
@@ -202,6 +202,7 @@ def eval(
     TRACE_FILE: Path to agent trace file (trace.json)
     """
     console = Console()
+    weights = _parse_weights(weight_overrides)
 
     try:
         # Show progress
@@ -231,7 +232,7 @@ def eval(
             validate_side_effects=not no_side_effects,
             judge=judge,
             forbidden=load_forbidden_rules(forbidden) if forbidden else None,
-            weights=_parse_weights(weight_overrides),
+            weights=weights,
         )
 
         # Generate reports
@@ -1027,7 +1028,8 @@ def mcp_record(
     console.print(
         f"[dim]toolscore: recorded {recorder.calls_recorded} tool call(s) to {output}[/dim]"
     )
-    sys.exit(exit_code)
+    # A server killed by a signal reports -N; shells report that as 128 + N.
+    sys.exit(exit_code if exit_code >= 0 else 128 - exit_code)
 
 
 @mcp.command("lint")

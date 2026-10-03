@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from toolscore.metrics.security import redact_secrets
 from toolscore.reports.findings import behavior_findings
 
 if TYPE_CHECKING:
@@ -188,7 +189,9 @@ def generate_markdown_report(
     lines.append("*Generated with [Toolscore](https://github.com/yotambraun/toolscore)*")
 
     # Write to file
-    content = "\n".join(lines)
+    # Markdown reports end up in job summaries and PR comments: never copy a
+    # credential from the trace into them in full.
+    content = redact_secrets("\n".join(lines))
     path.write_text(content, encoding="utf-8")
 
     return path

@@ -564,7 +564,7 @@ def _call_metadata(item: dict[str, Any]) -> dict[str, Any]:
         error = item["error"]
         if isinstance(error, bool):
             metadata["is_error"] = error
-        elif error is not None:
+        elif error:  # "", {}, [] and None mean "no error", as many frameworks emit them
             metadata["error"] = str(error)
             metadata["is_error"] = True
     if isinstance(item.get("is_error"), bool):

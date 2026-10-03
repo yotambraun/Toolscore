@@ -6,14 +6,17 @@ fake MCP server, exactly as an IDE or agent framework would be wired.
 
 from __future__ import annotations
 
+import io
 import json
+import os
 import shlex
 import sys
+import threading
 from pathlib import Path
 
 from toolscore import evaluate
 from toolscore.core import load_trace
-from toolscore.mcp import MCPStdioClient
+from toolscore.mcp import MCPRecorder, MCPStdioClient
 
 FIXTURE_SERVER = Path(__file__).resolve().parents[1] / "fixtures" / "fake_mcp_server.py"
 
@@ -162,3 +165,43 @@ def test_argv_form_keeps_arguments_with_spaces(tmp_path: Path) -> None:
         assert client.call_tool("add", {"a": 1, "b": 2}).text == "3"
 
     assert json.loads(out.read_text())["server_command"] == [sys.executable, str(server)]
+
+
+def test_recorder_stops_when_the_client_stops_reading(tmp_path: Path) -> None:
+    """A client that goes away while its input is still open must not hang the proxy."""
+
+    class GoneClient:
+        def write(self, _text: str) -> int:
+            raise BrokenPipeError
+
+        def flush(self) -> None:
+            pass
+
+    read_end, write_end = os.pipe()
+    request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "t", "version": "0"},
+        },
+    }
+    os.write(write_end, (json.dumps(request) + "\n").encode())  # write_end stays open
+    recorder = MCPRecorder([sys.executable, str(FIXTURE_SERVER)], tmp_path / "t.json")
+    outcome: list[int] = []
+
+    with os.fdopen(read_end, encoding="utf-8") as client_in:
+        worker = threading.Thread(
+            target=lambda: outcome.append(
+                recorder.run(stdin=client_in, stdout=GoneClient(), stderr=io.StringIO())
+            ),
+            daemon=True,
+        )
+        worker.start()
+        worker.join(timeout=30)
+        os.close(write_end)
+
+    assert outcome, "the recorder hung after the client went away"
+    assert (tmp_path / "t.json").exists()
