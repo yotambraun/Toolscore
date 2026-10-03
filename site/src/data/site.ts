@@ -15,7 +15,7 @@ export const site = {
   name: 'Toolscore',
   pkg: 'tool-scorer',
   tagline: 'the instant health-check for LLM tool-calling',
-  version: '1.7.1',
+  version: '1.10.0',
   license: 'Apache-2.0',
   author: 'Yotam Braun',
   description:
@@ -52,7 +52,11 @@ export const audiences = [
     blurb:
       'Toolscore runs your server through generated happy-path and adversarial edge-case scenarios, lints the schemas, measures token cost, and grades whether an LLM can actually use it — before you publish.',
     cmd: 'toolscore mcp test "python my_server.py"',
-    points: ['Happy-path + edge-case scenarios, auto-generated', 'Schema lint + token-cost signal', 'A–F grade with "Top issues to fix"'],
+    points: [
+      'Happy-path + edge-case scenarios, auto-generated',
+      'Lint for missing tools, tool poisoning and token cost',
+      'A–F grade with "Top issues to fix"',
+    ],
     href: url('mcp'),
     cta: 'Test your MCP server',
   },
@@ -63,7 +67,11 @@ export const audiences = [
     blurb:
       'Snapshot your agent’s tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. Jest snapshots, for agents.',
     cmd: 'toolscore init   #  record -> approve -> replay',
-    points: ['Snapshot record / approve / replay', 'Fluent expect() API + matchers', 'Auto-detects 8 agent frameworks'],
+    points: [
+      'Snapshot record / approve / replay',
+      'Failed calls, leaked credentials and forbidden calls, flagged',
+      'Auto-detects 8 frameworks, MCP sessions and OpenTelemetry',
+    ],
     href: url('agents'),
     cta: 'Test your agent',
   },
@@ -128,6 +136,21 @@ export const features = [
     title: 'Snapshot record / replay',
     body: 'Record your agent’s tool calls once, approve them as the baseline, and replay forever. Drift fails the build with a full expected-vs-actual diff.',
     icon: 'camera',
+  },
+  {
+    title: 'Behavior and safety checks',
+    body: 'See what the score hides: failed calls, blind retries, required calls that never succeeded, credentials passed into tools, and calls your agent must never make.',
+    icon: 'alert',
+  },
+  {
+    title: 'Real sessions, real traces',
+    body: 'Record what an agent really did against an MCP server with toolscore mcp record, or import the OpenTelemetry spans you already collect.',
+    icon: 'record',
+  },
+  {
+    title: 'Lint for tool poisoning',
+    body: 'Catch descriptions that point models at tools that do not exist, hidden Unicode, and <IMPORTANT>-style instructions smuggled into tool metadata.',
+    icon: 'scan',
   },
 ];
 
@@ -194,10 +217,10 @@ export const mcpDimensions = [
     body: 'Adversarial inputs — missing required fields, wrong types, empty values, boundaries — probe whether the server fails gracefully instead of crashing or returning garbage.',
   },
   {
-    label: 'Schema lint',
+    label: 'Lint',
     weight: '20%',
     grade: 'C',
-    body: 'Static checks on the tool definitions themselves: missing types, absent descriptions, no enums on fixed-value fields — the things that make a model guess.',
+    body: 'Static checks on the tool definitions and server instructions: missing types and descriptions, references to tools the server does not expose, and tool-poisoning patterns such as hidden Unicode.',
   },
   {
     label: 'Token cost',
@@ -215,7 +238,8 @@ export const mcpCommands = [
     note: 'Straight from a Claude Desktop config, zero install.',
   },
   { cmd: 'toolscore mcp list "python my_server.py"', note: 'Show the advertised tools.' },
-  { cmd: 'toolscore mcp lint "python my_server.py"', note: 'Schema lint only (exit 1 on errors).' },
+  { cmd: 'toolscore mcp lint "python my_server.py"', note: 'Lint only: schemas, missing tools, tool poisoning (exit 1 on errors).' },
+  { cmd: 'toolscore mcp record -o session.json -- python my_server.py', note: 'Record a real client session, then score it with toolscore eval.' },
   { cmd: 'toolscore mcp test "python my_server.py" --report md --output SCORECARD.md', note: 'Export a Markdown report for a PR or README.' },
   { cmd: 'toolscore mcp test "python my_server.py" --fail-under B', note: 'CI gate: exit 1 below a B.' },
   { cmd: 'toolscore mcp test "python my_server.py" --ci', note: 'Write the verdict to $GITHUB_STEP_SUMMARY, fail on blocking issues.' },
@@ -264,6 +288,8 @@ export const frameworks = [
   { name: 'OpenAI Agents SDK', detail: 'run results' },
   { name: 'Claude Agent SDK', detail: 'message lists' },
   { name: 'CrewAI', detail: 'experimental' },
+  { name: 'MCP sessions', detail: 'toolscore mcp record' },
+  { name: 'OpenTelemetry', detail: 'GenAI + MCP spans' },
 ];
 
 // ====================================================================
@@ -287,7 +313,7 @@ export const compareRows: { label: string; values: (boolean | 'partial')[] }[] =
 export const compareBestAt = [
   {
     name: 'Toolscore',
-    best: 'The deterministic, in-CI health-check for tool-calling. It verifies your agent calls the right tools, with the right arguments, in the right order — and grades whether an MCP server can be used at all — for free, in your test suite.',
+    best: 'The deterministic, in-CI health-check for tool-calling. It verifies your agent calls the right tools, with the right arguments, in the right order, flags failed calls, leaked credentials and forbidden calls, and grades whether an MCP server can be used at all — for free, in your test suite.',
     self: true,
   },
   {
@@ -330,7 +356,7 @@ export const entryPoints = [
   {
     title: 'Evaluate a trace',
     cmd: 'toolscore eval gold.json trace.json',
-    body: 'Score a captured agent trace against a gold standard. Get an A–F grade and the same "Top issues to fix" verdict.',
+    body: 'Score a captured trace, a recorded MCP session or an OpenTelemetry export against a gold standard. Get an A–F grade, "Top issues to fix" and behavior and safety findings.',
   },
 ];
 

@@ -29,6 +29,31 @@ const fixtureSnippet = `def test_books_a_flight(toolscore_snapshot):
 
 const evalSnippet = `toolscore eval gold.json trace.json     # A–F grade + Top issues to fix`;
 
+const gaveUpSnippet = `$ toolscore eval gold.json session.json
+
+╭────────────────────────╮
+│ Grade B   WARN (90.0%) │
+╰────────────────────────╯
+
+Required calls completed: 0 of 2 (missing or failed; not part of the default score)
+
+Top issues to fix
+  1. list_allowed_directories  expected call to \`list_allowed_directories\` never happened
+
+Behavior and safety
+  WARNING  1 of 1 tool calls failed (read_text_file)`;
+
+const guardrailsSnippet = `$ toolscore eval gold.json trace.json \\
+    --forbidden forbidden.json --fail-on-violations
+
+Behavior and safety
+  ERROR    call 2 run_shell matches forbidden rule 1: destructive shell command
+  ERROR    call 3 http_post passes a credential (aws_access_key_id) in 'body.text': AKIA…LE
+  WARNING  2 of 5 tool calls failed (deploy x2)
+  WARNING  1 call repeats a failed call with the same arguments
+
+ERROR 2 forbidden call(s) or credential(s) found (--fail-on-violations)   # exit 1`;
+
 const failureSnippet = `                     Expected vs Actual Tool Calls
 ┏━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
 ┃   # ┃ Expected             ┃ Actual               ┃ Status               ┃
@@ -43,7 +68,7 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
 
 <BaseLayout
   title="Test your agent"
-  description="Snapshot your agent's tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. Record, approve, replay — Jest snapshots for agents."
+  description="Snapshot your agent's tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. Record, approve, replay — and catch failed calls, leaked credentials and forbidden calls."
 >
   <PageHeader
     eyebrow="For agent builders"
@@ -117,6 +142,51 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
     </div>
   </section>
 
+  <!-- Behavior and safety -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">What the score hides</p>
+        <h2 class="h2">An agent gave up after one error — and still graded B</h2>
+        <p class="lead mt-4">
+          A real run: a small agent asked to read a config file through the official filesystem MCP
+          server tried a path outside its sandbox, got <em>Access denied</em>, and gave up without
+          calling <code class="font-mono text-sm text-brand">list_allowed_directories</code>. Its one
+          call used the right tool, so the score reads 90%. Toolscore shows the real outcome: neither
+          required call succeeded.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          Add <code class="font-mono text-brand">--weight required_call_recall=0.3</code> and this run
+          grades D. Sessions like this one come from
+          <code class="font-mono text-brand">toolscore mcp record</code>; OpenTelemetry exports work
+          the same way.
+        </p>
+      </div>
+      <CodeBlock title="real output — recorded MCP session" lang="text" code={gaveUpSnippet} />
+    </div>
+
+    <div class="wrap mt-12 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">Guardrails in CI</p>
+        <h2 class="h2">Destructive commands, leaked keys, blind retries</h2>
+        <p class="lead mt-4">
+          Every evaluation reports failed calls, retries of a failed call with the same arguments,
+          and credentials passed into tool arguments (shown redacted). Add rules for calls your agent
+          must never make — by tool, and by argument with
+          <code class="font-mono text-sm text-brand">$regex</code>,
+          <code class="font-mono text-sm text-brand">$contains</code> or
+          <code class="font-mono text-sm text-brand">$one_of</code> — and fail the build when one
+          happens.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          The same rule in a test:
+          <code class="font-mono text-brand">expect(agent).on(prompt).does_not_call("run_shell", command=Regex(r".*rm -rf.*"))</code>
+        </p>
+      </div>
+      <CodeBlock title="examples/guardrails" lang="text" code={guardrailsSnippet} />
+    </div>
+  </section>
+
   <!-- Fluent expect() API -->
   <section class="section">
     <div class="wrap grid items-start gap-10 lg:grid-cols-2">
@@ -175,7 +245,7 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
         </p>
       </div>
 
-      <div class="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-4">
+      <div class="mx-auto mt-10 grid max-w-5xl grid-cols-2 gap-3 sm:grid-cols-5">
         {
           frameworks.map((f) => (
             <div class="card flex flex-col items-center justify-center px-3 py-5 text-center">
