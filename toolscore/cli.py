@@ -881,8 +881,10 @@ def _resolve_mcp_command(
     neither is an error.
 
     Args:
-        command: The positional command tokens as Click parsed them (Click
-            splits on whitespace, so this is re-joined and ``shlex``-split).
+        command: The positional command tokens. A single token is a shell-quoted
+            command string and is ``shlex``-split; several tokens (for example
+            ``-- npx -y server "/path with spaces"`` from an MCP client config's
+            ``args`` array) are already an argument vector and are used as-is.
         config: Path to a Claude Desktop style config file, or ``None``.
         server: The server name to select from the config, or ``None``.
         console: Console for printing error output.
@@ -909,7 +911,9 @@ def _resolve_mcp_command(
         sys.exit(2)
 
     if positional:
-        return shlex.split(positional), {}
+        if len(command) == 1:
+            return shlex.split(command[0]), {}
+        return list(command), {}
 
     assert config is not None  # narrowed by the checks above
     try:
