@@ -59,6 +59,8 @@ class EvaluationResult:
         "argument_f1": 0.3,
         "sequence_accuracy": 0.2,
         "redundant_rate": 0.1,
+        # Opt-in: 0 by default so existing scores do not change.
+        "required_call_recall": 0.0,
     }
 
     def __init__(self) -> None:
@@ -73,7 +75,13 @@ class EvaluationResult:
         """Compute weighted composite score from key metrics.
 
         Default weights: selection_accuracy=0.4, argument_f1=0.3,
-        sequence_accuracy=0.2, redundant_rate=0.1.
+        sequence_accuracy=0.2, redundant_rate=0.1, required_call_recall=0.0.
+
+        Selection accuracy only judges the calls that were made, so by default a
+        trace that skips required calls can still score well. Give
+        ``required_call_recall`` a weight (for example
+        ``weights={"required_call_recall": 0.3}``) to make missing and failed
+        required calls lower the score.
 
         Returns:
             Composite score between 0.0 and 1.0.
@@ -82,6 +90,8 @@ class EvaluationResult:
         arg = self.argument_f1
         seq = self.sequence_accuracy
         red = float(self.metrics.get("efficiency_metrics", {}).get("redundant_rate", 0.0))
+        recall = self.required_call_recall
+        completed = 1.0 if recall is None else recall
 
         w = self._weights
         composite: float = (
@@ -89,6 +99,7 @@ class EvaluationResult:
             + w["argument_f1"] * arg
             + w["sequence_accuracy"] * seq
             + w["redundant_rate"] * (1.0 - red)
+            + w.get("required_call_recall", 0.0) * completed
         )
         return composite
 
@@ -114,7 +125,7 @@ class EvaluationResult:
 
     @property
     def required_call_recall(self) -> float | None:
-        """Share of required (expected) calls that were made, counting repeats.
+        """Share of required (expected) calls that were made and did not fail, counting repeats.
 
         ``None`` when nothing was required. See
         :func:`toolscore.metrics.calculate_required_call_recall`.
@@ -388,6 +399,39 @@ def _detect_format(data: Any) -> BaseAdapter:
     return CustomAdapter()
 
 
+def _normalize_weights(weights: dict[str, float] | None) -> dict[str, float] | None:
+    """Validate custom weights, merge them with the defaults and renormalize to sum 1.
+
+    Args:
+        weights: Custom weights, or ``None`` for the defaults.
+
+    Returns:
+        The merged, normalized weights, or ``None`` when ``weights`` is ``None``.
+
+    Raises:
+        ValueError: On an unknown key, a negative or non-finite value, or weights
+            that sum to zero.
+    """
+    if weights is None:
+        return None
+    valid_keys = set(EvaluationResult.DEFAULT_WEIGHTS.keys())
+    unknown = set(weights.keys()) - valid_keys
+    if unknown:
+        raise ValueError(f"Unknown weight keys: {unknown}. Valid keys: {valid_keys}")
+    for key, value in weights.items():
+        if not math.isfinite(value):
+            raise ValueError(f"Weight for '{key}' must be a finite number, got {value}")
+        if value < 0:
+            raise ValueError(f"Weight for '{key}' must be non-negative, got {value}")
+    merged = {**EvaluationResult.DEFAULT_WEIGHTS, **weights}
+    total = sum(merged.values())
+    if total == 0.0:
+        raise ValueError(
+            "Weights sum to zero after merging with defaults; at least one weight must be positive."
+        )
+    return {k: v / total for k, v in merged.items()}
+
+
 def evaluate_trace(
     gold_file: str | Path,
     trace_file: str | Path,
@@ -395,6 +439,7 @@ def evaluate_trace(
     validate_side_effects: bool = True,
     judge: JudgeConfig | str | bool = False,
     forbidden: list[dict[str, Any]] | None = None,
+    weights: dict[str, float] | None = None,
 ) -> EvaluationResult:
     """Evaluate an agent's trace against gold standard.
 
@@ -412,6 +457,8 @@ def evaluate_trace(
             endpoint (Ollama/vLLM/Groq), otherwise OpenAI.
         forbidden: Optional calls the agent must never make (see
             :func:`evaluate`); violations go to ``metrics["policy_metrics"]``.
+        weights: Optional custom weights for the composite score (see
+            :func:`evaluate`).
 
     Returns:
         EvaluationResult containing all computed metrics.
@@ -420,6 +467,8 @@ def evaluate_trace(
         FileNotFoundError: If files don't exist.
         ValueError: If file formats are invalid.
     """
+    merged_weights = _normalize_weights(weights)
+
     # Load data
     gold_calls = load_gold_standard(gold_file)
     trace_calls = load_trace(trace_file, format=format)
@@ -428,6 +477,8 @@ def evaluate_trace(
     result = EvaluationResult()
     result.gold_calls = gold_calls
     result.trace_calls = trace_calls
+    if merged_weights is not None:
+        result._weights = merged_weights
 
     # Calculate metrics
     result.metrics["invocation_accuracy"] = calculate_invocation_accuracy(gold_calls, trace_calls)
@@ -598,7 +649,9 @@ def evaluate(
         actual: List of actual tool calls from your agent, same format. Also accepts
             raw OpenAI/Anthropic/Gemini response objects or dicts (auto-detected).
         weights: Optional custom weights for the composite score.
-            Keys: 'selection_accuracy', 'argument_f1', 'sequence_accuracy', 'redundant_rate'.
+            Keys: 'selection_accuracy', 'argument_f1', 'sequence_accuracy', 'redundant_rate',
+            'required_call_recall' (0 by default; give it a weight to penalize
+            required calls that were skipped or failed).
             Provided values are merged with the defaults then renormalized so that all
             weights sum to 1.0 before computing the composite score.
         strict: When True, argument comparison uses pure equality (no int/float
@@ -630,25 +683,7 @@ def evaluate(
 
     actual = auto_extract(actual)
 
-    merged_weights: dict[str, float] | None = None
-    if weights is not None:
-        valid_keys = set(EvaluationResult.DEFAULT_WEIGHTS.keys())
-        unknown = set(weights.keys()) - valid_keys
-        if unknown:
-            raise ValueError(f"Unknown weight keys: {unknown}. Valid keys: {valid_keys}")
-        for key, value in weights.items():
-            if not math.isfinite(value):
-                raise ValueError(f"Weight for '{key}' must be a finite number, got {value}")
-            if value < 0:
-                raise ValueError(f"Weight for '{key}' must be non-negative, got {value}")
-        merged_weights = {**EvaluationResult.DEFAULT_WEIGHTS, **weights}
-        total = sum(merged_weights.values())
-        if total == 0.0:
-            raise ValueError(
-                "Weights sum to zero after merging with defaults; "
-                "at least one weight must be positive."
-            )
-        merged_weights = {k: v / total for k, v in merged_weights.items()}
+    merged_weights = _normalize_weights(weights)
 
     gold_calls = _dicts_to_tool_calls(expected)
     trace_calls = _dicts_to_tool_calls(actual)

@@ -49,6 +49,13 @@ def generate_json_report(
         "summary": {
             "gold_calls_count": len(result.gold_calls),
             "trace_calls_count": len(result.trace_calls),
+            "score": result.score,
+            "grade": result.grade,
+            "weights": dict(result._weights),
+            "required_call_recall": result.required_call_recall,
+            "failed_calls": result.metrics.get("efficiency_metrics", {}).get("error_count", 0),
+            "policy_violations": len(result.policy_violations),
+            "secrets": (result.metrics.get("security_metrics") or {}).get("secret_count", 0),
         },
         "metrics": result.metrics,
         "gold_calls": [_serialize_tool_call(call) for call in result.gold_calls],
