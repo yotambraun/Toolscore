@@ -7,6 +7,63 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+Toolscore 1.10 scores what agents really did, not only which tools they named. It was built from a season of evaluating real agents and real MCP servers (GitHub's official MCP server, browser-use, DeerFlow, the MCP reference servers) with Agent Eval Flow + Toolscore, and every new check was validated on that real data.
+
+### Highlights
+
+- **Record real MCP sessions.** `toolscore mcp record "<server command>" -o session.json` is a transparent stdio proxy: put it in your MCP client config in place of the server, use your agent as usual, and every tool call is saved with its arguments, result, error and duration. `toolscore eval gold.json session.json` scores it directly.
+- **Behavior and safety checks.** Every evaluation now reports failed tool calls, retries of a failed call with the same arguments, and credentials passed into tool arguments (API keys, tokens, private keys; reported with a redacted preview). Forbidden-call policies (`forbidden=` in Python, `--forbidden rules.json` on the CLI, `does_not_call(tool, **args)` in `expect()`) flag calls an agent must never make, and `--fail-on-violations` turns them into a CI gate.
+- **Required calls that never succeeded are visible.** `required_call_recall` counts each required call that was made and did not fail. The CLI prints `Required calls completed: X of N` when some are missing, and `--weight required_call_recall=0.3` (or `weights=`) makes them lower the score.
+- **MCP lint finds broken and hostile tool descriptions.** References to tools the server does not expose (in descriptions, parameter descriptions and server instructions), and tool-poisoning patterns: hidden Unicode (tag characters, bidi controls), instructions to hide things from the user, and `<IMPORTANT>`-style instruction blocks. On GitHub's official MCP server (v1.12.2, 254 tool definitions across three toolset configurations) it reports the two real stale references and no false positives.
+- **OpenTelemetry import.** `from_otel()`, `--format otel` and auto-detection read tool calls from OpenTelemetry GenAI spans (`execute_tool`) and MCP `tools/call` spans, from OTLP JSON exports or SDK span objects, so any instrumented framework or observability platform can feed Toolscore.
+
+### Added
+
+#### Traces keep what happened
+- Tool calls keep their `result`, `error`, `is_error`, `duration`, `cost`, `id` and metadata when loaded from files or passed to `evaluate()`; `ToolCall.is_error` tells whether a call failed.
+- `efficiency_metrics` adds `error_count`, `error_rate` and `retry_after_error_count`.
+- `EvaluationResult.to_dict()` returns a complete, JSON-safe, versioned record (`schema_version` "2"): score, grade, weights, `required_call_recall`, all metrics, and every expected and actual call. Built for harnesses that store evidence, such as Agent Eval Flow.
+
+#### Behavior and safety
+- `required_call_recall` metric and `EvaluationResult.required_call_recall`: required calls completed, counting repeats (a contract that requires `search` twice is half met by one `search`).
+- Opt-in `required_call_recall` score weight (0 by default), also accepted by `evaluate_trace(weights=...)`, `expect(...).with_weights(...)` and `toolscore eval --weight NAME=VALUE`.
+- `security_metrics`: credentials found in tool arguments at any depth (OpenAI, Anthropic, GitHub, AWS, Google, Slack and Stripe formats and PEM private keys), with the argument path and a redacted preview. No false positives on 861 real agent tool calls.
+- Forbidden-call policies: `evaluate(..., forbidden=[...])` and `evaluate_trace(..., forbidden=[...])` report `policy_metrics` and `EvaluationResult.policy_violations`. Rules name a tool and optional argument values or matchers. `load_forbidden_rules()` / `rules_from_json()` read JSON rules where values may be `{"$regex": ...}`, `{"$contains": ...}` or `{"$one_of": [...]}`. Policies do not change the score.
+- `expect(...).does_not_call(tool, **args)` accepts arguments and matchers: forbid `run_shell` only when the command matches `rm -rf`.
+- Console, Markdown and HTML reports list behavior and safety findings (forbidden calls, credentials, failed calls, blind retries) and the required calls completed. The HTML and Markdown reports now show the score and grade.
+- The JSON report's `summary` adds `score`, `grade`, `weights`, `required_call_recall`, `failed_calls`, `policy_violations` and `secrets`, so CI scripts can read the verdict without recomputing it.
+- `toolscore eval --forbidden FILE`, `--weight NAME=VALUE` and `--fail-on-violations`.
+
+#### GitHub Action
+- New inputs `forbidden-file` and `fail-on-violations` (off by default) for a safety gate, and new outputs `score`, `grade`, `required-call-recall` and `violations`. The `format` input accepts `mcp` and `otel`.
+
+#### Examples
+- `examples/guardrails/`: a deploy agent's trace with a destructive command, a credential posted to a webhook and a failed deploy retried unchanged, with `forbidden.json` rules.
+- `examples/otel_genai_spans.json`: an OTLP export written by the official OpenTelemetry Python SDK.
+- The quality-gates workflow example gains a safety-check job.
+
+#### MCP
+- `toolscore mcp record` (and `MCPRecorder`): records only `tools/call` requests and their responses, writes atomically, and exits with the server's exit code.
+- Lint rules for dangling tool references and tool poisoning; `lint_tools(tools, instructions=...)` also checks the server's `instructions`.
+- The scorecard reports the token cost of the server's instructions alongside the tool definitions (`instructions_tokens`, `context_tokens`).
+- `MCPStdioClient.server_instructions` and `server_capabilities` from the handshake; `MCPToolResult.text` and `content_to_text()` render every MCP content type (text, embedded resources, resource links, images, audio).
+
+#### Integrations
+- `from_otel()`, `OTelAdapter` and `--format otel` for OpenTelemetry GenAI tool spans (OTLP JSON exports, span dicts, or SDK `ReadableSpan` objects). Arguments, results, call ids, errors (`error.type` or an ERROR status) and durations are kept; calls are ordered by start time.
+
+### Fixed
+
+- **MCP traces no longer contain phantom calls.** `MCPAdapter` turned each JSON-RPC response into a separate `unknown` tool call, which inflated call counts and lowered selection and sequence scores. Responses are now paired with their requests by id, and their result or error is attached to the call. **Scores for MCP traces can change; re-approve baselines after upgrading.**
+- **MCP sessions are auto-detected.** With `--format auto`, a recorded session (`{"format": "mcp", "messages": [...]}`) was routed to the OpenAI adapter and a plain JSON-RPC message list to the custom adapter; both loaded as zero calls.
+- **Embedded resources are kept.** Tool results that return MCP `resource` content were reduced to an empty string.
+- **MCP server commands with spaces.** `toolscore mcp list|lint|test|record` re-joined a multi-token command with spaces and split it again, so an argument containing a space (`-- npx -y server "/path with spaces"`, as MCP client configs pass it) was broken in two. Several tokens are now used as given; a single quoted string is still split like a shell command.
+
+### Notes
+
+- The default composite score is unchanged. It judges the calls that were made, so a trace that skips required calls can still score well; use the `required_call_recall` weight or the new console line to catch that.
+- The `weights` reported by `to_dict()` and the JSON report now include `required_call_recall` (0.0 unless you set it). Passing the four existing weight names works as before.
+- Missing-tool references are lint warnings; tool-poisoning patterns other than unusual invisible characters are errors, and lower the MCP scorecard's lint score.
+
 ## [1.9.1] - 2026-10-01
 
 Found by running `toolscore mcp test` against the official MCP reference servers (modelcontextprotocol/servers). Several failing grades were Toolscore's mistakes, not the servers'.
@@ -478,7 +535,10 @@ This entry covers 1.7.0 through 1.8.1 (released 2026-06-13 to 2026-06-19).
 - API documentation
 - Usage examples
 
-[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.9.1...HEAD
+[1.9.1]: https://github.com/yotambraun/Toolscore/compare/v1.9.0...v1.9.1
+[1.9.0]: https://github.com/yotambraun/Toolscore/compare/v1.8.1...v1.9.0
+[1.8.1]: https://github.com/yotambraun/Toolscore/compare/v1.6.0...v1.8.1
 [1.6.0]: https://github.com/yotambraun/Toolscore/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/yotambraun/toolscore/compare/v1.4.2...v1.5.0
 [1.4.0]: https://github.com/yotambraun/Toolscore/compare/v1.2.0...v1.4.0
