@@ -20,10 +20,9 @@ const poisonLint = `$ toolscore mcp lint "python poisoned_server.py"
 error    add
          tells the model to hide something from the user:
          a tool-poisoning instruction pattern
-error    add
-         contains a hidden instruction block
-         (an <IMPORTANT>-style tag):
-         a tool-poisoning instruction pattern`;
+warning  add
+         contains an <IMPORTANT>-style instruction block,
+         a pattern used to hide instructions`;
 
 const recordConfig = `{
   "mcpServers": {

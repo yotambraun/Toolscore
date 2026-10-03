@@ -7,14 +7,14 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
-Toolscore 1.10 scores what agents really did, not only which tools they named. It was built from a season of evaluating real agents and real MCP servers (GitHub's official MCP server, browser-use, DeerFlow, the MCP reference servers) with Agent Eval Flow + Toolscore, and every new check was validated on that real data.
+Toolscore 1.10 scores what agents really did, not only which tools they named: record real MCP sessions or import OpenTelemetry spans, and see failed calls, required calls that never succeeded, leaked credentials and forbidden calls next to the score. Every new check was validated on real agents and real MCP servers, including GitHub's official MCP server.
 
 ### Highlights
 
 - **Record real MCP sessions.** `toolscore mcp record "<server command>" -o session.json` is a transparent stdio proxy: put it in your MCP client config in place of the server, use your agent as usual, and every tool call is saved with its arguments, result, error and duration. `toolscore eval gold.json session.json` scores it directly.
 - **Behavior and safety checks.** Every evaluation now reports failed tool calls, retries of a failed call with the same arguments, and credentials passed into tool arguments (API keys, tokens, private keys; reported with a redacted preview). Forbidden-call policies (`forbidden=` in Python, `--forbidden rules.json` on the CLI, `does_not_call(tool, **args)` in `expect()`) flag calls an agent must never make, and `--fail-on-violations` turns them into a CI gate.
 - **Required calls that never succeeded are visible.** `required_call_recall` counts each required call that was made and did not fail. The CLI prints `Required calls completed: X of N` when some are missing, and `--weight required_call_recall=0.3` (or `weights=`) makes them lower the score.
-- **MCP lint finds broken and hostile tool descriptions.** References to tools the server does not expose (in descriptions, parameter descriptions and server instructions), and tool-poisoning patterns: hidden Unicode (tag characters, bidi controls), instructions to hide things from the user, and `<IMPORTANT>`-style instruction blocks. On GitHub's official MCP server (v1.12.2, 254 tool definitions across three toolset configurations) it reports the two real stale references and no false positives.
+- **MCP lint finds broken and hostile tool descriptions.** References to tools the server does not expose (in descriptions, parameter descriptions and server instructions), and tool-poisoning patterns: hidden Unicode (tag characters, bidi controls), instructions to hide things from the user or to ignore other instructions (errors), and `<IMPORTANT>`-style instruction blocks (warnings). On GitHub's official MCP server (v1.12.2, 254 tool definitions across three toolset configurations) it reports the two real stale references and no false positives.
 - **OpenTelemetry import.** `from_otel()`, `--format otel` and auto-detection read tool calls from OpenTelemetry GenAI spans (`execute_tool`) and MCP `tools/call` spans, from OTLP JSON exports or SDK span objects, so any instrumented framework or observability platform can feed Toolscore.
 
 ### Added
@@ -27,10 +27,10 @@ Toolscore 1.10 scores what agents really did, not only which tools they named. I
 #### Behavior and safety
 - `required_call_recall` metric and `EvaluationResult.required_call_recall`: required calls completed, counting repeats (a contract that requires `search` twice is half met by one `search`).
 - Opt-in `required_call_recall` score weight (0 by default), also accepted by `evaluate_trace(weights=...)`, `expect(...).with_weights(...)` and `toolscore eval --weight NAME=VALUE`.
-- `security_metrics`: credentials found in tool arguments at any depth (OpenAI, Anthropic, GitHub, AWS, Google, Slack and Stripe formats and PEM private keys), with the argument path and a redacted preview. No false positives on 861 real agent tool calls.
-- Forbidden-call policies: `evaluate(..., forbidden=[...])` and `evaluate_trace(..., forbidden=[...])` report `policy_metrics` and `EvaluationResult.policy_violations`. Rules name a tool and optional argument values or matchers. `load_forbidden_rules()` / `rules_from_json()` read JSON rules where values may be `{"$regex": ...}`, `{"$contains": ...}` or `{"$one_of": [...]}`. Policies do not change the score.
+- `security_metrics`: credentials found in tool arguments at any depth (OpenAI, Anthropic, GitHub, AWS, Google, Slack and Stripe formats and PEM private keys), with the argument path and a redacted preview. OpenAI and Anthropic matches must also look random (digits and both letter cases), so slugs are not reported. No false positives on 861 real agent tool calls. `redact_secrets()` replaces credentials in any text.
+- Forbidden-call policies: `evaluate(..., forbidden=[...])` and `evaluate_trace(..., forbidden=[...])` report `policy_metrics` and `EvaluationResult.policy_violations`. Rules name a tool and optional argument values or matchers. `load_forbidden_rules()` / `rules_from_json()` read JSON rules where values may be `{"$regex": ...}` (found anywhere in the value, like `re.search`, so a prefix or a second line does not hide it; lists are matched as their items joined with spaces), `{"$contains": ...}` or `{"$one_of": [...]}`. Policies do not change the score.
 - `expect(...).does_not_call(tool, **args)` accepts arguments and matchers: forbid `run_shell` only when the command matches `rm -rf`.
-- Console, Markdown and HTML reports list behavior and safety findings (forbidden calls, credentials, failed calls, blind retries) and the required calls completed. The HTML and Markdown reports now show the score and grade.
+- Console, Markdown and HTML reports list behavior and safety findings (forbidden calls, credentials, failed calls, blind retries) and the required calls completed. The HTML and Markdown reports now show the score and grade. All three redact credentials wherever they would print them, so a Markdown report posted to a GitHub job summary does not publish a key; the JSON report and `to_dict()` keep the calls as recorded.
 - The JSON report's `summary` adds `score`, `grade`, `weights`, `required_call_recall`, `failed_calls`, `policy_violations` and `secrets`, so CI scripts can read the verdict without recomputing it.
 - `toolscore eval --forbidden FILE`, `--weight NAME=VALUE` and `--fail-on-violations`.
 
@@ -62,7 +62,8 @@ Toolscore 1.10 scores what agents really did, not only which tools they named. I
 
 - The default composite score is unchanged. It judges the calls that were made, so a trace that skips required calls can still score well; use the `required_call_recall` weight or the new console line to catch that.
 - The `weights` reported by `to_dict()` and the JSON report now include `required_call_recall` (0.0 unless you set it). Passing the four existing weight names works as before.
-- Missing-tool references are lint warnings; tool-poisoning patterns other than unusual invisible characters are errors, and lower the MCP scorecard's lint score.
+- Missing-tool references and `<IMPORTANT>`-style blocks are lint warnings; hidden Unicode and concealment or override instructions are errors, and lower the MCP scorecard's lint score.
+- A call counts as failed when it has `"is_error": true` or a non-empty `error`; `""`, `null`, `{}` and `[]` mean no error.
 
 ## [1.9.1] - 2026-10-01
 

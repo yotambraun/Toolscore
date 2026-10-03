@@ -147,13 +147,13 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
     <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
         <p class="eyebrow mb-3">What the score hides</p>
-        <h2 class="h2">An agent gave up after one error — and still graded B</h2>
+        <h2 class="h2">Catch agents that give up after an error</h2>
         <p class="lead mt-4">
           A real run: a small agent asked to read a config file through the official filesystem MCP
           server tried a path outside its sandbox, got <em>Access denied</em>, and gave up without
           calling <code class="font-mono text-sm text-brand">list_allowed_directories</code>. Its one
-          call used the right tool, so the score reads 90%. Toolscore shows the real outcome: neither
-          required call succeeded.
+          call used the right tool, so the score alone reads 90%. Toolscore shows what actually
+          happened: neither required call succeeded.
         </p>
         <p class="mt-4 text-sm text-muted">
           Add <code class="font-mono text-brand">--weight required_call_recall=0.3</code> and this run
@@ -168,7 +168,7 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
     <div class="wrap mt-12 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
       <div>
         <p class="eyebrow mb-3">Guardrails in CI</p>
-        <h2 class="h2">Destructive commands, leaked keys, blind retries</h2>
+        <h2 class="h2">Block destructive commands and leaked keys</h2>
         <p class="lead mt-4">
           Every evaluation reports failed calls, retries of a failed call with the same arguments,
           and credentials passed into tool arguments (shown redacted). Add rules for calls your agent
@@ -180,7 +180,7 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
         </p>
         <p class="mt-4 text-sm text-muted">
           The same rule in a test:
-          <code class="font-mono text-brand">expect(agent).on(prompt).does_not_call("run_shell", command=Regex(r".*rm -rf.*"))</code>
+          <code class="font-mono text-brand">expect(agent).on(prompt).does_not_call("run_shell", command=Contains("rm -rf"))</code>
         </p>
       </div>
       <CodeBlock title="examples/guardrails" lang="text" code={guardrailsSnippet} />

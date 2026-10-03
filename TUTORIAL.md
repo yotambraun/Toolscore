@@ -657,7 +657,7 @@ Behavior and safety
   WARNING  1 call repeats a failed call with the same arguments
 ```
 
-`--fail-on-violations` exits 1 when a forbidden call or a credential is found. Rules match tools and, optionally, arguments; in JSON, an argument value may be `{"$regex": ...}`, `{"$contains": ...}` or `{"$one_of": [...]}`. In Python, use matchers directly, also in fluent tests: `expect(agent).on(prompt).does_not_call("run_shell", command=Regex(r".*rm -rf.*")).run()`.
+`--fail-on-violations` exits 1 when a forbidden call or a credential is found. Rules match tools and, optionally, arguments; in JSON, an argument value may be `{"$regex": ...}`, `{"$contains": ...}` or `{"$one_of": [...]}`. `$regex` finds the pattern anywhere (a `sudo` prefix or a second line does not hide it). In Python, use matchers directly, also in fluent tests: `expect(agent).on(prompt).does_not_call("run_shell", command=Contains("rm -rf")).run()`; `Contains` finds text anywhere, while `Regex` must match the whole string.
 
 ## MCP Scorecard
 
@@ -696,7 +696,7 @@ toolscore mcp test "python my_server.py" --ci              # write verdict to $G
 
 The score blends happy-path pass rate (60%), edge-case resilience (20%), and schema lint cleanliness (20%); grades follow the usual bands (>= 0.9 is an A). The console verdict and Markdown report list the top issues to fix with concrete suggestions plus a per-tool token-cost breakdown; the Markdown report is designed to paste into your server's README or a PR comment.
 
-Beyond schema hygiene, the lint flags descriptions and server instructions that refer to tools the server does not expose (on GitHub's official MCP server v1.12.2 it found `label_write` pointing models to a non-existent `update_issue` tool), and tool-poisoning patterns: hidden Unicode, `<IMPORTANT>`-style instruction blocks, "ignore previous instructions", and text telling the model to hide something from the user. The scorecard also counts the tokens of the server's instructions.
+Beyond schema hygiene, the lint flags descriptions and server instructions that refer to tools the server does not expose (on GitHub's official MCP server v1.12.2 it found `label_write` pointing models to a non-existent `update_issue` tool), and tool-poisoning patterns: hidden Unicode, "ignore previous instructions", and text telling the model to hide something from the user (errors), plus `<IMPORTANT>`-style instruction blocks (warnings). The scorecard also counts the tokens of the server's instructions.
 
 ## LLM Judge for Every Provider
 
