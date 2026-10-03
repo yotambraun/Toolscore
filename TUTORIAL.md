@@ -13,12 +13,13 @@ This tutorial walks you through the complete workflow of using Toolscore to test
 8. [Step 3: Evaluate and Generate Reports](#step-3-evaluate-and-generate-reports)
 9. [Understanding the Metrics](#understanding-the-metrics)
 10. [Self-Explaining Failures](#self-explaining-failures)
-11. [MCP Scorecard](#mcp-scorecard)
-12. [LLM Judge for Every Provider](#llm-judge-for-every-provider)
-13. [Async Agents](#async-agents)
-14. [Regression Testing](#regression-testing)
-15. [CI/CD Integration](#cicd-integration)
-16. [Advanced Usage](#advanced-usage)
+11. [Behavior and Safety Checks](#behavior-and-safety-checks)
+12. [MCP Scorecard](#mcp-scorecard)
+13. [LLM Judge for Every Provider](#llm-judge-for-every-provider)
+14. [Async Agents](#async-agents)
+15. [Regression Testing](#regression-testing)
+16. [CI/CD Integration](#cicd-integration)
+17. [Advanced Usage](#advanced-usage)
     - [Pytest Integration](#pytest-integration)
     - [Integration Helpers](#integration-helpers)
     - [LangChain Support](#langchain-support)
@@ -416,6 +417,28 @@ print("Trace saved to my_trace_anthropic.json")
 
 Toolscore includes example traces in the `examples/` directory. You can use these to get started immediately!
 
+### Option D: Record a Real MCP Session
+
+If your agent uses MCP servers, put `toolscore mcp record` where your MCP client starts the server. It relays every message unchanged and writes each tool call with its arguments, result, error and duration:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "toolscore",
+      "args": ["mcp", "record", "-o", "session.json", "--",
+               "npx", "-y", "@modelcontextprotocol/server-filesystem", "./project"]
+    }
+  }
+}
+```
+
+Use your agent as usual; `session.json` is written when the session ends and is auto-detected by `toolscore eval`.
+
+### Option E: Use OpenTelemetry Spans
+
+If your framework or observability platform emits OpenTelemetry GenAI spans, export them as OTLP JSON and evaluate the file directly (`--format otel`, or auto-detected), or convert spans in Python with `from_otel(spans)`. See `examples/otel_genai_spans.json`.
+
 ## Step 2: Create Gold Standards
 
 A gold standard defines the **expected** tool usage for a task. It's your "correct answer" reference.
@@ -574,9 +597,18 @@ Gold calls with `args` omitted are excluded from argument checking entirely — 
 
 Only applicable if you specify `side_effects` in your gold standard and have validators enabled.
 
+### 7. Required Call Recall
+**What it measures:** Was every required call made, and did it succeed?
+
+- `1.0` = every expected call has its own successful call
+- `< 1.0` = some required calls were skipped, or every attempt at them failed
+- `None` = nothing was expected
+
+Selection accuracy only judges the calls that were made, so this is the number that drops when an agent gives up after an error.
+
 ### The Composite Score
 
-`result.score` is a weighted average: selection accuracy (40%), argument F1 (30%), sequence accuracy (20%), and inverted redundancy (10%). Override with `weights=` (values are renormalized to sum to 1.0).
+`result.score` is a weighted average: selection accuracy (40%), argument F1 (30%), sequence accuracy (20%), and inverted redundancy (10%). Override with `weights=` or `--weight NAME=VALUE` (values are renormalized to sum to 1.0). Add `required_call_recall` (0 by default) to make skipped or failed required calls lower the score: `weights={"required_call_recall": 0.3}`.
 
 ## Self-Explaining Failures
 
@@ -603,6 +635,29 @@ The CLI's `--verbose` mode adds a "What Went Wrong" breakdown:
 - **MISMATCH**: Wrong tool or argument at a specific position
 
 Tips are generated from the failure pattern — e.g. similar tool names suggest `--llm-judge`, low recall suggests missing required arguments.
+
+## Behavior and Safety Checks
+
+Every evaluation also reports what the score alone hides, under **Behavior and safety** in the console, Markdown and HTML reports:
+
+- **Failed calls and blind retries**: `error_count`, `error_rate`, `retry_after_error_count` in `metrics["efficiency_metrics"]` (from `is_error`/`error` on the calls).
+- **Credentials in tool arguments**: `metrics["security_metrics"]`, with the argument path and a redacted preview.
+- **Forbidden calls**: rules you pass as `forbidden=[...]` (Python) or `--forbidden rules.json` (CLI).
+
+```bash
+cd examples/guardrails
+toolscore eval gold.json trace.json --forbidden forbidden.json --fail-on-violations
+```
+
+```
+Behavior and safety
+  ERROR    call 2 run_shell matches forbidden rule 1: destructive shell command
+  ERROR    call 3 http_post passes a credential (aws_access_key_id) in 'body.text': AKIA…LE
+  WARNING  2 of 5 tool calls failed (deploy x2)
+  WARNING  1 call repeats a failed call with the same arguments
+```
+
+`--fail-on-violations` exits 1 when a forbidden call or a credential is found. Rules match tools and, optionally, arguments; in JSON, an argument value may be `{"$regex": ...}`, `{"$contains": ...}` or `{"$one_of": [...]}`. In Python, use matchers directly, also in fluent tests: `expect(agent).on(prompt).does_not_call("run_shell", command=Regex(r".*rm -rf.*")).run()`.
 
 ## MCP Scorecard
 
@@ -640,6 +695,8 @@ toolscore mcp test "python my_server.py" --ci              # write verdict to $G
 ```
 
 The score blends happy-path pass rate (60%), edge-case resilience (20%), and schema lint cleanliness (20%); grades follow the usual bands (>= 0.9 is an A). The console verdict and Markdown report list the top issues to fix with concrete suggestions plus a per-tool token-cost breakdown; the Markdown report is designed to paste into your server's README or a PR comment.
+
+Beyond schema hygiene, the lint flags descriptions and server instructions that refer to tools the server does not expose (on GitHub's official MCP server v1.12.2 it found `label_write` pointing models to a non-existent `update_issue` tool), and tool-poisoning patterns: hidden Unicode, `<IMPORTANT>`-style instruction blocks, "ignore previous instructions", and text telling the model to hide something from the user. The scorecard also counts the tokens of the server's instructions.
 
 ## LLM Judge for Every Provider
 
@@ -800,12 +857,22 @@ For file-based evaluation or MCP scorecards, use the official action:
     baseline-file: tests/baseline.json
     regression-threshold: '0.05'
 
+# Safety gate: fail on forbidden calls or credentials in tool arguments
+- uses: yotambraun/toolscore@v1
+  with:
+    gold-file: tests/gold_standard.json
+    trace-file: tests/agent_trace.json
+    forbidden-file: tests/forbidden.json
+    fail-on-violations: 'true'
+
 # MCP scorecard mode
 - uses: yotambraun/toolscore@v1
   with:
     mcp-command: 'uvx my-mcp-server'
     mcp-fail-under: 'B'
 ```
+
+The action outputs `score`, `grade`, `required-call-recall` and `violations` for later steps.
 
 ### Best Practices
 
