@@ -23,7 +23,7 @@ export const site = {
   repo: 'https://github.com/yotambraun/Toolscore',
   pypi: 'https://pypi.org/project/tool-scorer/',
   pepy: 'https://pepy.tech/project/tool-scorer',
-  docs: 'https://tool-scorer.readthedocs.io',
+  docs: 'https://yotambraun.github.io/Toolscore/docs/',
   action: 'https://github.com/marketplace/actions/toolscore',
   installPip: 'pip install tool-scorer',
   installUvx: 'uvx tool-scorer demo',

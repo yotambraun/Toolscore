@@ -1077,7 +1077,7 @@ git diff .toolscore/snapshots   # review the drift, then commit
 ## Next Steps
 
 - Check out more examples in `examples/`
-- Read the full docs at https://tool-scorer.readthedocs.io
+- Read the full docs at https://yotambraun.github.io/Toolscore/docs/
 - Read `CONTRIBUTING.md` to contribute new metrics
 - Star the repo on GitHub if this helps your project!
 

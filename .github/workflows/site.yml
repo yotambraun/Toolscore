@@ -1,14 +1,16 @@
 name: Deploy site
 
-# Builds the Astro marketing site (in site/) and deploys it to GitHub Pages.
-# Triggers ONLY on changes under site/ so it never runs on package-only commits.
-# (Keep the Python CI workflow path-filtered to ignore site/** for the reverse.)
+# Builds the Astro marketing site (in site/) and the Sphinx documentation (in docs/,
+# served at /Toolscore/docs/) and deploys both to GitHub Pages. Runs when the site,
+# the docs, or the package (whose docstrings feed the API reference) change.
 # One-time setup: enable Pages at Settings -> Pages -> Source: "GitHub Actions".
 on:
   push:
     branches: [main]
     paths:
       - 'site/**'
+      - 'docs/**'
+      - 'toolscore/**'
       - '.github/workflows/site.yml'
   workflow_dispatch:
 
@@ -39,6 +41,14 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the documentation into the site
+        working-directory: .
+        run: |
+          python -m pip install -e ".[docs]"
+          sphinx-build -W -b html docs site/dist/docs
       - uses: actions/configure-pages@v5
         with:
           enablement: true

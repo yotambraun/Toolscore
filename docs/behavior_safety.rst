@@ -48,9 +48,10 @@ Failed calls and blind retries
 ------------------------------
 
 A call failed when its trace says so: ``"is_error": true`` or a non-empty
-``"error"`` on the call (``""``, ``null``, ``{}`` and ``[]`` mean no error) (the MCP adapter sets both from a JSON-RPC error or an
-``isError`` result; the OpenTelemetry importer from ``error.type`` or an ERROR
-span status). Traces without error information report zero failures.
+``"error"`` on the call. Empty values (``""``, ``null``, ``{}``, ``[]``) mean no
+error. The MCP adapter sets both from a JSON-RPC error or an ``isError`` result,
+and the OpenTelemetry importer from ``error.type`` or an ERROR span status.
+Traces without error information report zero failures.
 
 * ``error_count`` and ``error_rate``: failed calls, and their share of all calls.
 * ``retry_after_error_count``: calls that repeat the immediately preceding

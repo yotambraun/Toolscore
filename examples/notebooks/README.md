@@ -94,7 +94,7 @@ Notebooks use the example files in `examples/`:
 
 ## Support
 
-- **Documentation**: https://toolscore.readthedocs.io/
+- **Documentation**: https://yotambraun.github.io/Toolscore/docs/
 - **Issues**: https://github.com/yotambraun/Toolscore/issues
 - **Examples**: https://github.com/yotambraun/Toolscore/tree/main/examples
 

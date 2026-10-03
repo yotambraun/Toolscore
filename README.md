@@ -26,7 +26,7 @@
 **[Test your agent](https://yotambraun.github.io/Toolscore/agents)** ·
 **[Compare](https://yotambraun.github.io/Toolscore/compare)** ·
 **[Quickstart](https://yotambraun.github.io/Toolscore/quickstart)** ·
-**[Docs](https://tool-scorer.readthedocs.io)**
+**[Docs](https://yotambraun.github.io/Toolscore/docs/)**
 
 ---
 
@@ -530,7 +530,7 @@ Toolscore does one thing well: it verifies your agent calls the right tools, wit
 
 ## Learn More
 
-- [Documentation](https://tool-scorer.readthedocs.io) — full API reference and guides
+- [Documentation](https://yotambraun.github.io/Toolscore/docs/) — full API reference and guides
 - [TUTORIAL.md](TUTORIAL.md) — step-by-step walkthrough, from first score to CI
 - [CHANGELOG.md](CHANGELOG.md) — what's new
 - [Medium article](https://medium.com/@yotambraun/stop-shipping-broken-llm-agents-toolscore-for-reliable-tool-using-ai-now-with-ci-cd-462913cf99e2) — the story behind Toolscore

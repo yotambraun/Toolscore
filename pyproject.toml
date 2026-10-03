@@ -118,7 +118,7 @@ toolscore = "toolscore.pytest_plugin"
 
 [project.urls]
 Homepage = "https://yotambraun.github.io/Toolscore"
-Documentation = "https://tool-scorer.readthedocs.io"
+Documentation = "https://yotambraun.github.io/Toolscore/docs/"
 Repository = "https://github.com/yotambraun/toolscore"
 Issues = "https://github.com/yotambraun/toolscore/issues"
 Changelog = "https://github.com/yotambraun/toolscore/blob/main/CHANGELOG.md"
