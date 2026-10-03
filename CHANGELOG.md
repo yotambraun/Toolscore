@@ -7,6 +7,8 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-03
+
 Toolscore 1.10 scores what agents really did, not only which tools they named: record real MCP sessions or import OpenTelemetry spans, and see failed calls, required calls that never succeeded, leaked credentials and forbidden calls next to the score. Every new check was validated on real agents and real MCP servers, including GitHub's official MCP server.
 
 ### Highlights
@@ -536,7 +538,8 @@ This entry covers 1.7.0 through 1.8.1 (released 2026-06-13 to 2026-06-19).
 - API documentation
 - Usage examples
 
-[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.9.1...HEAD
+[Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/yotambraun/Toolscore/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/yotambraun/Toolscore/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/yotambraun/Toolscore/compare/v1.8.1...v1.9.0
 [1.8.1]: https://github.com/yotambraun/Toolscore/compare/v1.6.0...v1.8.1
