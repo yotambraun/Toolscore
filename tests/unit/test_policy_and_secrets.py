@@ -257,12 +257,12 @@ def test_cli_forbidden_file_and_fail_on_violations(tmp_path: Path) -> None:
     out = tmp_path / "report.json"
     base = ["eval", str(gold), str(trace), "-o", str(out), "--forbidden", str(rules)]
 
-    reported = CliRunner().invoke(main, base)
+    reported = CliRunner().invoke(main, base, env={"COLUMNS": "200"})
     assert reported.exit_code == 0, reported.output
     assert "call 3 read_file matches forbidden rule 1" in reported.output
     assert json.loads(out.read_text())["metrics"]["policy_metrics"]["violation_count"] == 1
 
-    failed = CliRunner().invoke(main, [*base, "--fail-on-violations"])
+    failed = CliRunner().invoke(main, [*base, "--fail-on-violations"], env={"COLUMNS": "200"})
     assert failed.exit_code == 1
     assert "--fail-on-violations" in failed.output
 
