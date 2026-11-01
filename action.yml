@@ -41,6 +41,10 @@ inputs:
     description: 'Fail the action if a forbidden call or a credential in tool arguments is found'
     required: false
     default: 'false'
+  fail-on-honesty:
+    description: 'Fail the action on an error-severity honesty finding: the agent claimed success after a failure, used a code-execution tool to override a refusal, or hid an injected fault (see `toolscore eval --fail-on-honesty`).'
+    required: false
+    default: 'false'
   generate-report:
     description: 'Generate HTML report artifact'
     required: false
@@ -67,6 +71,22 @@ inputs:
     default: ''
   mcp-badge-json:
     description: 'Path to write a shields.io endpoint JSON file with this run''s grade.'
+    required: false
+    default: ''
+  mcp-probes:
+    description: 'Run the effect probes with the scorecard (`toolscore mcp test --probes`): check that tools really did what they reported. Read-only unless mcp-allow-writes is set.'
+    required: false
+    default: 'false'
+  mcp-allow-writes:
+    description: 'Let the effect probes call write tools and read the result back (round trips). They leave marker records: use a disposable server.'
+    required: false
+    default: 'false'
+  mcp-probe-config:
+    description: 'Path to a probe config (JSON or YAML) declaring round-trip pairs, bound relations and agreements; implies mcp-probes.'
+    required: false
+    default: ''
+  mcp-args-file:
+    description: 'Path to a JSON or YAML file of argument values the server accepts (for servers limited to allowed roots), used by the scenarios and the probes.'
     required: false
     default: ''
   toolscore-version:
@@ -96,6 +116,9 @@ outputs:
   violations:
     description: 'Number of forbidden calls plus credentials found in tool arguments'
     value: ${{ steps.eval.outputs.violations }}
+  honesty-errors:
+    description: 'Number of error-severity honesty findings (false success claims, escape hatches, undisclosed injected faults)'
+    value: ${{ steps.eval.outputs.honesty_errors }}
   passed:
     description: 'Whether all thresholds were met (true/false)'
     value: ${{ steps.eval.outputs.passed }}
@@ -141,12 +164,20 @@ runs:
         INPUT_MCP_AUTH_ENV: ${{ inputs.mcp-auth-env }}
         INPUT_MCP_BADGE: ${{ inputs.mcp-badge }}
         INPUT_MCP_BADGE_JSON: ${{ inputs.mcp-badge-json }}
+        INPUT_MCP_PROBES: ${{ inputs.mcp-probes }}
+        INPUT_MCP_ALLOW_WRITES: ${{ inputs.mcp-allow-writes }}
+        INPUT_MCP_PROBE_CONFIG: ${{ inputs.mcp-probe-config }}
+        INPUT_MCP_ARGS_FILE: ${{ inputs.mcp-args-file }}
       run: |
         echo "Running Toolscore MCP scorecard for: $INPUT_MCP_COMMAND"
         FLAGS=(--fail-under "$INPUT_MCP_FAIL_UNDER" --ci --report json -o toolscore-mcp.json)
         if [ -n "$INPUT_MCP_AUTH_ENV" ]; then FLAGS+=(--auth-env "$INPUT_MCP_AUTH_ENV"); fi
         if [ -n "$INPUT_MCP_BADGE" ]; then FLAGS+=(--badge "$INPUT_MCP_BADGE"); fi
         if [ -n "$INPUT_MCP_BADGE_JSON" ]; then FLAGS+=(--badge-json "$INPUT_MCP_BADGE_JSON"); fi
+        if [ "$INPUT_MCP_PROBES" = "true" ]; then FLAGS+=(--probes); fi
+        if [ "$INPUT_MCP_ALLOW_WRITES" = "true" ]; then FLAGS+=(--allow-writes); fi
+        if [ -n "$INPUT_MCP_PROBE_CONFIG" ]; then FLAGS+=(--probe-config "$INPUT_MCP_PROBE_CONFIG"); fi
+        if [ -n "$INPUT_MCP_ARGS_FILE" ]; then FLAGS+=(--args-file "$INPUT_MCP_ARGS_FILE"); fi
         STATUS=0
         toolscore mcp test "$INPUT_MCP_COMMAND" "${FLAGS[@]}" || STATUS=$?
         if [ -f toolscore-mcp.json ]; then
@@ -169,6 +200,7 @@ runs:
         INPUT_GENERATE_REPORT: ${{ inputs.generate-report }}
         INPUT_FORBIDDEN_FILE: ${{ inputs.forbidden-file }}
         INPUT_FAIL_ON_VIOLATIONS: ${{ inputs.fail-on-violations }}
+        INPUT_FAIL_ON_HONESTY: ${{ inputs.fail-on-honesty }}
       run: |
         # Run evaluation
         echo "Running Toolscore evaluation..."
@@ -211,6 +243,9 @@ runs:
         recall = summary.get('required_call_recall')
         violations = summary.get('policy_violations', 0) + summary.get('secrets', 0)
         fail_on_violations = os.environ.get('INPUT_FAIL_ON_VIOLATIONS', 'false').lower() == 'true'
+        honesty_findings = (metrics.get('honesty_metrics') or {}).get('findings', [])
+        honesty_errors = sum(1 for f in honesty_findings if f.get('severity') == 'error')
+        fail_on_honesty = os.environ.get('INPUT_FAIL_ON_HONESTY', 'false').lower() == 'true'
 
         # Extract key metrics
         sel_acc = metrics.get('selection_accuracy', 0)
@@ -242,6 +277,7 @@ runs:
             f.write(f'grade={grade}\n')
             f.write(f'required_call_recall={"" if recall is None else recall}\n')
             f.write(f'violations={violations}\n')
+            f.write(f'honesty_errors={honesty_errors}\n')
 
         # Print summary
         print(f"\n{'='*50}")
@@ -256,10 +292,15 @@ runs:
         if recall is not None:
             print(f"Required calls done: {recall:.1%}")
         print(f"Violations:          {violations}")
+        print(f"Honesty errors:      {honesty_errors}")
         print(f"{'='*50}")
 
         if violations and fail_on_violations:
             print(f"::error::Toolscore found {violations} forbidden call(s) or credential(s) in tool arguments")
+            sys.exit(1)
+
+        if honesty_errors and fail_on_honesty:
+            print(f"::error::Toolscore found {honesty_errors} honesty finding(s): the agent's report does not match what its tools did")
             sys.exit(1)
 
         if not baseline_file:
