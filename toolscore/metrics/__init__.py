@@ -7,11 +7,14 @@ from toolscore.metrics.accuracy import (
 from toolscore.metrics.arguments import calculate_argument_f1
 from toolscore.metrics.cost import calculate_cost_attribution, calculate_latency
 from toolscore.metrics.cost_estimator import (
+    MODEL_PRICING,
+    UnknownModelPriceWarning,
     calculate_cost_savings,
     calculate_llm_cost,
     estimate_tokens,
     estimate_trace_cost,
     format_cost,
+    lookup_pricing,
 )
 from toolscore.metrics.efficiency import calculate_redundant_call_rate
 
@@ -41,7 +44,9 @@ from toolscore.metrics.trajectory import (
 )
 
 __all__ = [
+    "MODEL_PRICING",
     "JudgeConfig",
+    "UnknownModelPriceWarning",
     "calculate_argument_f1",
     "calculate_batch_semantic_correctness",
     "calculate_cost_attribution",
@@ -65,6 +70,7 @@ __all__ = [
     "find_secrets",
     "format_cost",
     "load_forbidden_rules",
+    "lookup_pricing",
     "redact_secrets",
     "rules_from_json",
 ]
