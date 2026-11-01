@@ -140,7 +140,7 @@ _PROFILES: dict[str, FrameworkProfile] = {
         import_example=[
             "from pydantic_ai import Agent",
             "",
-            "agent = Agent('openai:gpt-4o', tools=[...])",
+            "agent = Agent('openai:gpt-6-luna', tools=[...])",
             "result = agent.run_sync(prompt)",
         ],
         fake_response=(
@@ -225,24 +225,19 @@ _PROFILES: dict[str, FrameworkProfile] = {
             "from openai import OpenAI",
             "",
             "client = OpenAI()",
-            "response = client.chat.completions.create(",
-            "    model='gpt-4o', messages=[{'role': 'user', 'content': prompt}], tools=[...]",
+            "response = client.responses.create(",
+            "    model='gpt-6-luna', input=prompt, tools=[...]",
             ")",
         ],
         fake_response=(
             "{\n"
-            '        "choices": [\n'
+            '        "object": "response",\n'
+            '        "output": [\n'
             "            {\n"
-            '                "message": {\n'
-            '                    "tool_calls": [\n'
-            "                        {\n"
-            '                            "function": {\n'
-            '                                "name": "search",\n'
-            '                                "arguments": "{\\"query\\": \\"toolscore\\"}",\n'
-            "                            }\n"
-            "                        }\n"
-            "                    ]\n"
-            "                }\n"
+            '                "type": "function_call",\n'
+            '                "call_id": "call_1",\n'
+            '                "name": "search",\n'
+            '                "arguments": "{\\"query\\": \\"toolscore\\"}",\n'
             "            }\n"
             "        ]\n"
             "    }"
@@ -256,7 +251,7 @@ _PROFILES: dict[str, FrameworkProfile] = {
             "",
             "client = anthropic.Anthropic()",
             "response = client.messages.create(",
-            "    model='claude-sonnet-4-5', max_tokens=1024,",
+            "    model='claude-haiku-5-5', max_tokens=1024,",
             "    messages=[{'role': 'user', 'content': prompt}], tools=[...]",
             ")",
         ],

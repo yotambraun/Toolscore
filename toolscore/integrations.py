@@ -674,6 +674,28 @@ def _is_langgraph_message_list(actual: Any) -> bool:
     return False
 
 
+def _field(item: Any, name: str) -> Any:
+    """``item[name]`` for a dict, ``item.name`` otherwise (``None`` when absent)."""
+    return item.get(name) if isinstance(item, dict) else getattr(item, name, None)
+
+
+def _is_pydantic_ai_message_list(actual: list[Any]) -> bool:
+    """Whether a list holds Pydantic AI messages with at least one tool-call part."""
+    for msg in actual:
+        parts = msg.get("parts") if isinstance(msg, dict) else getattr(msg, "parts", None)
+        if not isinstance(parts, list):
+            continue
+        for part in parts:
+            kind = (
+                part.get("part_kind")
+                if isinstance(part, dict)
+                else getattr(part, "part_kind", None)
+            )
+            if kind == "tool-call" or type(part).__name__ == "ToolCallPart":
+                return True
+    return False
+
+
 def _is_claude_agent_sdk_list(actual: Any) -> bool:
     """Return True if *actual* looks like a list of Claude Agent SDK messages."""
     if not isinstance(actual, list) or not actual:
@@ -707,7 +729,9 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     6. Dict/object with ``"messages"`` where some message has ``tool_calls`` → LangGraph
     7. Object with callable ``all_messages`` → Pydantic AI
     8. Object/dict with ``new_items`` → OpenAI Agents SDK
-    9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK
+    9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK;
+       a list of Pydantic AI messages, OpenAI Agents SDK ``tool_call_item`` items, or
+       CrewAI ``tool_name``/``tool_args`` entries → that framework's extractor
     10. Bare list of messages where some message has ``tool_calls`` → LangGraph
 
     OpenTelemetry GenAI tool spans (an OTLP export with ``resourceSpans``, or a
@@ -793,6 +817,16 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
         items = [_item_dict(i) for i in actual]
         if _is_responses_payload(items):
             return from_openai_responses(items)
+
+        # 7b. Pydantic AI message list (messages whose parts include tool calls)
+        if _is_pydantic_ai_message_list(actual):
+            return from_pydantic_ai(actual)
+
+        # 8b. OpenAI Agents SDK item list, CrewAI tool-result list
+        if any(_field(i, "type") == "tool_call_item" for i in actual):
+            return from_openai_agents(actual)
+        if all(isinstance(_field(i, "tool_name"), str) for i in actual):
+            return from_crewai(actual)
 
         # 9. Claude Agent SDK: list of messages with tool_use content blocks
         if _is_claude_agent_sdk_list(actual):

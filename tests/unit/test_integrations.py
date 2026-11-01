@@ -1039,3 +1039,24 @@ class TestAutoExtract:
         }
         calls = auto_extract(response)
         assert calls[0]["tool"] == "tool"
+
+
+def test_auto_extract_reads_a_pydantic_ai_message_list() -> None:
+    """The list `toolscore init --framework pydantic_ai` scaffolds is auto-detected."""
+    from toolscore.integrations import auto_extract
+
+    messages = [
+        {"parts": [{"part_kind": "user-prompt", "content": "hi"}]},
+        {"parts": [{"part_kind": "tool-call", "tool_name": "search", "args": {"query": "x"}}]},
+    ]
+    assert auto_extract(messages) == [{"tool": "search", "args": {"query": "x"}}]
+
+
+def test_auto_extract_reads_agents_sdk_items_and_crewai_entries() -> None:
+    """The lists `toolscore init` scaffolds for these frameworks are auto-detected."""
+    from toolscore.integrations import auto_extract
+
+    items = [{"type": "tool_call_item", "raw_item": {"name": "search", "arguments": '{"q": "x"}'}}]
+    assert auto_extract(items) == [{"tool": "search", "args": {"q": "x"}}]
+    entries = [{"tool_name": "search", "tool_args": {"q": "x"}}]
+    assert auto_extract(entries) == [{"tool": "search", "args": {"q": "x"}}]
