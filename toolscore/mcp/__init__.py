@@ -1,22 +1,30 @@
-"""Zero-dependency MCP (Model Context Protocol) stdio client for toolscore.
+"""MCP (Model Context Protocol) server testing for toolscore.
 
-This subpackage provides a synchronous, standard-library-only client for
-talking to MCP servers over the stdio transport, plus a loader for the
-Claude Desktop style server configuration format. On top of that it builds the
-"MCP Scorecard" harness: scenario generation, scenario execution, tool linting,
-A--F scoring, and console/Markdown/JSON reports.
+This subpackage provides synchronous MCP clients for the stdio transport
+(standard library only) and the Streamable HTTP transport (``httpx``, the
+``[http]`` extra). Both speak MCP 2026-07-28 and fall back to the
+``initialize`` handshake of earlier revisions. It also loads the server
+configuration files of MCP hosts (Claude Desktop, Cursor, VS Code, Claude Code).
+On top of that it builds the "MCP Scorecard" harness: scenario generation,
+scenario execution, tool linting, output-schema checks, A--F scoring, badges,
+and console/Markdown/JSON reports.
 """
 
 from __future__ import annotations
 
 from toolscore.mcp.client import (
+    LEGACY_PROTOCOL_VERSION,
+    MODERN_PROTOCOL_VERSION,
+    MCPClient,
     MCPError,
+    MCPHttpClient,
+    MCPHTTPStatusError,
     MCPStdioClient,
     MCPTimeoutError,
     MCPToolDef,
     MCPToolResult,
 )
-from toolscore.mcp.config import MCPServerSpec, load_mcp_config
+from toolscore.mcp.config import MCPServerSpec, load_mcp_config, open_client
 from toolscore.mcp.content import content_to_text
 from toolscore.mcp.harness import (
     LintIssue,
@@ -40,9 +48,14 @@ from toolscore.mcp.scorecard import (
 from toolscore.verdict import FixSuggestion
 
 __all__ = [
+    "LEGACY_PROTOCOL_VERSION",
+    "MODERN_PROTOCOL_VERSION",
     "FixSuggestion",
     "LintIssue",
+    "MCPClient",
     "MCPError",
+    "MCPHTTPStatusError",
+    "MCPHttpClient",
     "MCPRecorder",
     "MCPScorecard",
     "MCPServerSpec",
@@ -59,6 +72,7 @@ __all__ = [
     "grade_meets",
     "lint_tools",
     "load_mcp_config",
+    "open_client",
     "print_scorecard",
     "run_scenarios",
     "scorecard_to_json",
