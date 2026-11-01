@@ -51,6 +51,7 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - **The default judge model is `gpt-6-luna`** (was `gpt-4o-mini`, which OpenAI retires on 2027-01-14). Docs and examples use `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` and `gemini-3.5-flash-lite`.
 - **Model prices match exactly or by longest prefix, and unknown models have no price.** `calculate_llm_cost()` and `estimate_trace_cost()` return `None` with an `UnknownModelPriceWarning` for a model they do not know (they used to fall back to the gpt-4o-mini price), so their return type is now `float | None`. The table is refreshed from the providers' pricing pages; retired models (Claude 3.x, Claude Opus 4.1, Gemini 1.5 and 2.0) were removed. `estimate_trace_cost()` defaults to `gpt-6-luna`.
 - `MCPStdioClient` sends `server/discover` before `initialize`. Servers built on earlier revisions answer it with an error (handled), or do not answer, which costs up to `probe_timeout` (5 seconds by default) before the handshake. `DEFAULT_PROTOCOL_VERSION` is now "2026-07-28".
+- **Grades can drop slightly.** The new annotation and output-schema warnings count toward the lint score like any warning (0.1 per warning, divided by the number of tools, in a term weighted 20%). A server whose write tools declare no annotations loses a few points; check `--fail-under` gates after upgrading. The bundled sample server went from 87% to 86%.
 - Python 3.14 is supported and tested.
 - The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
 
@@ -59,6 +60,8 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - **A perfect run scores exactly 1.0.** The composite score summed its weights with plain float addition and gave 0.9999999999999999.
 - **Prices of similarly named models.** `gpt-5-mini` was priced as `gpt-5`, `gpt-4o-mini` as `gpt-4o`, and `gemini-2.5-flash-lite` as `gemini-2.5-flash` (the first table key contained in the name won). Claude Opus 4.6 was listed at $15/$75 per million tokens; it is $5/$25.
 - `evaluate()` on an OpenAI Responses API object failed with "Cannot auto-detect provider format".
+- **`toolscore init` scaffolds that failed on their first run.** The fake responses written for Pydantic AI, the OpenAI Agents SDK and CrewAI were bare lists that `evaluate()` could not detect. Lists of Pydantic AI messages, Agents SDK `tool_call_item` items and CrewAI `tool_name` entries are now auto-detected.
+- The Anthropic capture example stored SDK content blocks, which `json.dump` cannot serialize; it now stores them as JSON.
 
 ## [1.10.0] - 2026-10-03
 
