@@ -1,10 +1,13 @@
 """Command-line interface for Toolscore."""
 
+from __future__ import annotations
+
 import json
 import os
 import shlex
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import click
 from rich.console import Console
@@ -42,6 +45,9 @@ from toolscore.reports import (
     print_progress,
     print_validation_result,
 )
+
+if TYPE_CHECKING:
+    from toolscore.mcp import MCPClient, MCPServerSpec
 
 
 @click.group()
@@ -869,35 +875,45 @@ def _parse_weights(overrides: tuple[str, ...]) -> dict[str, float] | None:
     return weights
 
 
-def _resolve_mcp_command(
+def _is_url(text: str) -> bool:
+    """Whether a positional MCP target is a Streamable HTTP URL."""
+    return text.startswith(("http://", "https://"))
+
+
+def _resolve_mcp_target(
     command: tuple[str, ...],
     config: Path | None,
     server: str | None,
     console: Console,
-) -> tuple[list[str], dict[str, str]]:
-    """Resolve an MCP launch command from a positional string or a config file.
+    headers: tuple[str, ...] = (),
+    auth_env: str | None = None,
+) -> MCPServerSpec:
+    """Resolve the server to test from a positional command/URL or a config file.
 
-    Exactly one source must be supplied: either a single shell-quoted command
-    string (positional argument) or a ``--config`` path. Supplying both or
-    neither is an error.
+    Exactly one source must be supplied: a positional server command (or
+    ``http(s)://`` URL), or a ``--config`` path. Supplying both or neither is an
+    error.
 
     Args:
-        command: The positional command tokens. A single token is a shell-quoted
-            command string and is ``shlex``-split; several tokens (for example
-            ``-- npx -y server "/path with spaces"`` from an MCP client config's
-            ``args`` array) are already an argument vector and are used as-is.
-        config: Path to a Claude Desktop style config file, or ``None``.
+        command: The positional tokens. A single token is a shell-quoted
+            command string (``shlex``-split) or a URL; several tokens (for
+            example ``-- npx -y server "/path with spaces"`` from an MCP client
+            config's ``args`` array) are already an argument vector.
+        config: Path to an MCP host config file, or ``None``.
         server: The server name to select from the config, or ``None``.
         console: Console for printing error output.
+        headers: ``--header "Name: value"`` options (``${VAR}`` expanded).
+        auth_env: ``--auth-env VAR``: send ``Authorization: Bearer $VAR``.
 
     Returns:
-        A tuple of ``(command_vector, env_overrides)``.
+        The resolved :class:`~toolscore.mcp.MCPServerSpec`.
 
     Raises:
         SystemExit: With code 2 if the inputs are ambiguous, missing, or the
             config cannot be loaded.
     """
-    from toolscore.mcp import load_mcp_config
+    from toolscore.mcp import MCPServerSpec, load_mcp_config
+    from toolscore.mcp.config import parse_header
 
     positional = " ".join(command).strip()
 
@@ -906,69 +922,157 @@ def _resolve_mcp_command(
         sys.exit(2)
     if not positional and config is None:
         print_error(
-            "Provide an MCP server command (quoted) or --config PATH [--server NAME].",
+            "Provide an MCP server command (quoted), a server URL, or --config PATH "
+            "[--server NAME].",
             console,
         )
         sys.exit(2)
 
     if positional:
-        if len(command) == 1:
-            return shlex.split(command[0]), {}
-        return list(command), {}
+        if len(command) == 1 and _is_url(command[0]):
+            spec = MCPServerSpec(name=command[0], command=[], url=command[0])
+        elif len(command) == 1:
+            spec = MCPServerSpec(name=positional, command=shlex.split(command[0]))
+        else:
+            spec = MCPServerSpec(name=positional, command=list(command))
+    else:
+        assert config is not None  # narrowed by the checks above
+        try:
+            spec = load_mcp_config(config, server=server)
+        except (FileNotFoundError, ValueError) as exc:
+            print_error(f"Failed to load MCP config: {exc}", console)
+            sys.exit(2)
 
-    assert config is not None  # narrowed by the checks above
-    try:
-        spec = load_mcp_config(config, server=server)
-    except (FileNotFoundError, ValueError) as exc:
-        print_error(f"Failed to load MCP config: {exc}", console)
+    if (headers or auth_env) and spec.url is None:
+        print_error("--header and --auth-env apply to HTTP servers (a URL) only.", console)
         sys.exit(2)
-    return spec.command, spec.env
+    try:
+        for item in headers:
+            name, value = parse_header(item)
+            spec.headers[name] = value
+    except ValueError as exc:
+        print_error(str(exc), console)
+        sys.exit(2)
+    if auth_env:
+        token = os.environ.get(auth_env)
+        if not token:
+            print_error(f"--auth-env: environment variable {auth_env} is not set.", console)
+            sys.exit(2)
+        spec.headers["Authorization"] = f"Bearer {token}"
+    return spec
+
+
+def _mcp_connection_options(func: Any) -> Any:
+    """Add the options shared by commands that connect to an MCP server."""
+    options = [
+        click.option(
+            "--config",
+            type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+            default=None,
+            help=(
+                "MCP host config file: Claude Desktop, Cursor or Claude Code (mcpServers) or "
+                "VS Code (servers); stdio or url entries. Alternative to COMMAND."
+            ),
+        ),
+        click.option("--server", default=None, help="Server name to select from --config."),
+        click.option(
+            "--header",
+            "headers",
+            multiple=True,
+            metavar='"NAME: VALUE"',
+            help=(
+                "HTTP header for a URL server (repeatable). ${VAR} is read from the "
+                "environment; quote with single quotes so the shell leaves it alone."
+            ),
+        ),
+        click.option(
+            "--auth-env",
+            metavar="VAR",
+            default=None,
+            help="Send 'Authorization: Bearer <value of VAR>' to a URL server.",
+        ),
+        click.option(
+            "--protocol",
+            type=click.Choice(["auto", "modern", "legacy"]),
+            default="auto",
+            show_default=True,
+            help=(
+                "MCP protocol era: auto probes for 2026-07-28 (stateless) and falls back to "
+                "the 2025-11-25 initialize handshake."
+            ),
+        ),
+        click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds."),
+    ]
+    for option in reversed(options):
+        func = option(func)
+    return func
+
+
+def _connect(
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    headers: tuple[str, ...],
+    auth_env: str | None,
+    protocol: str,
+    timeout: float,
+    console: Console,
+) -> MCPClient:
+    """Resolve the target and build an unstarted client for it."""
+    from toolscore.mcp import open_client
+
+    spec = _resolve_mcp_target(command, config, server, console, headers, auth_env)
+    return open_client(spec, timeout=timeout, protocol=protocol)  # type: ignore[arg-type]
 
 
 @main.group()
 def mcp() -> None:
     """Test, lint, and score MCP servers.
 
-    Point these commands at any MCP server -- either by passing its launch
-    command as a single quoted string, or via a Claude Desktop style config
-    file with --config/--server.
+    Point these commands at any MCP server: pass its launch command as a single
+    quoted string, its Streamable HTTP URL, or an MCP host config file with
+    --config/--server. Speaks MCP 2026-07-28 and falls back to the initialize
+    handshake of earlier revisions.
     """
 
 
 @mcp.command("list")
 @click.argument("command", nargs=-1)
-@click.option(
-    "--config",
-    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
-    default=None,
-    help="Claude Desktop style MCP config file (alternative to a command).",
-)
-@click.option("--server", default=None, help="Server name to select from --config.")
-@click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
+@_mcp_connection_options
 def mcp_list(
-    command: tuple[str, ...], config: Path | None, server: str | None, timeout: float
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    headers: tuple[str, ...],
+    auth_env: str | None,
+    protocol: str,
+    timeout: float,
 ) -> None:
     """List the tools advertised by an MCP server.
 
-    COMMAND: the server launch command as a single quoted string,
-    e.g. "python server.py" (omit when using --config).
+    COMMAND: the server launch command as a single quoted string, e.g.
+    "python server.py", or a URL such as https://example.com/mcp
+    (omit when using --config).
     """
-    from toolscore.mcp import MCPStdioClient
-
     console = Console()
-    cmd, env = _resolve_mcp_command(command, config, server, console)
+    client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
     try:
-        with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
+        with client:
             info = client.server_info
             tools = client.list_tools()
+            protocol_version, era = client.protocol_version, client.era
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to query MCP server: {exc}", console)
         sys.exit(1)
 
     name = str(info.get("name", "unknown server"))
     version = str(info.get("version", ""))
-    console.print(f"\n[bold]{name}[/bold] [dim]{version}[/dim]  ({len(tools)} tools)\n")
+    how = "stateless" if era == "modern" else "initialize handshake"
+    console.print(
+        f"\n[bold]{name}[/bold] [dim]{version}[/dim]  ({len(tools)} tools)  "
+        f"[dim]MCP {protocol_version}, {how}[/dim]\n"
+    )
 
     table = Table(header_style="bold magenta")
     table.add_column("Tool", style="cyan")
@@ -990,7 +1094,7 @@ def mcp_list(
     "--config",
     type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
     default=None,
-    help="Claude Desktop style MCP config file (alternative to a command).",
+    help="MCP host config file with a stdio server entry (alternative to a command).",
 )
 @click.option("--server", default=None, help="Server name to select from --config.")
 @click.option(
@@ -1011,6 +1115,8 @@ def mcp_record(
     request with its result, error and duration to OUTPUT. Score the recording
     with: toolscore eval gold.json OUTPUT --format mcp
 
+    Recording works for stdio servers; it is a stdio proxy.
+
     COMMAND: the server launch command as a single quoted string
     (omit when using --config).
     """
@@ -1018,12 +1124,19 @@ def mcp_record(
 
     # stdout carries the MCP protocol, so every message from us goes to stderr.
     console = Console(stderr=True)
-    cmd, env = _resolve_mcp_command(command, config, server, console)
-    recorder = MCPRecorder(cmd, output, env=env or None)
+    spec = _resolve_mcp_target(command, config, server, console)
+    if spec.url is not None:
+        print_error(
+            "mcp record is a stdio proxy and cannot record a URL server; record the agent's "
+            "calls from its own logs or traces instead (toolscore eval --format otel/openai/...).",
+            console,
+        )
+        sys.exit(2)
+    recorder = MCPRecorder(spec.command, output, env=spec.env or None)
     try:
         exit_code = recorder.run()
     except OSError as exc:
-        print_error(f"Failed to launch MCP server {cmd!r}: {exc}", console)
+        print_error(f"Failed to launch MCP server {spec.command!r}: {exc}", console)
         sys.exit(1)
     console.print(
         f"[dim]toolscore: recorded {recorder.calls_recorded} tool call(s) to {output}[/dim]"
@@ -1034,31 +1147,33 @@ def mcp_record(
 
 @mcp.command("lint")
 @click.argument("command", nargs=-1)
-@click.option(
-    "--config",
-    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
-    default=None,
-    help="Claude Desktop style MCP config file (alternative to a command).",
-)
-@click.option("--server", default=None, help="Server name to select from --config.")
-@click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
+@_mcp_connection_options
 def mcp_lint(
-    command: tuple[str, ...], config: Path | None, server: str | None, timeout: float
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    headers: tuple[str, ...],
+    auth_env: str | None,
+    protocol: str,
+    timeout: float,
 ) -> None:
-    """Statically lint an MCP server's tool schemas.
+    """Statically lint an MCP server's tool definitions.
 
-    Exits 1 if any error-severity issue is found.
+    Checks schemas, descriptions, behavior annotations (readOnlyHint,
+    destructiveHint, ...), references to missing tools and tool-poisoning
+    patterns. Each issue has a rule ID. Exits 1 if any error-severity issue is
+    found.
 
-    COMMAND: the server launch command as a single quoted string
+    COMMAND: the server launch command as a single quoted string, or a URL
     (omit when using --config).
     """
-    from toolscore.mcp import MCPStdioClient, lint_tools
+    from toolscore.mcp import lint_tools
 
     console = Console()
-    cmd, env = _resolve_mcp_command(command, config, server, console)
+    client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
     try:
-        with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
+        with client:
             tools = client.list_tools()
             instructions = client.server_instructions
     except Exception as exc:  # surface any launch/protocol failure to the user
@@ -1077,10 +1192,11 @@ def mcp_lint(
     table = Table(header_style="bold magenta")
     table.add_column("Severity")
     table.add_column("Tool", style="cyan")
+    table.add_column("Rule", style="dim")
     table.add_column("Message")
     for issue in issues:
         color = "red" if issue.severity == "error" else "yellow"
-        table.add_row(f"[{color}]{issue.severity}[/{color}]", issue.tool, issue.message)
+        table.add_row(f"[{color}]{issue.severity}[/{color}]", issue.tool, issue.rule, issue.message)
     console.print(table)
     console.print()
 
@@ -1090,16 +1206,9 @@ def mcp_lint(
 
 @mcp.command("test")
 @click.argument("command", nargs=-1)
-@click.option(
-    "--config",
-    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
-    default=None,
-    help="Claude Desktop style MCP config file (alternative to a command).",
-)
-@click.option("--server", default=None, help="Server name to select from --config.")
+@_mcp_connection_options
 @click.option("--cases", type=int, default=3, help="Happy-path scenarios per tool (default: 3).")
 @click.option("--no-edge-cases", is_flag=True, default=False, help="Skip edge-case scenarios.")
-@click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
 @click.option(
     "--report",
     type=click.Choice(["md", "json"]),
@@ -1112,6 +1221,18 @@ def mcp_lint(
     type=click.Path(path_type=Path),  # type: ignore[type-var]
     default=None,
     help="Path for the --report file.",
+)
+@click.option(
+    "--badge",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Write an SVG badge with this run's grade ('MCP grade: A · Toolscore').",
+)
+@click.option(
+    "--badge-json",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Write a shields.io endpoint JSON file with this run's grade.",
 )
 @click.option(
     "--fail-under",
@@ -1131,34 +1252,37 @@ def mcp_test(
     command: tuple[str, ...],
     config: Path | None,
     server: str | None,
+    headers: tuple[str, ...],
+    auth_env: str | None,
+    protocol: str,
+    timeout: float,
     cases: int,
     no_edge_cases: bool,
-    timeout: float,
     report: str | None,
     output: Path | None,
+    badge: Path | None,
+    badge_json: Path | None,
     fail_under: str | None,
     ci: bool,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
-    Spins up the server, generates happy-path and edge-case scenarios from each
-    tool's schema, executes them, lints the schemas, and prints an A-F
-    scorecard.
+    Connects to the server, generates happy-path and edge-case scenarios from
+    each tool's schema, executes them, checks results against declared output
+    schemas, lints the definitions, and prints an A-F scorecard.
 
-    COMMAND: the server launch command as a single quoted string,
-    e.g. "python server.py" (omit when using --config).
+    COMMAND: the server launch command as a single quoted string, e.g.
+    "python server.py", or a URL such as https://example.com/mcp
+    (omit when using --config).
     """
     from toolscore.mcp import (
-        MCPScorecard,
-        MCPStdioClient,
-        generate_scenarios,
         grade_meets,
-        lint_tools,
         print_scorecard,
-        run_scenarios,
         scorecard_to_json,
         scorecard_to_markdown,
     )
+    from toolscore.mcp.badge import badge_endpoint, badge_svg
+    from toolscore.mcp.scorecard import score_server
 
     console = Console()
 
@@ -1171,28 +1295,14 @@ def mcp_test(
         print_error("--report requires --output PATH.", console)
         sys.exit(2)
 
-    cmd, env = _resolve_mcp_command(command, config, server, console)
+    client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
     try:
-        with MCPStdioClient(cmd, env=env or None, timeout=timeout) as client:
-            tools = client.list_tools()
-            scenarios = generate_scenarios(
-                tools, cases_per_tool=cases, include_edge_cases=not no_edge_cases
-            )
-            results = run_scenarios(client, scenarios)
-            server_info = client.server_info
-            instructions = client.server_instructions
+        with client:
+            card = score_server(client, cases_per_tool=cases, include_edge_cases=not no_edge_cases)
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to test MCP server: {exc}", console)
         sys.exit(1)
-
-    card = MCPScorecard(
-        server_info=server_info,
-        tools=tools,
-        results=results,
-        lint=lint_tools(tools, instructions=instructions),
-        instructions=instructions,
-    )
 
     wrote_file = False
     if report is not None and output is not None:
@@ -1201,16 +1311,28 @@ def mcp_test(
             output.write_text(json.dumps(scorecard_to_json(card), indent=2), encoding="utf-8")
         else:
             output.write_text(scorecard_to_markdown(card), encoding="utf-8")
-        name = str(server_info.get("name", "server"))
+        name = str(card.server_info.get("name", "server"))
         console.print(
             f"[bold]{name}[/bold] -> Grade [bold]{card.grade}[/bold] "
             f"(score {card.score:.0%}). Report written to [cyan]{output}[/cyan]."
         )
         wrote_file = True
 
+    badge_notes: list[str] = []
+    for path, content in (
+        (badge, badge_svg(card.grade) if badge else ""),
+        (badge_json, json.dumps(badge_endpoint(card.grade), ensure_ascii=False) + "\n"),
+    ):
+        if path is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+            badge_notes.append(f"[dim]Badge (grade {card.grade}) written to {path}.[/dim]")
+
     # Always show the console scorecard unless a file report was the only output.
     if ci or not wrote_file:
         print_scorecard(card, console=console)
+    for note in badge_notes:
+        console.print(note)
 
     if ci:
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -1240,14 +1362,8 @@ def demo() -> None:
     deliberate issues) and prints the same scorecard that ``toolscore mcp test``
     produces, so you can see the instant verdict in seconds.
     """
-    from toolscore.mcp import (
-        MCPScorecard,
-        MCPStdioClient,
-        generate_scenarios,
-        lint_tools,
-        print_scorecard,
-        run_scenarios,
-    )
+    from toolscore.mcp import MCPStdioClient, print_scorecard
+    from toolscore.mcp.scorecard import score_server
 
     console = Console()
     sample_server = Path(__file__).resolve().parent / "mcp" / "sample_server.py"
@@ -1262,22 +1378,11 @@ def demo() -> None:
 
     try:
         with MCPStdioClient([sys.executable, str(sample_server)], timeout=30.0) as client:
-            tools = client.list_tools()
-            scenarios = generate_scenarios(tools, cases_per_tool=3, include_edge_cases=True)
-            results = run_scenarios(client, scenarios)
-            server_info = client.server_info
-            instructions = client.server_instructions
+            card = score_server(client, cases_per_tool=3, include_edge_cases=True)
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to run the sample server: {exc}", console)
         sys.exit(1)
 
-    card = MCPScorecard(
-        server_info=server_info,
-        tools=tools,
-        results=results,
-        lint=lint_tools(tools, instructions=instructions),
-        instructions=instructions,
-    )
     print_scorecard(card, console=console)
     console.print(
         "\n[dim]That's the health-check. Now point it at your own server:[/dim] "

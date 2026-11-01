@@ -41,11 +41,18 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from toolscore.mcp.harness import estimate_tokens, tool_definition_tokens
+from toolscore.mcp.harness import (
+    estimate_tokens,
+    generate_scenarios,
+    lint_tools,
+    output_schema_issues,
+    run_scenarios,
+    tool_definition_tokens,
+)
 from toolscore.verdict import GRADE_ORDER, FixSuggestion, letter_grade
 
 if TYPE_CHECKING:
-    from toolscore.mcp.client import MCPToolDef
+    from toolscore.mcp.client import MCPClient, MCPToolDef
     from toolscore.mcp.harness import LintIssue, ScenarioResult
 
 #: Weight of the happy-path pass rate in the overall score.
@@ -82,6 +89,9 @@ class MCPScorecard:
         instructions: The server ``instructions`` from the handshake, if any.
             MCP clients send them to the model with every session, so they count
             toward the context cost.
+        protocol_version: The MCP protocol version the run used, if known.
+        era: ``"modern"`` (per-request ``_meta``, 2026-07-28) or ``"legacy"``
+            (``initialize`` handshake), if known.
     """
 
     server_info: dict[str, Any]
@@ -89,6 +99,8 @@ class MCPScorecard:
     results: list[ScenarioResult]
     lint: list[LintIssue]
     instructions: str | None = None
+    protocol_version: str | None = None
+    era: str | None = None
 
     # -- component rates ---------------------------------------------------
 
@@ -162,6 +174,48 @@ class MCPScorecard:
     def context_tokens(self) -> int:
         """Estimated context the server costs on every request: tools plus instructions."""
         return self.total_tool_tokens + self.instructions_tokens
+
+
+def score_server(
+    client: MCPClient, cases_per_tool: int = 3, include_edge_cases: bool = True
+) -> MCPScorecard:
+    """Run the full scorecard against a started client.
+
+    Lists the tools, generates and runs scenarios, lints the definitions and
+    checks successful results against each tool's ``outputSchema``.
+
+    Args:
+        client: A started :class:`~toolscore.mcp.client.MCPClient` (stdio or HTTP).
+        cases_per_tool: Happy-path scenarios per tool.
+        include_edge_cases: Whether to run edge-case scenarios.
+
+    Returns:
+        The scorecard.
+    """
+    tools = client.list_tools()
+    scenarios = generate_scenarios(
+        tools, cases_per_tool=cases_per_tool, include_edge_cases=include_edge_cases
+    )
+    results = run_scenarios(client, scenarios)
+    lint = lint_tools(tools, instructions=client.server_instructions)
+    lint.extend(output_schema_issues(tools, results))
+    return MCPScorecard(
+        server_info=client.server_info,
+        tools=tools,
+        results=results,
+        lint=lint,
+        instructions=client.server_instructions,
+        protocol_version=client.protocol_version,
+        era=client.era,
+    )
+
+
+def protocol_label(card: MCPScorecard) -> str:
+    """A short description of the protocol the run used, e.g. ``"MCP 2026-07-28 (stateless)"``."""
+    if not card.protocol_version:
+        return ""
+    how = {"modern": "stateless", "legacy": "initialize handshake"}.get(card.era or "", "")
+    return f"MCP {card.protocol_version}" + (f" ({how})" if how else "")
 
 
 def _tool_summaries(card: MCPScorecard) -> list[dict[str, Any]]:
@@ -329,6 +383,8 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
         f"lint {card.lint_score:.0%}",
         style="dim",
     )
+    if protocol_label(card):
+        header.append(f"\n{protocol_label(card)}", style="dim")
     console.print(Panel(header, border_style=color, expand=False))
 
     table = Table(title="Tools", header_style="bold magenta", title_style="bold")
@@ -410,6 +466,8 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
             f"- Server instructions (estimated): ~{card.instructions_tokens} tokens "
             f"(~{card.context_tokens} in total, sent with every request)"
         )
+    if protocol_label(card):
+        lines.append(f"- Protocol: {protocol_label(card)}")
     lines.append("")
 
     lines.append("## Tools")
@@ -456,6 +514,7 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
         },
         "grade": card.grade,
         "score": card.score,
+        "protocol": {"version": card.protocol_version, "era": card.era},
         "total_tool_tokens": card.total_tool_tokens,
         "instructions_tokens": card.instructions_tokens,
         "context_tokens": card.context_tokens,
@@ -479,7 +538,13 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
             for r in card.results
         ],
         "lint": [
-            {"tool": i.tool, "severity": i.severity, "message": i.message, "fix": i.fix}
+            {
+                "tool": i.tool,
+                "rule": i.rule,
+                "severity": i.severity,
+                "message": i.message,
+                "fix": i.fix,
+            }
             for i in card.lint
         ],
         "fixes": [
