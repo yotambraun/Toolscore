@@ -149,7 +149,8 @@ class ProbeResult:
             run, for example the write failed with generated values) or
             ``"skipped"`` (not run, for example writes not allowed).
         rule: The rule ID of a failure (see :data:`PROBE_RULES`); empty otherwise.
-        confidence: ``"high"``, ``"medium"`` or ``"low"`` (see the module docstring).
+        confidence: ``"high"``, ``"medium"`` or ``"low"`` (see the module docstring);
+            empty for skipped probes and round trips that could not run.
         message: What happened.
         basis: How the read tool or the relation was chosen.
         fix: A suggested fix for a failure.
@@ -163,7 +164,7 @@ class ProbeResult:
     tool: str
     status: str
     rule: str = ""
-    confidence: str = "low"
+    confidence: str = ""
     message: str = ""
     basis: str = ""
     fix: str = ""
