@@ -6,8 +6,9 @@ This subpackage provides synchronous MCP clients for the stdio transport
 ``initialize`` handshake of earlier revisions. It also loads the server
 configuration files of MCP hosts (Claude Desktop, Cursor, VS Code, Claude Code).
 On top of that it builds the "MCP Scorecard" harness: scenario generation,
-scenario execution, tool linting, output-schema checks, A--F scoring, badges,
-and console/Markdown/JSON reports.
+scenario execution, tool linting, output-schema checks, effect probes (did the
+tool really do what it reported), A--F scoring, badges, and console/Markdown/JSON
+reports.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ from toolscore.mcp.client import (
 )
 from toolscore.mcp.config import MCPServerSpec, load_mcp_config, open_client
 from toolscore.mcp.content import content_to_text
+from toolscore.mcp.fixtures import ArgumentFixtures, load_fixtures
 from toolscore.mcp.harness import (
     LintIssue,
     Scenario,
@@ -35,6 +37,17 @@ from toolscore.mcp.harness import (
     lint_tools,
     run_scenarios,
     tool_definition_tokens,
+)
+from toolscore.mcp.probes import (
+    PROBE_RULES,
+    Agreement,
+    BoundRelation,
+    CallSpec,
+    ProbeConfig,
+    ProbeResult,
+    RoundTripPair,
+    load_probe_config,
+    run_probes,
 )
 from toolscore.mcp.recorder import MCPRecorder
 from toolscore.mcp.scorecard import (
@@ -50,6 +63,11 @@ from toolscore.verdict import FixSuggestion
 __all__ = [
     "LEGACY_PROTOCOL_VERSION",
     "MODERN_PROTOCOL_VERSION",
+    "PROBE_RULES",
+    "Agreement",
+    "ArgumentFixtures",
+    "BoundRelation",
+    "CallSpec",
     "FixSuggestion",
     "LintIssue",
     "MCPClient",
@@ -63,6 +81,9 @@ __all__ = [
     "MCPTimeoutError",
     "MCPToolDef",
     "MCPToolResult",
+    "ProbeConfig",
+    "ProbeResult",
+    "RoundTripPair",
     "Scenario",
     "ScenarioResult",
     "build_fix_list",
@@ -71,9 +92,12 @@ __all__ = [
     "generate_scenarios",
     "grade_meets",
     "lint_tools",
+    "load_fixtures",
     "load_mcp_config",
+    "load_probe_config",
     "open_client",
     "print_scorecard",
+    "run_probes",
     "run_scenarios",
     "scorecard_to_json",
     "scorecard_to_markdown",

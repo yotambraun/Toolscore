@@ -50,6 +50,7 @@ from toolscore.reports import (
 if TYPE_CHECKING:
     from toolscore.mcp import MCPClient, MCPServerSpec
     from toolscore.mcp.fixtures import ArgumentFixtures
+    from toolscore.mcp.probes import ProbeConfig
 
 
 @click.group()
@@ -1284,6 +1285,34 @@ def mcp_lint(
     default=None,
     help='JSON or YAML file of argument values: {"*": {NAME: VALUE}, "TOOL": {NAME: VALUE}}.',
 )
+@click.option(
+    "--probes",
+    is_flag=True,
+    default=False,
+    help=(
+        "Run effect probes: check that tools really did what they reported (bounds such as "
+        "head/limit on read-only tools; with --allow-writes, round trips through read tools). "
+        "High-confidence failures lower the grade."
+    ),
+)
+@click.option(
+    "--allow-writes",
+    is_flag=True,
+    default=False,
+    help=(
+        "Let probes call write tools (create/add/update/...) and read the result back. They "
+        "leave marker records behind: use a disposable server."
+    ),
+)
+@click.option(
+    "--probe-config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "JSON or YAML file declaring round-trip pairs, bound relations, agreements and argument "
+        "values for the probes (implies --probes)."
+    ),
+)
 def mcp_test(
     command: tuple[str, ...],
     config: Path | None,
@@ -1302,12 +1331,19 @@ def mcp_test(
     ci: bool,
     arg_options: tuple[str, ...],
     args_file: Path | None,
+    probes: bool,
+    allow_writes: bool,
+    probe_config: Path | None,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
     Connects to the server, generates happy-path and edge-case scenarios from
     each tool's schema, executes them, checks results against declared output
-    schemas, lints the definitions, and prints an A-F scorecard.
+    schemas, lints the definitions, and prints an A-F scorecard. With --probes
+    it also checks that tools really did what they reported.
+
+    The scenarios call every tool, write tools included, with generated
+    values; point the command at a server you can safely write to.
 
     COMMAND: the server launch command as a single quoted string, e.g.
     "python server.py", or a URL such as https://example.com/mcp
@@ -1334,6 +1370,15 @@ def mcp_test(
         sys.exit(2)
 
     fixtures = _argument_fixtures(arg_options, args_file, console)
+    probe_setting: ProbeConfig | bool = probes
+    if probe_config is not None:
+        from toolscore.mcp.probes import load_probe_config
+
+        try:
+            probe_setting = load_probe_config(probe_config)
+        except ValueError as exc:
+            print_error(f"Invalid probe config: {exc}", console)
+            sys.exit(2)
     client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
     try:
@@ -1343,6 +1388,8 @@ def mcp_test(
                 cases_per_tool=cases,
                 include_edge_cases=not no_edge_cases,
                 fixtures=fixtures,
+                probes=probe_setting,
+                allow_writes=allow_writes,
             )
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to test MCP server: {exc}", console)
@@ -1391,8 +1438,13 @@ def mcp_test(
 
     if ci and fail_under is None:
         # Default CI gate: fail on real problems (a tool that breaks on valid
-        # input, an edge-case crash, or a schema error) -- but not on warnings.
-        has_blocking = card.lint_error_count > 0 or any(not r.ok for r in card.results)
+        # input, an edge-case crash, a schema error, or a high-confidence probe
+        # failure) -- but not on warnings.
+        has_blocking = (
+            card.lint_error_count > 0
+            or card.probe_error_count > 0
+            or any(not r.ok for r in card.results)
+        )
         if has_blocking:
             console.print("[red]Blocking issues found (see 'Top issues to fix' above).[/red]")
             sys.exit(1)

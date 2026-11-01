@@ -26,6 +26,16 @@ where
 
       lint_score = max(0, 1 - (errors * 0.25 + warnings * 0.1) / max(num_tools, 1))
 
+When effect probes ran (``mcp test --probes``), a tool with a high-confidence
+probe failure (it reported success and did not do it) costs as much as a tool
+that fails all of its happy paths::
+
+    score = max(0, score - 0.6 * tools_failing_probes / max(num_tools, 1))
+
+so a run whose probes all pass, or that ran no probes, scores exactly as before.
+Medium- and low-confidence probe findings are warnings and never change the
+score.
+
 Letter grades follow the usual bands: ``>= 0.9`` → A, ``>= 0.8`` → B,
 ``>= 0.7`` → C, ``>= 0.6`` → D, otherwise F. All rates guard against division by
 zero, so a server with zero scenarios still scores cleanly.
@@ -55,6 +65,7 @@ if TYPE_CHECKING:
     from toolscore.mcp.client import MCPClient, MCPToolDef
     from toolscore.mcp.fixtures import ArgumentFixtures
     from toolscore.mcp.harness import LintIssue, ScenarioResult
+    from toolscore.mcp.probes import ProbeConfig, ProbeResult
 
 #: Weight of the happy-path pass rate in the overall score.
 _WEIGHT_HAPPY = 0.6
@@ -93,6 +104,8 @@ class MCPScorecard:
         protocol_version: The MCP protocol version the run used, if known.
         era: ``"modern"`` (per-request ``_meta``, 2026-07-28) or ``"legacy"``
             (``initialize`` handshake), if known.
+        probes: Effect-probe results, or ``None`` when probes did not run
+            (see :mod:`toolscore.mcp.probes`).
     """
 
     server_info: dict[str, Any]
@@ -102,6 +115,7 @@ class MCPScorecard:
     instructions: str | None = None
     protocol_version: str | None = None
     era: str | None = None
+    probes: list[ProbeResult] | None = None
 
     # -- component rates ---------------------------------------------------
 
@@ -141,16 +155,55 @@ class MCPScorecard:
         ) / denominator
         return max(0.0, 1.0 - penalty)
 
+    @property
+    def effect_rate(self) -> float | None:
+        """Share of high-confidence probe checks that passed.
+
+        ``None`` when probes did not run or none of their checks was
+        high-confidence (nothing to grade).
+        """
+        graded = [p for p in self.probes or [] if p.graded]
+        if not graded:
+            return None
+        return sum(1 for p in graded if p.status == "pass") / len(graded)
+
+    @property
+    def effect_label(self) -> str:
+        """The effect rate for display: ``"75%"``, ``"n/a"`` (nothing graded) or ``""`` (no probes)."""
+        if self.probes is None:
+            return ""
+        rate = self.effect_rate
+        return "n/a" if rate is None else f"{rate:.0%}"
+
+    @property
+    def probe_failed_tools(self) -> set[str]:
+        """Tools with a high-confidence probe failure."""
+        return {p.tool for p in self.probes or [] if p.severity == "error"}
+
+    @property
+    def probe_error_count(self) -> int:
+        """High-confidence probe failures (they lower the grade)."""
+        return sum(1 for p in self.probes or [] if p.severity == "error")
+
+    @property
+    def probe_warning_count(self) -> int:
+        """Medium- and low-confidence probe failures (warnings only)."""
+        return sum(1 for p in self.probes or [] if p.severity == "warning")
+
     # -- aggregate ---------------------------------------------------------
 
     @property
     def score(self) -> float:
         """The overall blended score in ``[0, 1]``."""
-        return (
+        base = (
             _WEIGHT_HAPPY * self.happy_pass_rate
             + _WEIGHT_EDGE * self.edge_resilience_rate
             + _WEIGHT_LINT * self.lint_score
         )
+        failed = len(self.probe_failed_tools)
+        if not failed:
+            return base
+        return max(0.0, base - _WEIGHT_HAPPY * failed / max(len(self.tools), 1))
 
     @property
     def grade(self) -> str:
@@ -182,6 +235,8 @@ def score_server(
     cases_per_tool: int = 3,
     include_edge_cases: bool = True,
     fixtures: ArgumentFixtures | None = None,
+    probes: ProbeConfig | bool | None = None,
+    allow_writes: bool = False,
 ) -> MCPScorecard:
     """Run the full scorecard against a started client.
 
@@ -194,6 +249,10 @@ def score_server(
         include_edge_cases: Whether to run edge-case scenarios.
         fixtures: Known-good argument values (``--arg``) for the happy paths,
             for servers that only accept values from a sandbox.
+        probes: Run the effect probes: ``True`` with heuristics only, or a
+            :class:`~toolscore.mcp.probes.ProbeConfig`. ``None``/``False`` skips them.
+        allow_writes: Let probes call write tools (round trips). Writes leave
+            marker records on the server.
 
     Returns:
         The scorecard.
@@ -208,6 +267,14 @@ def score_server(
     results = run_scenarios(client, scenarios)
     lint = lint_tools(tools, instructions=client.server_instructions)
     lint.extend(output_schema_issues(tools, results))
+    probe_results = None
+    if probes:
+        from toolscore.mcp.probes import ProbeConfig, run_probes
+
+        config = probes if isinstance(probes, ProbeConfig) else None
+        probe_results = run_probes(
+            client, tools, config=config, allow_writes=allow_writes, fixtures=fixtures
+        )
     return MCPScorecard(
         server_info=client.server_info,
         tools=tools,
@@ -216,6 +283,7 @@ def score_server(
         instructions=client.server_instructions,
         protocol_version=client.protocol_version,
         era=client.era,
+        probes=probe_results,
     )
 
 
@@ -295,10 +363,11 @@ def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSugg
 
     The ranking, worst first:
 
-    1. tools that **fail on valid input** (a happy-path scenario errored),
+    1. tools that **fail on valid input** (a happy-path scenario errored) and
+       high-confidence **effect-probe failures** (the tool did not do what it reported),
     2. tools that **crash on bad input** (an edge scenario timed out / crashed),
     3. schema **errors**, then
-    4. schema **warnings**.
+    4. schema **warnings** and medium/low-confidence probe findings.
 
     Scenario failures are de-duplicated per tool (one entry per tool per kind),
     since a tool that fails one happy path usually fails them all.
@@ -346,6 +415,20 @@ def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSugg
                 )
             )
 
+    for probe in card.probes or []:
+        if probe.status != "fail":
+            continue
+        priority = _PRIORITY_HAPPY_FAIL if probe.severity == "error" else _PRIORITY_LINT_WARNING
+        note = "" if probe.severity == "error" else f" ({probe.confidence} confidence)"
+        suggestions.append(
+            FixSuggestion(
+                tool=probe.tool,
+                problem=f"{probe.message} ({probe.rule}){note}",
+                fix=probe.fix or "Check what the tool really does.",
+                priority=priority,
+            )
+        )
+
     for issue in card.lint:
         priority = _PRIORITY_LINT_ERROR if issue.severity == "error" else _PRIORITY_LINT_WARNING
         suggestions.append(
@@ -389,7 +472,8 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     header.append(
         f"happy {card.happy_pass_rate:.0%}  |  "
         f"edge {card.edge_resilience_rate:.0%}  |  "
-        f"lint {card.lint_score:.0%}",
+        f"lint {card.lint_score:.0%}"
+        + (f"  |  effect {card.effect_label}" if card.effect_label else ""),
         style="dim",
     )
     if protocol_label(card):
@@ -422,6 +506,9 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
             f"(~{card.context_tokens} in total, sent with every request).[/dim]"
         )
 
+    if card.probes is not None:
+        _print_probes(card.probes, console)
+
     fixes = build_fix_list(card)
     if not fixes:
         console.print(
@@ -440,6 +527,69 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     remaining = len(fixes) - min(len(fixes), _MAX_FIXES_SHOWN)
     if remaining > 0:
         console.print(f"  [dim]... and {remaining} more issue(s).[/dim]")
+
+
+_PROBE_STATUS_STYLE = {
+    "pass": "green",
+    "fail": "red",
+    "inconclusive": "yellow",
+    "skipped": "dim",
+}
+
+
+def _probe_status(probe: ProbeResult) -> str:
+    """``pass``, ``FAIL`` (grade-affecting), ``warn`` (other failures), ``inconclusive``..."""
+    if probe.status == "fail":
+        return "FAIL" if probe.severity == "error" else "warn"
+    return probe.status
+
+
+def _print_probes(probes: list[ProbeResult], console: Console) -> None:
+    """Print the effect-probe table (skipped probes as one line)."""
+    shown = [p for p in probes if p.status != "skipped"]
+    skipped = [p for p in probes if p.status == "skipped"]
+    if shown:
+        table = Table(title="Effect probes", header_style="bold magenta", title_style="bold")
+        table.add_column("Probe")
+        table.add_column("Tool", style="cyan")
+        table.add_column("Result")
+        table.add_column("Confidence", style="dim")
+        table.add_column("Detail")
+        for probe in shown:
+            style = _PROBE_STATUS_STYLE.get(probe.status, "white")
+            if probe.status == "fail" and probe.severity == "warning":
+                style = "yellow"
+            detail = probe.message + (f" [dim]({probe.rule})[/dim]" if probe.rule else "")
+            table.add_row(
+                probe.probe,
+                probe.tool,
+                Text(_probe_status(probe), style=style),
+                probe.confidence if probe.status in ("pass", "fail") else "",
+                detail,
+            )
+        console.print(table)
+    if skipped:
+        names = ", ".join(sorted({p.tool for p in skipped}))
+        console.print(
+            f"[dim]{len(skipped)} probe(s) skipped because they write ({names}); "
+            "add --allow-writes to run them against a disposable server.[/dim]"
+        )
+
+
+def _probe_json(probe: ProbeResult) -> dict[str, Any]:
+    return {
+        "probe": probe.probe,
+        "tool": probe.tool,
+        "check": probe.check,
+        "status": probe.status,
+        "rule": probe.rule,
+        "severity": probe.severity,
+        "confidence": probe.confidence,
+        "message": probe.message,
+        "basis": probe.basis,
+        "fix": probe.fix,
+        "evidence": probe.evidence,
+    }
 
 
 def scorecard_to_markdown(card: MCPScorecard) -> str:
@@ -475,6 +625,11 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
             f"- Server instructions (estimated): ~{card.instructions_tokens} tokens "
             f"(~{card.context_tokens} in total, sent with every request)"
         )
+    if card.effect_label:
+        lines.append(
+            f"- Effect probes: {card.effect_label} of high-confidence checks passed "
+            f"({card.probe_error_count} failures, {card.probe_warning_count} warnings)"
+        )
     if protocol_label(card):
         lines.append(f"- Protocol: {protocol_label(card)}")
     lines.append("")
@@ -489,6 +644,22 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
             f"{summary['avg_latency_ms']:.1f} ms | {summary['tokens']} |"
         )
     lines.append("")
+
+    probes = [p for p in card.probes or [] if p.status != "skipped"]
+    if probes:
+        lines.append("## Effect probes")
+        lines.append("")
+        lines.append("| Probe | Tool | Result | Confidence | Detail |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for probe in probes:
+            rule = f" (`{probe.rule}`)" if probe.rule else ""
+            confidence = probe.confidence if probe.status in ("pass", "fail") else ""
+            message = probe.message.replace("|", "\\|")
+            lines.append(
+                f"| {probe.probe} | `{probe.tool}` | {_probe_status(probe)} | {confidence} | "
+                f"{message}{rule} |"
+            )
+        lines.append("")
 
     lines.append("## Top issues to fix")
     lines.append("")
@@ -531,7 +702,9 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
             "happy_pass_rate": card.happy_pass_rate,
             "edge_resilience_rate": card.edge_resilience_rate,
             "lint_score": card.lint_score,
+            "effect_rate": card.effect_rate,
         },
+        "probes": None if card.probes is None else [_probe_json(p) for p in card.probes],
         "tools": _tool_summaries(card),
         "results": [
             {
