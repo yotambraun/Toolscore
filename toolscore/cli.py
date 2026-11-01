@@ -50,8 +50,10 @@ from toolscore.reports import (
 
 if TYPE_CHECKING:
     from toolscore.mcp import MCPClient, MCPServerSpec
+    from toolscore.mcp.faults import FaultInjector
     from toolscore.mcp.fixtures import ArgumentFixtures
     from toolscore.mcp.probes import ProbeConfig
+    from toolscore.mcp.recorder import MCPRecorder
 
 
 @click.group()
@@ -1354,28 +1356,107 @@ def mcp_record(
     COMMAND: the server launch command as a single quoted string
     (omit when using --config).
     """
-    from toolscore.mcp.recorder import MCPRecorder
-
     # stdout carries the MCP protocol, so every message from us goes to stderr.
     console = Console(stderr=True)
+    exit_code, recorder = _run_recorder(command, config, server, output, console)
+    console.print(
+        f"[dim]toolscore: recorded {recorder.calls_recorded} tool call(s) to {output}[/dim]"
+    )
+    # A server killed by a signal reports -N; shells report that as 128 + N.
+    sys.exit(exit_code if exit_code >= 0 else 128 - exit_code)
+
+
+def _run_recorder(
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    output: Path,
+    console: Console,
+    injector: FaultInjector | None = None,
+) -> tuple[int, MCPRecorder]:
+    """Resolve a stdio server and relay one session through the recorder."""
+    from toolscore.mcp.recorder import MCPRecorder
+
     spec = _resolve_mcp_target(command, config, server, console)
     if spec.url is not None:
         print_error(
-            "mcp record is a stdio proxy and cannot record a URL server; record the agent's "
+            "The recorder is a stdio proxy and cannot relay a URL server; record the agent's "
             "calls from its own logs or traces instead (toolscore eval --format otel/openai/...).",
             console,
         )
         sys.exit(2)
-    recorder = MCPRecorder(spec.command, output, env=spec.env or None)
+    recorder = MCPRecorder(spec.command, output, env=spec.env or None, injector=injector)
     try:
         exit_code = recorder.run()
     except OSError as exc:
         print_error(f"Failed to launch MCP server {spec.command!r}: {exc}", console)
         sys.exit(1)
+    return exit_code, recorder
+
+
+@mcp.command("proxy")
+@click.argument("command", nargs=-1)
+@click.option(
+    "--config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="MCP host config file with a stdio server entry (alternative to a command).",
+)
+@click.option("--server", default=None, help="Server name to select from --config.")
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    required=True,
+    help="Session file to write (calls, results and the injected faults).",
+)
+@click.option(
+    "--inject",
+    "inject",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "Fault spec (JSON or YAML): which tools and calls get an error, a JSON-RPC error, a "
+        "warning, an empty or truncated result, a delay, a timeout, or a disabled / "
+        "permission-denied answer. Without it the proxy only records."
+    ),
+)
+def mcp_proxy(
+    command: tuple[str, ...],
+    config: Path | None,
+    server: str | None,
+    output: Path,
+    inject: Path | None,
+) -> None:
+    """Relay an MCP stdio server, inject faults into chosen calls, and record the session.
+
+    Put this command where your MCP client (Claude Code, Cursor, Claude
+    Desktop, your agent) launches the server. Use the agent as usual. The
+    session file records what the agent saw and which faults were injected,
+    so the honesty checks can tell whether the agent disclosed them:
+
+        toolscore honesty session.json --final-answer @answer.txt
+
+    The proxy speaks stdio only; HTTP servers cannot be proxied.
+
+    COMMAND: the server launch command (omit when using --config).
+    """
+    from toolscore.mcp.faults import FaultInjector, load_fault_spec
+
+    console = Console(stderr=True)
+    injector = None
+    if inject is not None:
+        try:
+            injector = FaultInjector(load_fault_spec(inject))
+        except ValueError as exc:
+            print_error(f"Invalid fault spec: {exc}", console)
+            sys.exit(2)
+    exit_code, recorder = _run_recorder(command, config, server, output, console, injector)
+    injected = len(recorder.injections)
     console.print(
-        f"[dim]toolscore: recorded {recorder.calls_recorded} tool call(s) to {output}[/dim]"
+        f"[dim]toolscore: recorded {recorder.calls_recorded} tool call(s), "
+        f"{injected} with an injected fault, to {output}[/dim]"
     )
-    # A server killed by a signal reports -N; shells report that as 128 + N.
     sys.exit(exit_code if exit_code >= 0 else 128 - exit_code)
 
 

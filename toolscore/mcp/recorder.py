@@ -15,9 +15,18 @@ request, with result, error and duration). Nothing else is recorded:
 The trace file is rewritten after every completed call, so a crashed session
 still leaves a usable trace.
 
+With a :class:`~toolscore.mcp.faults.FaultInjector` it is also a
+fault-injection proxy: chosen calls get an error, a warning, an empty or
+truncated result, a delay or no answer at all (see :mod:`toolscore.mcp.faults`).
+The session file then records what the client saw, marks each injected response
+with ``injected``, and lists every injection under ``injections``, so the
+honesty checks know which failures were real. Only single-message lines are
+injected; JSON-RPC batches pass through unchanged.
+
 Command line::
 
     toolscore mcp record "python my_server.py" -o session.json
+    toolscore mcp proxy "python my_server.py" --inject faults.json -o session.json
     toolscore eval gold.json session.json --format mcp
 """
 
@@ -31,7 +40,10 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import IO, Any
+from typing import IO, TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from toolscore.mcp.faults import FaultInjector, Injection
 
 #: Value of the ``format`` field in a recorded trace file.
 TRACE_FORMAT = "mcp"
@@ -69,6 +81,7 @@ class MCPRecorder:
         output: Path of the trace file to write.
         env: Extra environment variables for the server process.
         cwd: Working directory for the server process.
+        injector: Injects faults into chosen calls (``toolscore mcp proxy --inject``).
 
     Example:
         >>> recorder = MCPRecorder(["python", "server.py"], Path("session.json"))
@@ -81,6 +94,7 @@ class MCPRecorder:
         output: str | Path,
         env: dict[str, str] | None = None,
         cwd: str | Path | None = None,
+        injector: FaultInjector | None = None,
     ) -> None:
         if not command:
             raise ValueError("MCPRecorder requires a non-empty server command.")
@@ -88,9 +102,15 @@ class MCPRecorder:
         self._output = Path(output)
         self._env = dict(env or {})
         self._cwd = cwd
+        self._injector = injector
         self._lock = threading.Lock()
+        self._out_lock = threading.Lock()
         self._pending: dict[tuple[str, Any], float] = {}
         self._messages: list[dict[str, Any]] = []
+        #: Forwarded calls whose response will be modified, by request id.
+        self._modify: dict[tuple[str, Any], Injection] = {}
+        #: Every injection made, as recorded in the session file.
+        self.injections: list[dict[str, Any]] = []
         #: Number of completed tool calls recorded so far.
         self.calls_recorded = 0
 
@@ -108,7 +128,7 @@ class MCPRecorder:
                 self._pending[key] = time.perf_counter()
                 self._messages.append(message)
 
-    def _note_server_line(self, line: str) -> None:
+    def _note_server_line(self, line: str, injected: dict[str, Any] | None = None) -> None:
         """Pair responses with recorded requests and save the trace."""
         completed = False
         for message in _messages(line):
@@ -120,6 +140,8 @@ class MCPRecorder:
                 if started is None:
                     continue
                 recorded = dict(message)
+                if injected is not None:
+                    recorded["injected"] = injected
                 recorded["duration"] = round(time.perf_counter() - started, 6)
                 self._messages.append(recorded)
                 self.calls_recorded += 1
@@ -127,15 +149,103 @@ class MCPRecorder:
         if completed:
             self.write()
 
+    # -- fault injection ----------------------------------------------------
+
+    def _intercept_client(self, line: str) -> tuple[str | None, str | None]:
+        """Decide what a client line becomes: ``(line for the server, line for the client)``.
+
+        Without an injector, or for anything but a single ``tools/call``
+        request, the line goes to the server unchanged.
+        """
+        if self._injector is None:
+            return line, None
+        try:
+            message = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            return line, None
+        if not isinstance(message, dict) or message.get("method") != "tools/call":
+            return line, None
+        key = _hashable_id(message.get("id"))
+        params = message.get("params") if isinstance(message.get("params"), dict) else {}
+        assert isinstance(params, dict)
+        tool = params.get("name")
+        if key is None or not isinstance(tool, str):
+            return line, None
+        injection = self._injector.decide(tool)
+        if injection is None:
+            return line, None
+        record = injection.record(message.get("id"))
+        with self._lock:
+            self.injections.append(record)
+        if injection.rule.forwards:
+            with self._lock:
+                self._modify[key] = injection
+            return line, None
+        meta = params.get("_meta")
+        modern = isinstance(meta, dict) and "io.modelcontextprotocol/protocolVersion" in meta
+        response = injection.synthesize(message.get("id"), modern)
+        self._note_client_line(line)
+        if response is None:
+            # A timeout: nothing reaches the client. The recording still shows
+            # the call as failed, marked as never sent.
+            self._note_response(
+                {
+                    "jsonrpc": "2.0",
+                    "id": message.get("id"),
+                    "error": {"code": -32001, "message": "no response (injected timeout)"},
+                    "injected": record,
+                    "not_sent": True,
+                }
+            )
+            return None, None
+        self._note_response({**response, "injected": record})
+        return None, json.dumps(response) + "\n"
+
+    def _intercept_server(self, line: str) -> tuple[str, dict[str, Any] | None]:
+        """Apply a forwarded fault to a server line; returns the line and its injection record."""
+        if not self._modify:
+            return line, None
+        try:
+            message = json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            return line, None
+        if not isinstance(message, dict) or "method" in message:
+            return line, None
+        key = _hashable_id(message.get("id"))
+        with self._lock:
+            injection = self._modify.pop(key, None) if key is not None else None
+        if injection is None:
+            return line, None
+        if injection.fault == "delay":
+            time.sleep(injection.rule.seconds)
+        record = injection.record(message.get("id"))
+        return json.dumps(injection.modify(message)) + "\n", record
+
+    def _note_response(self, message: dict[str, Any]) -> None:
+        """Record a response the proxy produced itself."""
+        key = _hashable_id(message.get("id"))
+        with self._lock:
+            started = self._pending.pop(key, None) if key is not None else None
+            recorded = dict(message)
+            recorded["duration"] = (
+                round(time.perf_counter() - started, 6) if started is not None else 0.0
+            )
+            self._messages.append(recorded)
+            self.calls_recorded += 1
+        self.write()
+
     def write(self) -> None:
         """Write the trace file atomically (a temporary file, then a rename)."""
         with self._lock:
-            payload = {
+            payload: dict[str, Any] = {
                 "format": TRACE_FORMAT,
-                "recorded_by": "toolscore mcp record",
+                "recorded_by": "toolscore mcp proxy" if self._injector else "toolscore mcp record",
                 "server_command": self._command,
                 "messages": list(self._messages),
             }
+            if self._injector is not None:
+                payload["fault_spec"] = self._injector.spec.to_dict()
+                payload["injections"] = list(self.injections)
         self._output.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._output.with_name(self._output.name + ".tmp")
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -183,11 +293,21 @@ class MCPRecorder:
         assert process.stderr is not None
         server_in, server_out, server_err = process.stdin, process.stdout, process.stderr
 
+        def to_client(line: str) -> None:
+            with self._out_lock:
+                client_out.write(line)
+                client_out.flush()
+
         def client_to_server() -> None:
             try:
                 for line in client_in:
-                    self._note_client_line(line)
-                    server_in.write(line)
+                    for_server, for_client = self._intercept_client(line)
+                    if for_client is not None:
+                        to_client(for_client)
+                    if for_server is None:
+                        continue
+                    self._note_client_line(for_server)
+                    server_in.write(for_server)
                     server_in.flush()
             except (BrokenPipeError, OSError, ValueError):
                 pass
@@ -207,9 +327,9 @@ class MCPRecorder:
 
         try:
             for line in server_out:
-                client_out.write(line)
-                client_out.flush()
-                self._note_server_line(line)
+                line, injected = self._intercept_server(line)
+                to_client(line)
+                self._note_server_line(line, injected)
         except (BrokenPipeError, OSError, ValueError):
             pass  # the client went away; stop the server below
         finally:

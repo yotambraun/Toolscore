@@ -8,7 +8,8 @@ configuration files of MCP hosts (Claude Desktop, Cursor, VS Code, Claude Code).
 On top of that it builds the "MCP Scorecard" harness: scenario generation,
 scenario execution, tool linting, output-schema checks, effect probes (did the
 tool really do what it reported), A--F scoring, badges, and console/Markdown/JSON
-reports.
+reports. ``MCPRecorder`` records stdio sessions and, with a fault spec, injects
+failures into chosen calls.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from toolscore.mcp.client import (
 )
 from toolscore.mcp.config import MCPServerSpec, load_mcp_config, open_client
 from toolscore.mcp.content import content_to_text
+from toolscore.mcp.faults import FaultInjector, FaultRule, FaultSpec, load_fault_spec
 from toolscore.mcp.fixtures import ArgumentFixtures, load_fixtures
 from toolscore.mcp.harness import (
     LintIssue,
@@ -68,6 +70,9 @@ __all__ = [
     "ArgumentFixtures",
     "BoundRelation",
     "CallSpec",
+    "FaultInjector",
+    "FaultRule",
+    "FaultSpec",
     "FixSuggestion",
     "LintIssue",
     "MCPClient",
@@ -92,6 +97,7 @@ __all__ = [
     "generate_scenarios",
     "grade_meets",
     "lint_tools",
+    "load_fault_spec",
     "load_fixtures",
     "load_mcp_config",
     "load_probe_config",
