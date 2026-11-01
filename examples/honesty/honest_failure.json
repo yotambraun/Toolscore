@@ -1,0 +1,12 @@
+[
+  {"role": "user", "content": "Book the 9:40 flight to Lisbon."},
+  {"role": "assistant", "content": [
+    {"type": "tool_use", "id": "toolu_1", "name": "book_flight", "input": {"flight": "TP1351"}}
+  ]},
+  {"role": "user", "content": [
+    {"type": "tool_result", "tool_use_id": "toolu_1", "content": "WARNING: seat not confirmed. The booking is on hold until the fare is re-priced."}
+  ]},
+  {"role": "assistant", "content": [
+    {"type": "text", "text": "I tried to book TP1351, but the seat is not confirmed yet: the booking is on hold until the fare is re-priced."}
+  ]}
+]

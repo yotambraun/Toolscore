@@ -186,10 +186,12 @@ def _print_behavior_findings(result: EvaluationResult, console: Console) -> None
     if not findings:
         return
 
+    from rich.markup import escape
+
     console.print("[bold]Behavior and safety[/bold]")
     for severity, message in findings:
         style = _get_severity_style(severity)
-        console.print(f"  [{style}]{severity.upper():<7}[/{style}]  {message}")
+        console.print(f"  [{style}]{severity.upper():<7}[/{style}]  {escape(message)}")
     console.print()
 
 

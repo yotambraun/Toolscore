@@ -231,7 +231,12 @@ class MCPAdapter(BaseAdapter):
         }
 
     def _apply_response(self, call: ToolCall, response: dict[str, Any]) -> None:
-        """Merge a response into the call created from its request."""
+        """Merge a response into the call created from its request.
+
+        A response recorded by ``toolscore mcp proxy --inject`` carries the
+        fault it was given under ``injected``; it is kept as
+        ``metadata["injected"]`` so the honesty checks know the ground truth.
+        """
         fields = self._response_fields(response)
         call.result = fields["result"]
         call.duration = _duration(response)
@@ -242,6 +247,8 @@ class MCPAdapter(BaseAdapter):
                 "is_error": fields["is_error"],
             }
         )
+        if isinstance(response.get("injected"), dict):
+            call.metadata["injected"] = response["injected"]
 
     def _parse_tool_result(self, response: dict[str, Any]) -> ToolCall | None:
         """Parse a tool call result that has no matching request in the trace.

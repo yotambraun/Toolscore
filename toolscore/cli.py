@@ -33,6 +33,7 @@ from toolscore.core import evaluate_trace
 from toolscore.debug import run_interactive_debug
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
+from toolscore.metrics.honesty import load_honesty_config
 from toolscore.metrics.llm_judge import JudgeConfig, Provider
 from toolscore.metrics.policy import load_forbidden_rules
 from toolscore.models import DEFAULT_JUDGE_MODEL
@@ -184,6 +185,39 @@ def main() -> None:
     default=False,
     help="Exit with status 1 if a forbidden call or a credential in tool arguments is found",
 )
+@click.option(
+    "--final-answer",
+    default=None,
+    metavar="TEXT|@FILE",
+    help=(
+        "The agent's final answer to the user, for the honesty checks, when the trace does not "
+        "hold it (recorded MCP sessions never do). @FILE reads it from a file."
+    ),
+)
+@click.option(
+    "--honesty-config",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="JSON or YAML file with honesty-check patterns and tool lists.",
+)
+@click.option(
+    "--injected",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "A 'toolscore mcp proxy --inject' session file: the faults it injected are matched to "
+        "the trace's calls, so the honesty checks know what really failed."
+    ),
+)
+@click.option(
+    "--fail-on-honesty",
+    is_flag=True,
+    default=False,
+    help=(
+        "Exit with status 1 if an error-severity honesty finding is reported (a false success "
+        "claim, an escape hatch that overrides a refusal, an undisclosed injected fault)."
+    ),
+)
 def eval(
     gold_file: Path,
     trace_file: Path,
@@ -203,6 +237,10 @@ def eval(
     forbidden: Path | None,
     weight_overrides: tuple[str, ...],
     fail_on_violations: bool,
+    final_answer: str | None,
+    honesty_config: Path | None,
+    injected: Path | None,
+    fail_on_honesty: bool,
 ) -> None:
     """Evaluate an agent trace against gold standard.
 
@@ -242,6 +280,9 @@ def eval(
             judge=judge,
             forbidden=load_forbidden_rules(forbidden) if forbidden else None,
             weights=weights,
+            final_answer=_read_text_option(final_answer),
+            honesty=load_honesty_config(honesty_config) if honesty_config else None,
+            injections=_session_injections(injected) if injected else None,
         )
 
         # Generate reports
@@ -298,6 +339,14 @@ def eval(
             )
             sys.exit(1)
 
+        honesty_errors = _honesty_errors(result.metrics.get("honesty_metrics"))
+        if fail_on_honesty and honesty_errors:
+            print_error(
+                f"{honesty_errors} honesty finding(s) of error severity (--fail-on-honesty)",
+                console,
+            )
+            sys.exit(1)
+
     except FileNotFoundError as e:
         print_error(f"File not found: {e}", console)
         sys.exit(1)
@@ -308,6 +357,150 @@ def eval(
         print_error(f"Unexpected error: {e}", console)
         if verbose:
             raise
+        sys.exit(1)
+
+
+@main.command()
+@click.argument("trace_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.option(
+    "--format",
+    "-f",
+    type=click.Choice(
+        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
+    ),
+    default="auto",
+    help="Trace format (auto-detect by default).",
+)
+@click.option(
+    "--gold",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Required calls (a gold file), so a success claim can be checked against them.",
+)
+@click.option(
+    "--final-answer",
+    default=None,
+    metavar="TEXT|@FILE",
+    help="The agent's final answer, when the trace does not hold it. @FILE reads a file.",
+)
+@click.option(
+    "--injected",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="A 'toolscore mcp proxy --inject' session whose injected faults apply to this trace.",
+)
+@click.option(
+    "--config",
+    "config_path",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="JSON or YAML file with honesty-check patterns and tool lists.",
+)
+@click.option(
+    "--json",
+    "json_path",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Also write the findings and counts as JSON.",
+)
+@click.option(
+    "--fail-on-findings",
+    is_flag=True,
+    default=False,
+    help="Exit with status 1 on an error-severity finding (for CI).",
+)
+def honesty(
+    trace_file: Path,
+    format: str,
+    gold: Path | None,
+    final_answer: str | None,
+    injected: Path | None,
+    config_path: Path | None,
+    json_path: Path | None,
+    fail_on_findings: bool,
+) -> None:
+    """Check whether an agent told the truth about what its tools did.
+
+    Reads any trace (OpenAI, Anthropic, Responses, LangChain, OpenTelemetry,
+    recorded MCP sessions) and compares the tool results with the agent's final
+    answer: a success claim after a failure, a run that ends right after an
+    error, a warning the answer leaves out, a code-execution tool used after a
+    refusal, and faults injected by 'toolscore mcp proxy --inject' that the
+    answer hides. Needs no gold file and no API key.
+
+    TRACE_FILE: the agent trace or the proxy session.
+    """
+    from rich.markup import escape
+
+    from toolscore.core import load_gold_standard
+    from toolscore.metrics.honesty import apply_injections, check_honesty
+    from toolscore.transcript import load_transcript
+
+    console = Console()
+    try:
+        transcript = load_transcript(
+            trace_file, format=format, final_answer=_read_text_option(final_answer)
+        )
+        if injected is not None:
+            apply_injections(transcript.calls, _session_injections(injected))
+        report = check_honesty(
+            transcript.calls,
+            transcript.final_answer,
+            gold_calls=load_gold_standard(gold) if gold else None,
+            config=load_honesty_config(config_path) if config_path else None,
+            final_source=transcript.final_source,
+        )
+    except (OSError, ValueError) as exc:
+        print_error(f"Could not check {trace_file}: {exc}", console)
+        sys.exit(2)
+
+    counts = report["false_success"]
+    noun = "call" if len(transcript.calls) == 1 else "calls"
+    console.print(
+        f"\n[bold]Honesty check[/bold]  {trace_file}  ({len(transcript.calls)} tool {noun})"
+    )
+    if transcript.final_answer is None:
+        console.print(
+            "[yellow]Final answer: not in the trace[/yellow] [dim](checks that need it report "
+            "unknown; pass --final-answer)[/dim]"
+        )
+    else:
+        answer = " ".join(transcript.final_answer.split())
+        shown = answer if len(answer) <= 100 else answer[:99] + "…"
+        console.print(f"Final answer [dim]({transcript.final_source})[/dim]: {escape(shown)!r}")
+    console.print()
+
+    if report["findings"]:
+        for finding in report["findings"]:
+            style = "red" if finding["severity"] == "error" else "yellow"
+            console.print(
+                f"  [{style}]{finding['severity'].upper():<7}[/{style}]  "
+                f"{escape(finding['message'])} [dim]({finding['rule']})[/dim]"
+            )
+        console.print()
+
+    table = Table(title="False success", header_style="bold magenta", title_style="bold")
+    table.add_column("Count")
+    table.add_column("Value", justify="right")
+    for key, value in counts.items():
+        if value is None:
+            shown_value = "[dim]n/a (no gold)[/dim]" if key == "failed_required" else "unknown"
+        else:
+            shown_value = str(value)
+        table.add_row(key, shown_value)
+    console.print(table)
+
+    verdict = {True: "[red]FLAGGED[/red]", False: "[green]no false success found[/green]"}
+    console.print(
+        f"Verdict: {verdict.get(report['flagged'], '[yellow]unknown (no final answer)[/yellow]')}\n"
+    )
+
+    if json_path is not None:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        console.print(f"[dim]>[/dim] JSON: [cyan]{json_path}[/cyan]")
+
+    if fail_on_findings and _honesty_errors(report):
         sys.exit(1)
 
 
@@ -860,6 +1053,28 @@ def regression(
         if verbose:
             raise
         sys.exit(2)
+
+
+def _read_text_option(value: str | None) -> str | None:
+    """A text option, or the contents of a file when it is ``@PATH``."""
+    if value is None or not value.startswith("@"):
+        return value
+    return Path(value[1:]).read_text(encoding="utf-8")
+
+
+def _session_injections(path: Path) -> list[dict[str, Any]]:
+    """The ``injections`` list of a ``toolscore mcp proxy`` session file."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    injections = data.get("injections") if isinstance(data, dict) else None
+    if not isinstance(injections, list):
+        raise ValueError(f"{path} has no 'injections' list (is it a 'mcp proxy' session?)")
+    return [i for i in injections if isinstance(i, dict)]
+
+
+def _honesty_errors(honesty: Any) -> int:
+    """How many error-severity honesty findings a ``honesty_metrics`` dict holds."""
+    findings = honesty.get("findings", []) if isinstance(honesty, dict) else []
+    return sum(1 for f in findings if f.get("severity") == "error")
 
 
 def _parse_weights(overrides: tuple[str, ...]) -> dict[str, float] | None:

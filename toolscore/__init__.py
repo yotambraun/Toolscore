@@ -32,8 +32,10 @@ from toolscore.integrations import (
     from_pydantic_ai,
 )
 from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
+from toolscore.metrics.honesty import HonestyConfig, check_honesty
 from toolscore.metrics.llm_judge import JudgeConfig
 from toolscore.snapshots import Snapshot, SnapshotStore, snapshot_check
+from toolscore.transcript import Transcript, load_transcript
 from toolscore.verdict import FixSuggestion, letter_grade
 
 try:
@@ -83,6 +85,7 @@ __all__ = [
     "Contains",
     "Expectation",
     "FixSuggestion",
+    "HonestyConfig",
     "IsType",
     "JudgeConfig",
     "Matcher",
@@ -92,11 +95,13 @@ __all__ = [
     "SnapshotStore",
     "ToolScoreAssertionError",
     "TraceCapture",
+    "Transcript",
     "__version__",
     "assert_tools",
     "auto_extract",
     "capture_trace",
     "cases",
+    "check_honesty",
     "evaluate",
     "evaluate_trace",
     "expect",
@@ -111,6 +116,7 @@ __all__ = [
     "from_otel",
     "from_pydantic_ai",
     "letter_grade",
+    "load_transcript",
     "snapshot_check",
     "test_agent",
     "test_agent_async",

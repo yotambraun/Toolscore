@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from toolscore.metrics.honesty import HonestyConfig
     from toolscore.metrics.llm_judge import JudgeConfig
 
 from toolscore.adapters import (
@@ -39,6 +40,7 @@ from toolscore.metrics import (
     calculate_tool_correctness,
     calculate_trajectory_accuracy,
 )
+from toolscore.metrics.honesty import apply_injections, check_honesty
 from toolscore.metrics.policy import check_forbidden_calls
 from toolscore.metrics.security import find_secrets
 from toolscore.validators import (
@@ -139,6 +141,15 @@ class EvaluationResult:
         return None if value is None else float(value)
 
     @property
+    def false_success(self) -> dict[str, Any] | None:
+        """The honesty summary counts (see :mod:`toolscore.metrics.honesty`), or ``None``."""
+        honesty = self.metrics.get("honesty_metrics")
+        if not isinstance(honesty, dict):
+            return None
+        counts = honesty.get("false_success")
+        return counts if isinstance(counts, dict) else None
+
+    @property
     def policy_violations(self) -> list[dict[str, Any]]:
         """Calls that matched a ``forbidden`` rule (empty when no rules were given)."""
         policy = self.metrics.get("policy_metrics") or {}
@@ -218,12 +229,22 @@ def _add_trace_checks(
     gold_calls: list[ToolCall],
     trace_calls: list[ToolCall],
     forbidden: list[dict[str, Any]] | None = None,
+    final_answer: str | None = None,
+    final_source: str | None = None,
+    honesty: HonestyConfig | None = None,
 ) -> None:
     """Add the metrics shared by :func:`evaluate` and :func:`evaluate_trace`."""
     result.metrics["required_call_recall"] = calculate_required_call_recall(gold_calls, trace_calls)
     result.metrics["security_metrics"] = find_secrets(trace_calls)
     if forbidden is not None:
         result.metrics["policy_metrics"] = check_forbidden_calls(trace_calls, forbidden)
+    result.metrics["honesty_metrics"] = check_honesty(
+        trace_calls,
+        final_answer,
+        gold_calls=gold_calls,
+        config=honesty,
+        final_source=final_source,
+    )
 
 
 def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
@@ -310,28 +331,36 @@ def load_trace(
     with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
-    # Select adapter
-    adapter: BaseAdapter
-    if format == "auto":
-        adapter = _detect_format(data)
-    elif format == "openai":
-        adapter = OpenAIAdapter()
-    elif format == "anthropic":
-        adapter = AnthropicAdapter()
-    elif format == "gemini":
-        adapter = GeminiAdapter()
-    elif format == "mcp":
-        adapter = MCPAdapter()
-    elif format == "langchain":
-        adapter = LangChainAdapter()
-    elif format == "custom":
-        adapter = CustomAdapter()
-    elif format == "otel":
-        adapter = OTelAdapter()
-    else:
-        raise ValueError(f"Unsupported format: {format}")
+    return adapter_for(data, format).parse(data)
 
-    return adapter.parse(data)
+
+def adapter_for(data: Any, format: str = "auto") -> BaseAdapter:
+    """The adapter that reads ``data`` in ``format`` (``"auto"`` detects it).
+
+    Args:
+        data: The parsed trace.
+        format: 'auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel' or 'custom'.
+
+    Returns:
+        The adapter.
+
+    Raises:
+        ValueError: If the format is not supported.
+    """
+    adapters: dict[str, type[BaseAdapter]] = {
+        "openai": OpenAIAdapter,
+        "anthropic": AnthropicAdapter,
+        "gemini": GeminiAdapter,
+        "mcp": MCPAdapter,
+        "langchain": LangChainAdapter,
+        "custom": CustomAdapter,
+        "otel": OTelAdapter,
+    }
+    if format == "auto":
+        return _detect_format(data)
+    if format not in adapters:
+        raise ValueError(f"Unsupported format: {format}")
+    return adapters[format]()
 
 
 def _is_jsonrpc_list(value: Any) -> bool:
@@ -404,6 +433,21 @@ def _detect_format(data: Any) -> BaseAdapter:
             if "function_call" in first_item or "tool_calls" in first_item:
                 return OpenAIAdapter()
 
+        # A full chat history usually starts with a user or system message.
+        messages = [m for m in data if isinstance(m, dict)]
+        if any(
+            m.get("role") == "assistant"
+            and isinstance(m.get("content"), list)
+            and any(isinstance(b, dict) and b.get("type") == "tool_use" for b in m["content"])
+            for m in messages
+        ):
+            return AnthropicAdapter()
+        if any(
+            m.get("role") == "assistant" and ("tool_calls" in m or "function_call" in m)
+            for m in messages
+        ):
+            return OpenAIAdapter()
+
     # Default to custom format
     return CustomAdapter()
 
@@ -449,6 +493,9 @@ def evaluate_trace(
     judge: JudgeConfig | str | bool = False,
     forbidden: list[dict[str, Any]] | None = None,
     weights: dict[str, float] | None = None,
+    final_answer: str | None = None,
+    honesty: HonestyConfig | None = None,
+    injections: list[dict[str, Any]] | None = None,
 ) -> EvaluationResult:
     """Evaluate an agent's trace against gold standard.
 
@@ -468,6 +515,12 @@ def evaluate_trace(
             :func:`evaluate`); violations go to ``metrics["policy_metrics"]``.
         weights: Optional custom weights for the composite score (see
             :func:`evaluate`).
+        final_answer: The agent's final answer, when the trace does not hold
+            it; the honesty checks use it (``metrics["honesty_metrics"]``).
+        honesty: Patterns and tool lists for the honesty checks.
+        injections: Faults injected by ``toolscore mcp proxy --inject``, from a
+            separate proxy session file; matched to the trace's calls by tool
+            name and order. A proxy session trace carries its own.
 
     Returns:
         EvaluationResult containing all computed metrics.
@@ -476,11 +529,16 @@ def evaluate_trace(
         FileNotFoundError: If files don't exist.
         ValueError: If file formats are invalid.
     """
+    from toolscore.transcript import load_transcript
+
     merged_weights = _normalize_weights(weights)
 
     # Load data
     gold_calls = load_gold_standard(gold_file)
-    trace_calls = load_trace(trace_file, format=format)
+    transcript = load_transcript(trace_file, format=format, final_answer=final_answer)
+    trace_calls = transcript.calls
+    if injections:
+        apply_injections(trace_calls, injections)
 
     # Create result
     result = EvaluationResult()
@@ -508,7 +566,15 @@ def evaluate_trace(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
-    _add_trace_checks(result, gold_calls, trace_calls, forbidden)
+    _add_trace_checks(
+        result,
+        gold_calls,
+        trace_calls,
+        forbidden,
+        final_answer=transcript.final_answer,
+        final_source=transcript.final_source,
+        honesty=honesty,
+    )
 
     # Schema validation (if schemas are provided in metadata)
     schema_metrics = calculate_schema_validation_metrics(gold_calls, trace_calls)
@@ -644,6 +710,8 @@ def evaluate(
     weights: dict[str, float] | None = None,
     strict: bool = False,
     forbidden: list[dict[str, Any]] | None = None,
+    final_answer: str | None = None,
+    honesty: HonestyConfig | None = None,
 ) -> EvaluationResult:
     """Evaluate tool calls by comparing actual against expected (in-memory).
 
@@ -670,6 +738,13 @@ def evaluate(
             ``reason``. Violations are reported in ``metrics["policy_metrics"]``
             and :attr:`EvaluationResult.policy_violations`; they do not change the
             score. See :mod:`toolscore.metrics.policy`.
+        final_answer: What the agent told the user at the end. When omitted it
+            is read from a raw ``actual`` that holds one (a chat history ending
+            in an assistant message, a Responses output, an agent result).
+            The honesty checks (``metrics["honesty_metrics"]``) use it; they do
+            not change the score.
+        honesty: Patterns and tool lists for the honesty checks
+            (:class:`toolscore.metrics.honesty.HonestyConfig`).
 
     Returns:
         EvaluationResult with metrics and a composite .score property.
@@ -689,7 +764,11 @@ def evaluate(
     # pass through unchanged, while list-shaped raw formats (Claude Agent SDK
     # message lists, bare LangGraph message lists) are detected and converted.
     from toolscore.integrations import auto_extract
+    from toolscore.transcript import final_answer_of
 
+    final_source: str | None = "provided" if final_answer else None
+    if not final_answer and isinstance(actual, (dict, list)):
+        final_answer, final_source = final_answer_of(actual)
     actual = auto_extract(actual)
 
     merged_weights = _normalize_weights(weights)
@@ -722,7 +801,19 @@ def evaluate(
 
     efficiency_metrics = calculate_redundant_call_rate(gold_calls, trace_calls)
     result.metrics["efficiency_metrics"] = efficiency_metrics
-    _add_trace_checks(result, gold_calls, trace_calls, forbidden)
+    if final_answer is None and trace_calls:
+        from toolscore.transcript import final_answer_of as _final
+
+        final_answer, final_source = _final(None, trace_calls)
+    _add_trace_checks(
+        result,
+        gold_calls,
+        trace_calls,
+        forbidden,
+        final_answer=final_answer,
+        final_source=final_source,
+        honesty=honesty,
+    )
 
     return result
 

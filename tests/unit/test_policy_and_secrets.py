@@ -226,6 +226,11 @@ def test_reports_list_behavior_and_safety_findings(tmp_path: Path) -> None:
         ),
         ("warning", "2 of 4 tool calls failed (fetch x2)"),
         ("warning", "1 call repeats a failed call with the same arguments"),
+        (
+            "warning",
+            "disclosure unknown: 2 tool result(s) carried a warning or an unrecovered "
+            "error, and the trace has no final answer to check (undisclosed-warning)",
+        ),
     ]
 
     report = generate_markdown_report(result, tmp_path / "report.md").read_text(encoding="utf-8")
