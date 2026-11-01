@@ -260,7 +260,7 @@ CI is strict by design: snapshots are never created or auto-approved in CI — a
 
 ## MCP Scorecard — Grade Any MCP Server
 
-Point it at any MCP server: it generates happy-path *and* adversarial edge-case scenarios from each tool's schema, runs them, checks results against declared output schemas, lints the definitions, measures each tool's token cost, and returns an A–F grade plus a ranked **"Top issues to fix"** list (the output is at the [top of this page](#toolscore)).
+Point it at any MCP server: it generates happy-path *and* adversarial edge-case scenarios from each tool's schema, runs them, checks results against declared output schemas, lints the definitions, measures each tool's token cost, and returns an A–F grade plus a ranked **"Top issues to fix"** list (its real output is at the top of this page).
 
 ```bash
 toolscore mcp test "python my_server.py"                     # a local stdio server
