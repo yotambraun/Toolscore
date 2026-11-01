@@ -2,9 +2,9 @@
 """Example script to capture tool usage trace from OpenAI API.
 
 This script demonstrates how to:
-1. Call OpenAI's function calling API
+1. Call OpenAI's Responses API with function tools
 2. Capture the tool usage trace
-3. Save it in a format that Toolscore can evaluate
+3. Save it in a format that Toolscore can evaluate (the response itself)
 
 Requirements:
     pip install openai python-dotenv
@@ -25,6 +25,8 @@ except ImportError:
     print("Install them with: pip install openai python-dotenv")
     exit(1)
 
+from toolscore import from_openai_responses
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -37,39 +39,35 @@ if not api_key:
 
 client = OpenAI(api_key=api_key)
 
-# Define tools (functions) available to the model
+# Define tools (functions) available to the model (Responses API format)
 tools = [
     {
         "type": "function",
-        "function": {
-            "name": "make_file",
-            "description": "Create a new file with specified content",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "filename": {"type": "string", "description": "Name of the file to create"},
-                    "lines_of_text": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Lines of text to write to the file",
-                    },
+        "name": "make_file",
+        "description": "Create a new file with specified content",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Name of the file to create"},
+                "lines_of_text": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Lines of text to write to the file",
                 },
-                "required": ["filename", "lines_of_text"],
             },
+            "required": ["filename", "lines_of_text"],
         },
     },
     {
         "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read contents of a file",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "filename": {"type": "string", "description": "Name of the file to read"}
-                },
-                "required": ["filename"],
+        "name": "read_file",
+        "description": "Read contents of a file",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string", "description": "Name of the file to read"}
             },
+            "required": ["filename"],
         },
     },
 ]
@@ -78,66 +76,25 @@ tools = [
 task = "Create a file called poem.txt with a two-line poem (roses are red, violets are blue), then read it back to verify."
 
 print(f"Task: {task}\n")
-print("Calling OpenAI API...")
+print("Calling the OpenAI Responses API...")
 
-# Make API call with function calling
-messages = [{"role": "user", "content": task}]
-
-response = client.chat.completions.create(
-    model="gpt-4", messages=messages, tools=tools, tool_choice="auto"
-)
+response = client.responses.create(model="gpt-6-luna", input=task, tools=tools)
 
 print(f"Response received. Model: {response.model}")
 
-# Extract tool calls from response
-trace = []
+calls = from_openai_responses(response)
+print(f"\nTool calls captured: {len(calls)}")
+for call in calls:
+    print(f"  - {call['tool']}({json.dumps(call['args'])})")
 
-# Add assistant message with tool calls
-assistant_message = response.choices[0].message
-if assistant_message.tool_calls:
-    trace.append(
-        {
-            "role": "assistant",
-            "content": assistant_message.content,
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-                }
-                for tc in assistant_message.tool_calls
-            ],
-        }
-    )
-
-    print(f"\nTool calls captured: {len(assistant_message.tool_calls)}")
-    for tc in assistant_message.tool_calls:
-        print(f"  - {tc.function.name}({tc.function.arguments})")
-
-    # Simulate tool results (in real scenario, you'd execute the tools)
-    for tc in assistant_message.tool_calls:
-        trace.append(
-            {
-                "role": "tool",
-                "tool_call_id": tc.id,
-                "name": tc.function.name,
-                "content": json.dumps({"success": True, "result": "Tool executed"}),
-            }
-        )
-else:
-    print("\nNo tool calls were made by the model.")
-    trace.append({"role": "assistant", "content": assistant_message.content})
-
-# Save trace to file
+# Save the response as it is: Toolscore detects the Responses API format.
 output_file = Path(__file__).parent / "my_trace_openai.json"
 with output_file.open("w") as f:
-    json.dump(trace, f, indent=2)
+    json.dump(response.model_dump(mode="json"), f, indent=2)
 
 print(f"\n✓ Trace saved to: {output_file}")
 print("\nTo evaluate this trace, run:")
-print(f"  toolscore eval examples/gold_calls.json {output_file} --format openai")
+print(f"  toolscore eval examples/gold_calls.json {output_file}")
 print("\nOr use the Python API directly (no file needed):")
 print("  from toolscore import evaluate")
-print("  from toolscore.integrations import from_openai")
-print("  actual = from_openai(response)")
-print("  result = evaluate(expected=[...], actual=actual)")
+print("  result = evaluate(expected=[...], actual=response)")

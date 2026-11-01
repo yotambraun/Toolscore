@@ -73,9 +73,9 @@ from openai import OpenAI
 from toolscore import evaluate
 
 client = OpenAI()
-response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+response = client.responses.create(model="gpt-6-luna", input="...", tools=[...])
 
-# No from_openai() needed — auto-detected!
+# No helper needed: Responses API and Chat Completions objects are auto-detected.
 result = evaluate(expected=[...], actual=response)
 ```
 
@@ -135,8 +135,8 @@ pip install -e ".[dev]"
 Install additional features as needed:
 
 ```bash
-# HTTP validation support
-pip install tool-scorer[http]
+# Remote MCP servers (Streamable HTTP) and HTTP validation
+pip install "tool-scorer[http]"
 
 # LLM judge via OpenAI or any OpenAI-compatible endpoint (Ollama, vLLM, Groq)
 pip install tool-scorer[llm]
@@ -294,76 +294,47 @@ For file-based workflows you need traces from your LLM interactions. (If you tes
 
 ### Option A: Capture from OpenAI
 
-Create `capture_openai_trace.py`:
+Create `capture_openai_trace.py` (the same script ships in [`examples/`](examples/capture_openai_trace.py)):
 
 ```python
 #!/usr/bin/env python3
-"""Capture tool usage trace from OpenAI API."""
+"""Capture tool usage trace from the OpenAI Responses API."""
 import json
 import os
 from openai import OpenAI
 
-# Load API key from environment
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Define tools
 tools = [
     {
         "type": "function",
-        "function": {
-            "name": "make_file",
-            "description": "Create a new file with specified content",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "filename": {"type": "string"},
-                    "lines_of_text": {
-                        "type": "array",
-                        "items": {"type": "string"}
-                    }
-                },
-                "required": ["filename", "lines_of_text"]
-            }
-        }
+        "name": "make_file",
+        "description": "Create a new file with specified content",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "filename": {"type": "string"},
+                "lines_of_text": {"type": "array", "items": {"type": "string"}},
+            },
+            "required": ["filename", "lines_of_text"],
+        },
     }
 ]
 
-# Make API call
-messages = [
-    {"role": "user", "content": "Create a file called poem.txt with a two-line poem about AI"}
-]
-
-response = client.chat.completions.create(
-    model="gpt-4o",
-    messages=messages,
+response = client.responses.create(
+    model="gpt-6-luna",
+    input="Create a file called poem.txt with a two-line poem about AI",
     tools=tools,
-    tool_choice="auto"
 )
 
-# Save the trace
-trace = []
-for choice in response.choices:
-    if choice.message.tool_calls:
-        trace.append({
-            "role": "assistant",
-            "tool_calls": [
-                {
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
-                    }
-                }
-                for tc in choice.message.tool_calls
-            ]
-        })
-
+# Save the response as it is: Toolscore detects the Responses API format.
 with open("my_trace_openai.json", "w") as f:
-    json.dump(trace, f, indent=2)
+    json.dump(response.model_dump(mode="json"), f, indent=2)
 
 print("Trace saved to my_trace_openai.json")
 ```
+
+Chat Completions responses work the same way (`json.dump(completion.model_dump(mode="json"), f)`), and a Responses conversation's input items (with `function_call_output` items) keep each tool's output as the call's result.
 
 ### Option B: Capture from Anthropic
 
@@ -397,7 +368,7 @@ tools = [
 ]
 
 message = client.messages.create(
-    model="claude-sonnet-4-5",
+    model="claude-haiku-5-5",
     max_tokens=1024,
     tools=tools,
     messages=[
@@ -523,20 +494,20 @@ result = evaluate(
 
 ### With Provider / Framework Responses
 
-Pass raw responses directly — Toolscore auto-detects OpenAI, Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, and CrewAI formats:
+Pass raw responses directly — Toolscore auto-detects OpenAI (Chat Completions and Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, and CrewAI formats:
 
 ```python
 from openai import OpenAI
 from toolscore import evaluate
 
 client = OpenAI()
-response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+response = client.responses.create(model="gpt-6-luna", input="...", tools=[...])
 
-# No from_openai() needed — auto-detected!
+# No helper needed: Responses API and Chat Completions objects are auto-detected.
 result = evaluate(expected=[...], actual=response)
 ```
 
-You can still use the explicit helpers (`from_openai()`, `from_anthropic()`, `from_gemini()`, `from_langgraph()`, ...) if you prefer.
+You can still use the explicit helpers (`from_openai()`, `from_openai_responses()`, `from_anthropic()`, `from_gemini()`, `from_langgraph()`, ...) if you prefer.
 
 ### Python API Usage (File-Based)
 
@@ -661,7 +632,7 @@ Behavior and safety
 
 ## MCP Scorecard
 
-Toolscore can test any MCP (Model Context Protocol) server: it spins the server up over stdio, generates happy-path and edge-case scenarios from each tool's input schema, executes them, lints the tool definitions, measures each tool's token cost, and prints an A–F grade with a ranked **Top issues to fix** list.
+Toolscore can test any MCP (Model Context Protocol) server, local (stdio) or remote (Streamable HTTP): it generates happy-path and edge-case scenarios from each tool's input schema, executes them, checks results against declared output schemas, lints the tool definitions, measures each tool's token cost, and prints an A–F grade with a ranked **Top issues to fix** list. It speaks MCP 2026-07-28 and falls back to the `initialize` handshake (2025-11-25) for servers built on earlier revisions; the scorecard shows which one it used.
 
 The fastest way to try it — zero setup, no API key — is the bundled demo:
 
@@ -676,7 +647,10 @@ Then point it at your own server:
 # By launch command (quoted as one string):
 toolscore mcp test "python my_server.py"
 
-# Or from a Claude Desktop style config:
+# A remote server (pip install "tool-scorer[http]"); the token is read from $MCP_TOKEN:
+toolscore mcp test https://mcp.example.com/mcp --auth-env MCP_TOKEN
+
+# Or from an MCP client config (Claude Desktop, Cursor, Claude Code, VS Code; stdio or url entries):
 toolscore mcp test --config claude_desktop_config.json --server my-server
 
 # Zero-install, via uvx:
@@ -692,11 +666,15 @@ toolscore mcp test "python my_server.py" --cases 5 --no-edge-cases
 toolscore mcp test "python my_server.py" --report md --output SCORECARD.md
 toolscore mcp test "python my_server.py" --fail-under B    # CI gate: exit 1 below B
 toolscore mcp test "python my_server.py" --ci              # write verdict to $GITHUB_STEP_SUMMARY, fail on blocking issues
+toolscore mcp test "python my_server.py" --badge mcp-grade.svg   # SVG badge from this run's grade
+toolscore mcp test "python my_server.py" --protocol legacy # check the server still serves pre-2026 clients
 ```
+
+For a remote server, `--header 'Name: ${VAR}'` sends any header (single quotes, so Toolscore reads the variable rather than the shell), and in config files `${VAR}` and `${env:VAR}` in `url` and `headers` come from the environment. Header values are never printed.
 
 The score blends happy-path pass rate (60%), edge-case resilience (20%), and schema lint cleanliness (20%); grades follow the usual bands (>= 0.9 is an A). The console verdict and Markdown report list the top issues to fix with concrete suggestions plus a per-tool token-cost breakdown; the Markdown report is designed to paste into your server's README or a PR comment.
 
-Beyond schema hygiene, the lint flags descriptions and server instructions that refer to tools the server does not expose (on GitHub's official MCP server v1.12.2 it found `label_write` pointing models to a non-existent `update_issue` tool), and tool-poisoning patterns: hidden Unicode, "ignore previous instructions", and text telling the model to hide something from the user (errors), plus `<IMPORTANT>`-style instruction blocks (warnings). The scorecard also counts the tokens of the server's instructions.
+Beyond schema hygiene, the lint (every issue has a rule ID) flags behavior annotations that are missing on tools whose names say they write or delete, or that contradict the name (`readOnlyHint: true` on `delete_file`); `structuredContent` that does not match a tool's `outputSchema`; descriptions and server instructions that refer to tools the server does not expose (on GitHub's official MCP server v1.12.2 it found `label_write` pointing models to a non-existent `update_issue` tool), and tool-poisoning patterns: hidden Unicode, "ignore previous instructions", and text telling the model to hide something from the user (errors), plus `<IMPORTANT>`-style instruction blocks (warnings). The scorecard also counts the tokens of the server's instructions.
 
 ## LLM Judge for Every Provider
 
@@ -705,16 +683,16 @@ All core metrics are deterministic. When tool names differ only semantically (`s
 ### CLI
 
 ```bash
-toolscore eval gold.json trace.json --llm-judge                       # gpt-4o-mini (OpenAI)
-toolscore eval gold.json trace.json --llm-judge --llm-model claude-3-5-haiku-latest
-toolscore eval gold.json trace.json --llm-judge --llm-model gemini-2.0-flash
+toolscore eval gold.json trace.json --llm-judge                       # gpt-6-luna (OpenAI)
+toolscore eval gold.json trace.json --llm-judge --llm-model claude-haiku-5-5
+toolscore eval gold.json trace.json --llm-judge --llm-model gemini-3.5-flash-lite
 
 # Local model via Ollama (or any OpenAI-compatible server):
 toolscore eval gold.json trace.json --llm-judge \
     --llm-model llama3.1 --llm-base-url http://localhost:11434/v1
 ```
 
-The provider is inferred from the model name (`claude-*` -> Anthropic, `gemini-*` -> Gemini, a base URL -> OpenAI-compatible, otherwise OpenAI). Force it with `--llm-provider`.
+The provider is inferred from the model name (`claude-*` -> Anthropic, `gemini-*` -> Gemini, a base URL -> OpenAI-compatible, otherwise OpenAI). Force it with `--llm-provider`. No `temperature` is sent unless you set one (`JudgeConfig(temperature=0.0)`): current Claude models and OpenAI's GPT-6 models at their default reasoning effort reject it.
 
 ### Python
 
@@ -726,11 +704,11 @@ from toolscore import evaluate_trace, JudgeConfig
 # Disabled (default):
 result = evaluate_trace("gold.json", "trace.json")
 
-# Default judge (gpt-4o-mini via OPENAI_API_KEY):
+# Default judge (gpt-6-luna via OPENAI_API_KEY):
 result = evaluate_trace("gold.json", "trace.json", judge=True)
 
 # Model-name shorthand:
-result = evaluate_trace("gold.json", "trace.json", judge="claude-3-5-haiku-latest")
+result = evaluate_trace("gold.json", "trace.json", judge="claude-haiku-5-5")
 
 # Full control:
 result = evaluate_trace("gold.json", "trace.json", judge=JudgeConfig(
@@ -865,14 +843,18 @@ For file-based evaluation or MCP scorecards, use the official action:
     forbidden-file: tests/forbidden.json
     fail-on-violations: 'true'
 
-# MCP scorecard mode
+# MCP scorecard mode (a launch command or a URL)
 - uses: yotambraun/toolscore@v1
+  env:
+    MCP_TOKEN: ${{ secrets.MCP_TOKEN }}     # only for a remote server behind a token
   with:
     mcp-command: 'uvx my-mcp-server'
+    mcp-auth-env: MCP_TOKEN
     mcp-fail-under: 'B'
+    mcp-badge: .github/badges/mcp-grade.svg  # optional; commit it to show the grade
 ```
 
-The action outputs `score`, `grade`, `required-call-recall` and `violations` for later steps.
+The action installs the Toolscore version that matches its ref (`@v1` follows the latest 1.x release). It outputs `score`, `grade`, `required-call-recall` and `violations`, and in MCP mode `mcp-grade` and `mcp-score`, for later steps. [`examples/github_actions/mcp-badge.yml`](examples/github_actions/mcp-badge.yml) commits the badge when the grade changes.
 
 ### Best Practices
 
@@ -939,7 +921,7 @@ Extract tool calls explicitly when you want them as plain dicts:
 
 ```python
 from toolscore.integrations import (
-    from_openai, from_anthropic, from_gemini,
+    from_openai, from_openai_responses, from_anthropic, from_gemini,
     from_langgraph, from_pydantic_ai, from_openai_agents,
     from_claude_agent_sdk, from_crewai, auto_extract,
 )

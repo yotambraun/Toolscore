@@ -76,7 +76,7 @@ print("Calling Anthropic API...")
 
 # Make API call with tool use
 message = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
+    model="claude-haiku-5-5",
     max_tokens=1024,
     tools=tools,
     messages=[{"role": "user", "content": task}],
@@ -87,14 +87,15 @@ print(f"Response received. Model: {message.model}")
 # Extract tool calls from response
 trace = []
 
+# Content blocks are SDK objects; store them as plain JSON.
+content = [block.model_dump(mode="json") for block in message.content]
+
 # Add assistant message with tool use
 if message.content:
     tool_uses = [block for block in message.content if block.type == "tool_use"]
 
     if tool_uses:
-        trace.append(
-            {"role": "assistant", "content": message.content, "stop_reason": message.stop_reason}
-        )
+        trace.append({"role": "assistant", "content": content, "stop_reason": message.stop_reason})
 
         print(f"\nTool calls captured: {len(tool_uses)}")
         for tool_use in tool_uses:
@@ -115,9 +116,7 @@ if message.content:
         trace.append({"role": "user", "content": tool_results})
     else:
         print("\nNo tool calls were made by the model.")
-        trace.append(
-            {"role": "assistant", "content": message.content, "stop_reason": message.stop_reason}
-        )
+        trace.append({"role": "assistant", "content": content, "stop_reason": message.stop_reason})
 
 # Save trace to file
 output_file = Path(__file__).parent / "my_trace_anthropic.json"
