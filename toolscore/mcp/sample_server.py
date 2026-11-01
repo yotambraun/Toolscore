@@ -14,6 +14,14 @@ actionable verdict rather than a perfect score:
   LLM has to guess the shape).
 * ``export_notes`` -- always returns ``isError`` (a tool that fails on valid
   input -- the top issue the verdict surfaces).
+* ``create_note`` declares no behavior annotations although it writes (lint
+  warning); the read-only and destructive tools declare theirs.
+
+The server is *dual-era*: it answers ``server/discover`` and per-request
+``_meta`` (MCP 2026-07-28, stateless) as well as the ``initialize`` handshake of
+earlier revisions, so it works with both kinds of client.
+
+Run it with ``python -m toolscore.mcp.sample_server``.
 """
 
 from __future__ import annotations
@@ -22,7 +30,13 @@ import json
 import sys
 from typing import Any
 
-PROTOCOL_VERSION = "2025-06-18"
+#: The stateless revision this server speaks (per-request ``_meta``).
+MODERN_VERSION = "2026-07-28"
+#: Handshake-based revisions it accepts in ``initialize``, newest first.
+LEGACY_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26")
+SUPPORTED_VERSIONS = [MODERN_VERSION, *LEGACY_VERSIONS]
+SERVER_INFO = {"name": "notes-server", "version": "1.1.0"}
+_META_VERSION = "io.modelcontextprotocol/protocolVersion"
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -36,6 +50,7 @@ TOOLS: list[dict[str, Any]] = [
             },
             "required": ["title"],
         },
+        # Writes, but declares no readOnlyHint/destructiveHint (lint warning).
     },
     {
         "name": "list_notes",
@@ -46,6 +61,16 @@ TOOLS: list[dict[str, Any]] = [
                 "limit": {"type": "integer", "description": "Maximum notes to return."},
             },
             "required": ["limit"],
+        },
+        "annotations": {"readOnlyHint": True},
+        # Results carry structuredContent that conforms to this schema.
+        "outputSchema": {
+            "type": "object",
+            "properties": {
+                "notes": {"type": "array", "items": {"type": "string"}},
+                "count": {"type": "integer"},
+            },
+            "required": ["notes", "count"],
         },
     },
     {
@@ -59,6 +84,7 @@ TOOLS: list[dict[str, Any]] = [
             },
             "required": ["query"],
         },
+        "annotations": {"readOnlyHint": True},
     },
     {
         # The note_id property is missing a "type" -- an LLM must guess its shape.
@@ -71,6 +97,7 @@ TOOLS: list[dict[str, Any]] = [
             },
             "required": ["note_id"],
         },
+        "annotations": {"readOnlyHint": False, "destructiveHint": True},
     },
     {
         # Always errors, even on valid input -- the highest-priority issue.
@@ -83,6 +110,7 @@ TOOLS: list[dict[str, Any]] = [
             },
             "required": ["format"],
         },
+        "annotations": {"readOnlyHint": True},
     },
 ]
 
@@ -93,17 +121,26 @@ def _send(message: dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
-def _result(request_id: Any, result: dict[str, Any]) -> None:
-    """Send a JSON-RPC success response."""
+def _result(request_id: Any, result: dict[str, Any], modern: bool) -> None:
+    """Send a JSON-RPC success response (modern results carry resultType and serverInfo)."""
+    if modern:
+        result = {
+            "resultType": "complete",
+            **result,
+            "_meta": {"io.modelcontextprotocol/serverInfo": SERVER_INFO},
+        }
     _send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
 
-def _error(request_id: Any, code: int, message: str) -> None:
+def _error(request_id: Any, code: int, message: str, data: Any = None) -> None:
     """Send a JSON-RPC error response."""
-    _send({"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}})
+    error: dict[str, Any] = {"code": code, "message": message}
+    if data is not None:
+        error["data"] = data
+    _send({"jsonrpc": "2.0", "id": request_id, "error": error})
 
 
-def _handle_call(request_id: Any, params: dict[str, Any]) -> None:
+def _handle_call(request_id: Any, params: dict[str, Any], modern: bool) -> None:
     """Handle a ``tools/call`` request for the sample tools."""
     name = params.get("name")
 
@@ -117,18 +154,90 @@ def _handle_call(request_id: Any, params: dict[str, Any]) -> None:
                 ],
                 "isError": True,
             },
+            modern,
         )
         return
 
-    if name in {"create_note", "list_notes", "search_notes", "delete_note"}:
-        _result(request_id, {"content": [{"type": "text", "text": "ok"}]})
+    if name == "list_notes":
+        notes = ["groceries", "ideas"]
+        _result(
+            request_id,
+            {
+                "content": [{"type": "text", "text": json.dumps({"notes": notes, "count": 2})}],
+                "structuredContent": {"notes": notes, "count": len(notes)},
+            },
+            modern,
+        )
+        return
+
+    if name in {"create_note", "search_notes", "delete_note"}:
+        _result(request_id, {"content": [{"type": "text", "text": "ok"}]}, modern)
         return
 
     _error(request_id, -32602, f"Unknown tool: {name!r}")
 
 
+def _handle(message: dict[str, Any], state: dict[str, Any]) -> None:
+    """Dispatch one message, serving modern (``_meta``) and legacy requests."""
+    method = message.get("method")
+    request_id = message.get("id")
+    params = message.get("params") or {}
+    if not isinstance(params, dict):
+        params = {}
+    meta = params.get("_meta")
+    version = meta.get(_META_VERSION) if isinstance(meta, dict) else None
+
+    if request_id is None:
+        return  # notifications (e.g. notifications/initialized) need no answer
+
+    if method == "initialize":
+        requested = params.get("protocolVersion")
+        negotiated = requested if requested in LEGACY_VERSIONS else LEGACY_VERSIONS[0]
+        state["initialized"] = True
+        _result(
+            request_id,
+            {
+                "protocolVersion": negotiated,
+                "capabilities": {"tools": {}},
+                "serverInfo": SERVER_INFO,
+            },
+            modern=False,
+        )
+        return
+
+    modern = version is not None
+    if modern and version != MODERN_VERSION:
+        _error(
+            request_id,
+            -32022,
+            "Unsupported protocol version",
+            {"supported": SUPPORTED_VERSIONS, "requested": version},
+        )
+        return
+    if not modern and not state["initialized"]:
+        _error(request_id, -32602, "Missing _meta protocol version (or send initialize first)")
+        return
+
+    if method == "server/discover":
+        _result(
+            request_id,
+            {"supportedVersions": SUPPORTED_VERSIONS, "capabilities": {"tools": {}}},
+            modern=True,
+        )
+    elif method == "tools/list":
+        listing: dict[str, Any] = {"tools": TOOLS}
+        if modern:
+            listing.update({"ttlMs": 60000, "cacheScope": "public"})
+        _result(request_id, listing, modern)
+    elif method == "tools/call":
+        _handle_call(request_id, params, modern)
+    else:
+        _error(request_id, -32601, f"Method not found: {method!r}")
+
+
 def main() -> int:
     """Run the sample server's read/dispatch loop until stdin closes."""
+    state: dict[str, Any] = {"initialized": False}
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -137,28 +246,8 @@ def main() -> int:
             message = json.loads(line)
         except json.JSONDecodeError:
             continue
-
-        method = message.get("method")
-        request_id = message.get("id")
-
-        if method == "notifications/initialized":
-            continue
-        if method == "initialize":
-            _result(
-                request_id,
-                {
-                    "protocolVersion": PROTOCOL_VERSION,
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "notes-server", "version": "1.0.0"},
-                },
-            )
-        elif method == "tools/list":
-            _result(request_id, {"tools": TOOLS})
-        elif method == "tools/call":
-            _handle_call(request_id, message.get("params", {}) or {})
-        elif request_id is not None:
-            _error(request_id, -32601, f"Method not found: {method!r}")
-
+        if isinstance(message, dict):
+            _handle(message, state)
     return 0
 
 

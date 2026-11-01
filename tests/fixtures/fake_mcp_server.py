@@ -21,7 +21,15 @@ Flags:
     ``--resources``  Also advertise ``read_note``, which returns its file as an
     embedded ``resource`` (the way GitHub's MCP server returns file contents).
     ``--instructions <text>``  Return ``<text>`` as the server ``instructions``
-    in the ``initialize`` result.
+    in the ``initialize`` (or ``server/discover``) result.
+    ``--era legacy|modern|dual``  ``legacy`` (default) speaks only the
+    ``initialize`` handshake and answers unknown methods with ``-32601``.
+    ``modern`` speaks only MCP 2026-07-28 (``server/discover``, per-request
+    ``_meta``) and rejects ``initialize``. ``dual`` speaks both.
+    ``--silent-unknown``  (legacy) never answer requests before ``initialize``,
+    like legacy servers that drop them; drives the probe-timeout fallback.
+    ``--modern-versions v1,v2``  Versions a modern server supports (default
+    ``2026-07-28``); anything else gets ``UnsupportedProtocolVersionError``.
 
 Run directly::
 
@@ -36,6 +44,8 @@ import time
 from typing import Any
 
 PROTOCOL_VERSION = "2025-06-18"
+MODERN_VERSION = "2026-07-28"
+META_VERSION = "io.modelcontextprotocol/protocolVersion"
 
 TOOLS: list[dict[str, Any]] = [
     {
@@ -222,7 +232,20 @@ def main(argv: list[str]) -> int:
         if idx + 1 < len(argv):
             instructions = argv[idx + 1]
 
-    _log(f"starting (sleep={sleep}, list_mode={list_mode})")
+    era = "legacy"
+    if "--era" in argv:
+        idx = argv.index("--era")
+        if idx + 1 < len(argv):
+            era = argv[idx + 1]
+    silent_unknown = "--silent-unknown" in argv
+    modern_versions = [MODERN_VERSION]
+    if "--modern-versions" in argv:
+        idx = argv.index("--modern-versions")
+        if idx + 1 < len(argv):
+            modern_versions = [v for v in argv[idx + 1].split(",") if v]
+
+    _log(f"starting (sleep={sleep}, list_mode={list_mode}, era={era})")
+    initialized = False
 
     for line in sys.stdin:
         line = line.strip()
@@ -236,6 +259,9 @@ def main(argv: list[str]) -> int:
 
         method = message.get("method")
         request_id = message.get("id")
+        params = message.get("params", {}) or {}
+        meta = params.get("_meta") if isinstance(params, dict) else None
+        version = meta.get(META_VERSION) if isinstance(meta, dict) else None
 
         # Notifications have no id and require no response.
         if method == "notifications/initialized":
@@ -243,6 +269,10 @@ def main(argv: list[str]) -> int:
             continue
 
         if method == "initialize":
+            if era == "modern":
+                _error(request_id, -32601, "initialize is not supported; send server/discover")
+                continue
+            initialized = True
             init_result: dict[str, Any] = {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
@@ -251,10 +281,51 @@ def main(argv: list[str]) -> int:
             if instructions is not None:
                 init_result["instructions"] = instructions
             _result(request_id, init_result)
+            continue
+
+        modern = era in ("modern", "dual") and version is not None
+        if modern and version not in modern_versions:
+            _send(
+                {
+                    "jsonrpc": "2.0",
+                    "id": request_id,
+                    "error": {
+                        "code": -32022,
+                        "message": "Unsupported protocol version",
+                        "data": {"supported": modern_versions, "requested": version},
+                    },
+                }
+            )
+            continue
+        if not modern and not initialized:
+            if silent_unknown or request_id is None:
+                continue
+            if era == "modern":
+                _error(request_id, -32602, "missing _meta protocol version")
+                continue
+            if method != "server/discover":
+                _error(request_id, -32002, "Server not initialized")
+                continue
+
+        if method == "server/discover" and modern:
+            discover: dict[str, Any] = {
+                "resultType": "complete",
+                "supportedVersions": modern_versions,
+                "capabilities": {"tools": {}},
+                "_meta": {
+                    "io.modelcontextprotocol/serverInfo": {
+                        "name": "fake-mcp-modern",
+                        "version": "0.2.0",
+                    }
+                },
+            }
+            if instructions is not None:
+                discover["instructions"] = instructions
+            _result(request_id, discover)
         elif method == "tools/list":
-            _handle_list_tools(request_id, message.get("params", {}) or {}, list_mode, tools)
+            _handle_list_tools(request_id, params, list_mode, tools)
         elif method == "tools/call":
-            _handle_call(request_id, message.get("params", {}) or {}, sleep)
+            _handle_call(request_id, params, sleep)
         elif request_id is not None:
             _error(request_id, -32601, f"Method not found: {method!r}")
         else:
