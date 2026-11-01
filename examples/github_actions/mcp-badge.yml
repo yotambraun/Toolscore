@@ -1,0 +1,44 @@
+# Keep an "MCP grade" badge in your README up to date.
+#
+# Each push to main grades your MCP server with Toolscore and commits the badge
+# when the grade changes. The badge is written from that run's scorecard; there
+# is no way to set a grade by hand.
+#
+# Copy this file to .github/workflows/ in your MCP server's repository, change
+# mcp-command, and add the badge to your README:
+#
+#   [![MCP grade](.github/badges/mcp-grade.svg)](https://github.com/yotambraun/toolscore)
+
+name: MCP grade badge
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  badge:
+    runs-on: ubuntu-latest
+    # This is an example workflow - it won't run on the Toolscore repo itself
+    if: github.repository != 'yotambraun/Toolscore'
+    steps:
+      - uses: actions/checkout@v7
+
+      # Install whatever your server needs to start here.
+
+      - name: Grade the MCP server
+        uses: yotambraun/toolscore@v1
+        with:
+          mcp-command: 'python my_server.py'   # or a URL, e.g. https://example.com/mcp
+          mcp-fail-under: 'F'                  # update the badge whatever the grade
+          mcp-badge: .github/badges/mcp-grade.svg
+
+      - name: Commit the badge if it changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/badges/mcp-grade.svg
+          git diff --cached --quiet || { git commit -m "chore: update MCP grade badge"; git push; }

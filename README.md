@@ -8,7 +8,7 @@
 <h1 align="center">Toolscore</h1>
 
 <p align="center">
-  <em>The instant, free, deterministic health-check for LLM tool-calling</em>
+  <em>Test MCP servers and the tool calls your agents make. Local, deterministic, no API key.</em>
 </p>
 
 [![Website](https://img.shields.io/badge/website-toolscore-2ea44f.svg)](https://yotambraun.github.io/Toolscore/)
@@ -17,9 +17,6 @@
 [![Downloads](https://static.pepy.tech/badge/tool-scorer)](https://pepy.tech/project/tool-scorer)
 [![Python Versions](https://img.shields.io/pypi/pyversions/tool-scorer.svg)](https://pypi.org/project/tool-scorer/)
 [![CI](https://github.com/yotambraun/toolscore/workflows/CI/badge.svg)](https://github.com/yotambraun/toolscore/actions)
-[![GitHub stars](https://img.shields.io/github/stars/yotambraun/toolscore?style=social)](https://github.com/yotambraun/toolscore)
-
-### [**Visit the website → yotambraun.github.io/Toolscore**](https://yotambraun.github.io/Toolscore/)
 
 **[Website](https://yotambraun.github.io/Toolscore/)** ·
 **[Test your MCP server](https://yotambraun.github.io/Toolscore/mcp)** ·
@@ -30,36 +27,74 @@
 
 ---
 
-**Toolscore is the instant, free, deterministic health-check for LLM tool-calling.** Point it at an MCP server or an agent and get a clear *"here's your grade and exactly what's broken"* verdict — deterministically, offline, with zero API cost. No LLM judge, no cloud, no per-test bill.
+**Toolscore grades any MCP server A–F and checks the tool calls your agent makes against the ones you expect, so a broken tool or a drifting agent fails CI instead of production.** It runs offline, gives the same answer every time, and costs nothing per run.
 
-It's two sides of the same handshake between an LLM and a tool:
+```bash
+uvx tool-scorer demo                                     # grade a bundled sample server, no setup
+uvx tool-scorer mcp test "python your_server.py"         # your stdio server
+uvx tool-scorer mcp test https://example.com/mcp --auth-env MCP_TOKEN   # or a remote one
+```
 
-- **Building an MCP server?** `toolscore mcp test` runs your server through generated happy-path *and* adversarial edge-case scenarios and grades whether an LLM can actually use it — catching broken tools, untyped schemas, and context bloat *before you publish*.
-- **Building an agent?** Snapshot your agent's tool-calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order.
-- **Already running agents?** Record real MCP sessions or import OpenTelemetry spans, and see what the score alone hides: failed calls, blind retries, required calls that never succeeded, credentials passed into tools, and calls your agent must never make.
+Real output of `toolscore demo`:
+
+```
+╭──────────────────────────────────────╮
+│ MCP Scorecard: notes-server 1.1.0    │
+│ Grade B   Score 86%                  │
+│ happy 80%  |  edge 100%  |  lint 91% │
+│ MCP 2026-07-28 (stateless)           │
+╰──────────────────────────────────────╯
+                         Tools
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Tool         ┃ Scenarios ┃ Avg latency ┃ Def. tokens ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ create_note  │       6/6 │      0.6 ms │          80 │
+│ list_notes   │       6/6 │      0.5 ms │          59 │
+│ search_notes │       6/6 │      0.5 ms │          48 │
+│ delete_note  │       6/6 │      0.5 ms │          52 │
+│ export_notes │       3/6 │      0.5 ms │          64 │
+└──────────────┴───────────┴─────────────┴─────────────┘
+Tool definitions cost ~303 estimated tokens of context across 5 tool(s).
+
+Top issues to fix
+  1. export_notes  fails on valid input (export failed: storage backend not configured)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema matches what the tool actually accepts.
+  2. delete_note  property 'note_id' is missing a 'type'
+     -> Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.
+  3. create_note  changes state but declares no readOnlyHint/destructiveHint annotations
+     -> Declare annotations {"readOnlyHint": false, "destructiveHint": false} (or true if it can overwrite or delete), so clients know what it changes.
+  4. search_notes  description is very short (< 10 chars)
+     -> Describe what the tool does and when to use it - models choose tools by their description.
+```
+
+Install with `pip install tool-scorer` (add `[http]` for remote servers). It speaks MCP 2026-07-28 and falls back to the `initialize` handshake of earlier revisions, so it works with servers built on any SDK release.
+
+| Plug in | How |
+|---------|-----|
+| MCP servers (stdio, Streamable HTTP, Claude Desktop / Cursor / VS Code / Claude Code configs) | `toolscore mcp test`, `mcp lint`, `mcp list`, `mcp record` |
+| OpenAI (Chat Completions and Responses API), Anthropic, Gemini | pass the raw response to `evaluate()` |
+| LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI | pass the run result to `evaluate()` |
+| OpenTelemetry GenAI spans, recorded MCP sessions | `toolscore eval gold.json trace.json` |
+| pytest, GitHub Actions | snapshot fixture, `uses: yotambraun/toolscore@v1` |
+
+## Found with Toolscore
+
+Two bugs in the official [MCP memory server](https://github.com/modelcontextprotocol/servers/tree/main/src/memory), found with [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) and Toolscore and fixed upstream. Both fixes are ports of @yotambraun's contributions ([#4886](https://github.com/modelcontextprotocol/servers/pull/4886), [#4888](https://github.com/modelcontextprotocol/servers/pull/4888)) with authorship kept, merged on 2026-10-05 by maintainer cliffhall; [#5035](https://github.com/modelcontextprotocol/servers/pull/5035) credits him "for the fix and the reproduction":
+
+- [#5035](https://github.com/modelcontextprotocol/servers/pull/5035) *fix(memory): keep unreadable lines when saving the graph* ([issue #4885](https://github.com/modelcontextprotocol/servers/issues/4885): unreadable lines were deleted by the next write).
+- [#5008](https://github.com/modelcontextprotocol/servers/pull/5008) *fix(memory): report entities that create_entities skipped* ([issue #4887](https://github.com/modelcontextprotocol/servers/issues/4887): `create_entities` silently dropped observations for existing entities).
+
+The [case study](https://github.com/guybass/agent-eval-flow/tree/main/examples/data/mcp-memory) has the protocol, the captures and the measurements.
 
 ## Releases
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **1.10.0** | 2026-10-03 | Record real MCP sessions · behavior and safety checks (failed calls, blind retries, required calls completed, credentials in tool arguments, forbidden calls) · MCP lint for missing tools and tool poisoning · OpenTelemetry import · MCP trace fixes |
+| **1.11.0** | Unreleased | MCP 2026-07-28 with fallback to the handshake · remote servers over Streamable HTTP · lint for behavior annotations and output schemas · grade badges · OpenAI Responses API · current models and prices |
+| 1.10.0 | 2026-10-03 | Record real MCP sessions · behavior and safety checks · MCP lint for missing tools and tool poisoning · OpenTelemetry import |
 | 1.9.1 | 2026-10-01 | MCP scorecard fixes found on the official MCP reference servers |
-| 1.9.0 | 2026-09-28 | Loop detection (`identical_rate`) · one-to-one argument pairing |
-| 1.8.1 | 2026-06-19 | Snapshot testing · MCP scorecard · fluent `expect()` and matchers · native framework support · LLM judge for every provider |
 
 Full notes, including upgrade advice, in the [CHANGELOG](CHANGELOG.md).
-
-## See it in 10 seconds
-
-```bash
-# Grade a bundled sample MCP server — no install, no API key, no setup:
-uvx tool-scorer demo
-
-# Then point it at your own server:
-uvx tool-scorer mcp test "python your_server.py"
-```
-
-You get an A–F scorecard, a ranked **"Top issues to fix"** list with concrete fixes, and a per-tool token-cost breakdown — in seconds, offline. Add `--ci` to gate your build (it writes the verdict to your GitHub Actions job summary and fails on blocking issues).
 
 ## Test your agent's tool-calling
 
@@ -225,75 +260,85 @@ CI is strict by design: snapshots are never created or auto-approved in CI — a
 
 ## MCP Scorecard — Grade Any MCP Server
 
-Point it at any MCP server — it auto-generates happy-path *and* adversarial edge-case scenarios from each tool's schema, runs them, lints the definitions, measures each tool's token cost, and returns an A–F grade plus a ranked **"Top issues to fix"** list. The fastest way to see it (zero install, no setup) is `toolscore demo`; against your own server:
+Point it at any MCP server: it generates happy-path *and* adversarial edge-case scenarios from each tool's schema, runs them, checks results against declared output schemas, lints the definitions, measures each tool's token cost, and returns an A–F grade plus a ranked **"Top issues to fix"** list (the output is at the [top of this page](#toolscore)).
 
 ```bash
-toolscore mcp test "python my_server.py"
+toolscore mcp test "python my_server.py"                     # a local stdio server
+toolscore mcp test https://example.com/mcp --auth-env TOKEN  # a remote server (pip install "tool-scorer[http]")
 
-# or straight from your Claude Desktop config, zero install:
+# or straight from your MCP client's config: Claude Desktop, Cursor and Claude Code
+# (mcpServers) or VS Code (servers), with stdio or url entries:
 uvx tool-scorer mcp test --config claude_desktop_config.json --server my-server
 ```
 
-```
-╭──────────────────────────────────────╮
-│ MCP Scorecard: notes-server 1.0.0    │
-│ Grade B   Score 87%                  │
-│ happy 80%  |  edge 100%  |  lint 93% │
-╰──────────────────────────────────────╯
-                         Tools
-┏━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
-┃ Tool         ┃ Scenarios ┃ Avg latency ┃ Def. tokens ┃
-┡━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
-│ create_note  │       6/6 │      0.1 ms │          80 │
-│ list_notes   │       6/6 │      0.1 ms │          59 │
-│ search_notes │       6/6 │      0.1 ms │          48 │
-│ delete_note  │       6/6 │      0.1 ms │          52 │
-│ export_notes │       3/6 │      0.1 ms │          64 │
-└──────────────┴───────────┴─────────────┴─────────────┘
-Tool definitions cost ~303 estimated tokens of context across 5 tool(s).
-
-Top issues to fix
-  1. export_notes  fails on valid input (export failed: storage backend not configured)
-     -> The tool errors on well-formed arguments — check the handler and the input schema.
-  2. delete_note   property 'note_id' is missing a 'type'
-     -> Give the property a JSON-schema type (and an enum where values are fixed).
-  3. search_notes  description is very short (< 10 chars)
-     -> Describe what the tool does and when to use it.
-```
+For remote servers, `--auth-env VAR` sends `Authorization: Bearer $VAR`, and `--header 'Name: ${VAR}'` sends any header; in config files, `${VAR}` and `${env:VAR}` in `url` and `headers` are read from the environment. Values are never printed. `--protocol auto|modern|legacy` chooses the protocol era (`auto` probes with `server/discover` and falls back to `initialize`).
 
 Export a Markdown report — for a CI artifact or your server's own README — with `--report md --output SCORECARD.md`:
 
 ```markdown
-# MCP Scorecard: notes-server 1.0.0
+# MCP Scorecard: notes-server 1.1.0
 
-**Grade: B** &middot; Score 87%
+**Grade: B** &middot; Score 86%
 
 - Happy-path pass rate: 80%
 - Edge-case resilience: 100%
-- Lint score: 93% (1 errors, 1 warnings)
+- Lint score: 91% (1 errors, 2 warnings)
 - Tool-definition tokens (estimated): ~303 across 5 tool(s)
+- Protocol: MCP 2026-07-28 (stateless)
 
 ## Tools
 
 | Tool | Scenarios | Avg latency | Def. tokens |
 | --- | --- | --- | --- |
-| `create_note` | 6/6 | 0.1 ms | 80 |
-| `list_notes` | 6/6 | 0.1 ms | 59 |
-| `search_notes` | 6/6 | 0.1 ms | 48 |
-| `delete_note` | 6/6 | 0.1 ms | 52 |
-| `export_notes` | 3/6 | 0.1 ms | 64 |
+| `create_note` | 6/6 | 0.6 ms | 80 |
+| `list_notes` | 6/6 | 0.6 ms | 59 |
+| `search_notes` | 6/6 | 0.5 ms | 48 |
+| `delete_note` | 6/6 | 0.5 ms | 52 |
+| `export_notes` | 3/6 | 0.6 ms | 64 |
 
 ## Top issues to fix
 
-- **`export_notes`** — fails on valid input (export failed: storage backend not configured). _Fix:_ The tool errors on well-formed arguments — check the handler and that the input schema matches what the tool actually accepts.
+- **`export_notes`** — fails on valid input (export failed: storage backend not configured). _Fix:_ The tool errors on well-formed arguments - check the handler and that the input schema matches what the tool actually accepts.
 - **`delete_note`** — property 'note_id' is missing a 'type'. _Fix:_ Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.
-- **`search_notes`** — description is very short (< 10 chars). _Fix:_ Describe what the tool does and when to use it — models choose tools by their description.
+- **`create_note`** — changes state but declares no readOnlyHint/destructiveHint annotations. _Fix:_ Declare annotations {"readOnlyHint": false, "destructiveHint": false} (or true if it can overwrite or delete), so clients know what it changes.
+- **`search_notes`** — description is very short (< 10 chars). _Fix:_ Describe what the tool does and when to use it - models choose tools by their description.
 ```
 
 Gate CI with `--fail-under B` (exit 1 below the bar), or add `--ci` to write the verdict to your GitHub Actions job summary and fail on blocking issues. `toolscore mcp list` and `toolscore mcp lint` are also available standalone.
 
-What the lint checks, beyond schema hygiene:
+### Show the grade in your README
 
+`--badge PATH` writes an SVG badge and `--badge-json PATH` a [shields.io endpoint](https://shields.io/badges/endpoint-badge) file, both from that run's grade; there is no option to set a grade by hand. The sample server's badge, from the run above: ![MCP grade](assets/sample-mcp-grade.svg)
+
+```bash
+toolscore mcp test "python my_server.py" --badge .github/badges/mcp-grade.svg
+```
+
+```markdown
+[![MCP grade](.github/badges/mcp-grade.svg)](https://github.com/yotambraun/toolscore)
+```
+
+To keep it current, let CI regenerate and commit it ([full workflow](examples/github_actions/mcp-badge.yml)):
+
+```yaml
+- uses: yotambraun/toolscore@v1
+  with:
+    mcp-command: 'python my_server.py'
+    mcp-fail-under: 'F'          # update the badge whatever the grade
+    mcp-badge: .github/badges/mcp-grade.svg
+- run: |
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+    git add .github/badges/mcp-grade.svg
+    git diff --cached --quiet || { git commit -m "chore: update MCP grade badge"; git push; }
+```
+
+### What the lint checks
+
+Every issue has a rule ID (listed in the [MCP testing guide](https://yotambraun.github.io/Toolscore/docs/mcp_testing.html#lint-rules)). Beyond schema hygiene:
+
+- **Behavior annotations**: a tool whose name says it writes or deletes but declares no `readOnlyHint`/`destructiveHint` (clients then treat it as possibly destructive), `readOnlyHint: true` on a `delete_*` tool (clients may run it without asking), and conflicting or non-boolean hints. Tools named with a read verb (`get_`, `list_`, `search_`...) are never judged by name. Warnings.
+- **Output schemas**: when a tool declares an `outputSchema`, its successful results must carry conforming `structuredContent`. Keywords the checker does not know are not judged, so a mismatch it reports is real. Warnings.
 - **References to tools the server does not expose**, in tool descriptions, parameter descriptions and the server's `instructions` (with a "did you mean" suggestion).
 - **Tool poisoning**: hidden Unicode (tag characters and bidi controls), "ignore previous instructions", and text telling the model to hide something from the user are errors; `<IMPORTANT>`-style instruction blocks, which some servers also use for emphasis, are warnings.
 - **Context cost**: the scorecard counts the tokens of the server's instructions alongside the tool definitions.
@@ -381,6 +426,7 @@ Pass raw responses straight into `evaluate()`, `expect()`, `test_agent()`, or th
 | Source | Auto-detected | Explicit helper |
 |--------|:---:|---------------|
 | OpenAI (Chat Completions, legacy `function_call`) | Yes | `from_openai` |
+| OpenAI Responses API (`function_call`, `mcp_call` items; outputs paired by `call_id`) | Yes | `from_openai_responses` |
 | Anthropic (`tool_use` blocks) | Yes | `from_anthropic` |
 | Google Gemini (`functionCall` parts) | Yes | `from_gemini` |
 | LangGraph (state / message lists) | Yes | `from_langgraph` |
@@ -393,7 +439,7 @@ Pass raw responses straight into `evaluate()`, `expect()`, `test_agent()`, or th
 | LangChain / custom trace files | Yes | file-based `format="auto"` |
 
 ```python
-response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+response = client.responses.create(model="gpt-6-luna", input=[...], tools=[...])
 result = evaluate(expected=[...], actual=response)   # just works
 ```
 
@@ -460,8 +506,8 @@ The composite `result.score` weighs selection accuracy (40%), argument F1 (30%),
 When `search_web` vs `web_search` is a semantic question, opt into an LLM judge — via OpenAI, Anthropic, Gemini, or any OpenAI-compatible endpoint (Ollama, vLLM, Groq):
 
 ```bash
-toolscore eval gold.json trace.json --llm-judge                                  # OpenAI default
-toolscore eval gold.json trace.json --llm-judge --llm-model claude-3-5-haiku-latest
+toolscore eval gold.json trace.json --llm-judge                                  # OpenAI gpt-6-luna
+toolscore eval gold.json trace.json --llm-judge --llm-model claude-haiku-5-5
 toolscore eval gold.json trace.json --llm-judge --llm-model llama3.1 \
     --llm-base-url http://localhost:11434/v1                                     # local Ollama
 ```
@@ -470,10 +516,10 @@ toolscore eval gold.json trace.json --llm-judge --llm-model llama3.1 \
 from toolscore import evaluate_trace, JudgeConfig
 
 result = evaluate_trace("gold.json", "trace.json",
-                        judge=JudgeConfig(model="gemini-2.0-flash"))
+                        judge=JudgeConfig(model="gemini-3.5-flash-lite"))
 ```
 
-The provider is inferred from the model name. Install extras as needed: `tool-scorer[llm]` (OpenAI/compatible), `[anthropic]`, `[gemini]`. Everything else in Toolscore stays deterministic and offline.
+The provider is inferred from the model name. No `temperature` is sent unless you set one: current Claude models and OpenAI's GPT-6 models at their default reasoning effort reject it. Install extras as needed: `tool-scorer[llm]` (OpenAI/compatible), `[anthropic]`, `[gemini]`. Everything else in Toolscore stays deterministic and offline.
 
 ## CI/CD
 
@@ -498,11 +544,11 @@ The provider is inferred from the model name. Install extras as needed: `tool-sc
 # MCP scorecard mode — grade your MCP server on every PR
 - uses: yotambraun/toolscore@v1
   with:
-    mcp-command: 'uvx my-mcp-server'
+    mcp-command: 'uvx my-mcp-server'      # or a URL; add mcp-auth-env for a token
     mcp-fail-under: 'B'
 ```
 
-The action also outputs `score`, `grade`, `required-call-recall` and `violations` for later steps.
+The action installs the Toolscore version that matches the action ref (`@v1` follows the latest 1.x release; pin `@v1.11.0` for a fixed version). It outputs `score`, `grade`, `required-call-recall` and `violations`, and in MCP mode `mcp-grade` and `mcp-score`, for later steps.
 
 Baseline regression checks catch slow degradation:
 
@@ -511,6 +557,10 @@ toolscore eval gold.json trace.json --save-baseline baseline.json   # once
 toolscore regression baseline.json new_trace.json --gold-file gold.json
 # exit codes: 0 = PASS, 1 = regression detected, 2 = error
 ```
+
+## Evaluate Whole Agent Runs
+
+Toolscore checks tool calls and MCP servers. To evaluate complete agent runs (tasks, outcomes, evidence), [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) builds on it: `pip install "agent-eval-flow[toolscore]"`, then `result.report(path, tools=True)` adds the Toolscore view of every tool call to its report.
 
 ## When to Use Toolscore vs. the Platforms
 
@@ -540,7 +590,7 @@ Toolscore does one thing well: it verifies your agent calls the right tools, wit
 ```bash
 pip install -e ".[dev]"
 pytest
-ruff check toolscore
+ruff check toolscore tests examples
 mypy toolscore
 ```
 
@@ -552,9 +602,9 @@ Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ```bibtex
 @software{toolscore,
-  title = {Toolscore: Lightweight Tool-Call Testing for LLM Agents},
+  title = {Toolscore: MCP Server and Agent Tool-Call Testing},
   author = {Yotam Braun},
-  year = {2025},
+  year = {2026},
   url = {https://github.com/yotambraun/toolscore}
 }
 ```

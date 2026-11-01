@@ -23,6 +23,12 @@ Complete workflow with multiple quality checks.
 - Multi-model comparison
 - Detailed job summary
 
+### 4. `mcp-badge.yml` - MCP Grade Badge
+Grades your MCP server on every push to main and commits an SVG badge
+("MCP grade: A · Toolscore") when the grade changes.
+- The badge comes from that run's scorecard; there is no way to set a grade by hand
+- Works with a launch command or a Streamable HTTP URL
+
 ## Quick Start
 
 1. Copy the workflow you need to `.github/workflows/` in your repository
@@ -81,9 +87,29 @@ jobs:
         run: uvx tool-scorer mcp test "python my_server.py" --ci --fail-under B
 ```
 
+Or with the action, which also takes a URL. For a server behind a token, store the
+token as a secret and name its environment variable in `mcp-auth-env`; Toolscore
+sends it as `Authorization: Bearer <token>` and never prints it:
+
+```yaml
+      - uses: yotambraun/toolscore@v1
+        env:
+          MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+        with:
+          mcp-command: 'https://mcp.example.com/mcp'
+          mcp-auth-env: MCP_TOKEN
+          mcp-fail-under: 'B'
+          mcp-badge: .github/badges/mcp-grade.svg   # optional; see mcp-badge.yml
+```
+
+The action installs the Toolscore version that matches the action ref: `@v1` follows
+the latest 1.x release, `@v1.11.0` stays on 1.11.0. Set `toolscore-version` to install
+a specific PyPI release instead.
+
 ## Environment Variables
 
 - `OPENAI_API_KEY` - Required for LLM judge feature (optional)
+- The variable named in `mcp-auth-env` - a bearer token for a remote MCP server (optional)
 
 ## Outputs
 
@@ -93,6 +119,10 @@ The action provides these outputs for use in later steps:
 - `argument-f1` - Argument match F1 score (0.0-1.0)
 - `passed` - Whether all thresholds were met (true/false)
 - `regression-detected` - Whether regression was detected (true/false)
+- `score`, `grade` - Composite score (0.0-1.0) and letter grade
+- `required-call-recall` - Share of required calls made without failing
+- `violations` - Forbidden calls plus credentials found in tool arguments
+- `mcp-grade`, `mcp-score` - MCP scorecard grade and score (MCP mode only)
 
 ## Tips
 
