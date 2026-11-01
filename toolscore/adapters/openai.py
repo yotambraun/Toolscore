@@ -13,6 +13,11 @@ class OpenAIAdapter(BaseAdapter):
     function/tool calls in the message history, and Responses API responses or
     item lists (``function_call``, ``mcp_call`` and ``custom_tool_call`` items,
     with outputs paired by ``call_id``).
+
+    In a Chat Completions history, each ``role: "tool"`` message is attached to
+    the call with its ``tool_call_id`` as the call's ``result`` (and a legacy
+    ``role: "function"`` message to the latest call of that name), so checks
+    that read tool output, such as the honesty checks, see what the tool said.
     """
 
     def parse(self, trace_data: dict[str, Any] | list[Any]) -> list[ToolCall]:
@@ -51,6 +56,10 @@ class OpenAIAdapter(BaseAdapter):
 
         for msg in messages:
             if not isinstance(msg, dict):
+                continue
+
+            if msg.get("role") in ("tool", "function"):
+                _attach_output(tool_calls, msg)
                 continue
 
             # Check for function_call (older format)
@@ -97,6 +106,37 @@ class OpenAIAdapter(BaseAdapter):
                         )
 
         return tool_calls
+
+
+def message_text(content: Any) -> str:
+    """The text of a chat message ``content``: a string, or the text of its parts."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [
+            str(part.get("text", ""))
+            for part in content
+            if isinstance(part, dict) and isinstance(part.get("text"), str)
+        ]
+        return "\n".join(p for p in parts if p)
+    return ""
+
+
+def _attach_output(calls: list[ToolCall], message: dict[str, Any]) -> None:
+    """Attach a ``role: tool``/``function`` message to the call it answers."""
+    text = message_text(message.get("content"))
+    if message.get("role") == "tool":
+        call_id = message.get("tool_call_id")
+        for call in reversed(calls):
+            if call_id is not None and call.metadata.get("id") == call_id:
+                call.result = text
+                return
+        return
+    name = message.get("name")
+    for call in reversed(calls):
+        if call.tool == name and call.result is None:
+            call.result = text
+            return
 
 
 def _responses_call(item: dict[str, Any]) -> ToolCall:
