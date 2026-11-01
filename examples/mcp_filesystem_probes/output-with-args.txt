@@ -1,0 +1,79 @@
+$ toolscore mcp test "npx -y @modelcontextprotocol/server-filesystem@2.1.0 $SANDBOX" --probes \
+    --arg read_text_file:path=$SANDBOX/ten.txt --arg read_file:path=$SANDBOX/ten.txt \
+    --arg get_file_info:path=$SANDBOX/ten.txt --arg list_directory:path=$SANDBOX \
+    --arg directory_tree:path=$SANDBOX --arg search_files:path=$SANDBOX
+╭─────────────────────────────────────────────────────╮
+│ MCP Scorecard: secure-filesystem-server 2.1.0       │
+│ Grade D   Score 66%                                 │
+│ happy 43%  |  edge 100%  |  lint 99%  |  effect n/a │
+│ MCP 2026-07-28 (stateless)                          │
+╰─────────────────────────────────────────────────────╯
+                                Tools                                
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Tool                      ┃ Scenarios ┃ Avg latency ┃ Def. tokens ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ read_file                 │       3/6 │      2.1 ms │         122 │
+│ read_text_file            │       3/6 │      1.3 ms │         216 │
+│ read_media_file           │       3/6 │      1.8 ms │         110 │
+│ read_multiple_files       │       6/6 │      1.1 ms │         176 │
+│ write_file                │       3/6 │      1.0 ms │         118 │
+│ edit_file                 │       3/6 │      1.1 ms │         193 │
+│ create_directory          │       3/6 │      1.0 ms │         129 │
+│ list_directory            │       6/6 │      0.9 ms │         128 │
+│ list_directory_with_sizes │       3/6 │      0.9 ms │         165 │
+│ directory_tree            │       6/6 │      1.0 ms │         162 │
+│ move_file                 │       3/6 │      1.2 ms │         145 │
+│ search_files              │       6/6 │      1.3 ms │         188 │
+│ get_file_info             │       6/6 │      1.0 ms │         129 │
+│ list_allowed_directories  │       3/3 │      0.9 ms │         104 │
+└───────────────────────────┴───────────┴─────────────┴─────────────┘
+Tool definitions cost ~2085 estimated tokens of context across 14 tool(s).
+                                           Effect probes                                            
+┏━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Probe ┃ Tool           ┃ Result ┃ Confidence ┃ Detail                                            ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ bound │ read_file      │ warn   │ medium     │ tail=0 returned 10 lines (at most 0 expected)     │
+│       │                │        │            │ (probe-bound-exceeded)                            │
+│ bound │ read_file      │ warn   │ medium     │ head=0 returned 10 lines (at most 0 expected)     │
+│       │                │        │            │ (probe-bound-exceeded)                            │
+│ bound │ read_text_file │ warn   │ medium     │ tail=0 returned 10 lines (at most 0 expected)     │
+│       │                │        │            │ (probe-bound-exceeded)                            │
+│ bound │ read_text_file │ warn   │ medium     │ head=0 returned 10 lines (at most 0 expected)     │
+│       │                │        │            │ (probe-bound-exceeded)                            │
+└───────┴────────────────┴────────┴────────────┴───────────────────────────────────────────────────┘
+1 probe(s) skipped because they write (create_directory); add --allow-writes to run them against a 
+disposable server.
+
+Top issues to fix
+  1. create_directory  fails on valid input (Access denied - path outside allowed directories: 
+/tmp/data.json not in $SANDBOX)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  2. edit_file  fails on valid input (Access denied - path outside allowed directories: 
+/home/user/file.txt not in $SANDBOX)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  3. list_directory_with_sizes  fails on valid input (Access denied - path outside allowed 
+directories: /home/user/file.txt not in $SANDBOX)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  4. move_file  fails on valid input (ENOENT: no such file or directory, rename 
+'$SANDBOX/sample_source' -> 'sample_destination')
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  5. read_file  fails on valid input (Cannot specify both head and tail parameters simultaneously)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  6. read_media_file  fails on valid input (Access denied - path outside allowed directories: 
+/home/user/file.txt not in $SANDBOX)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  7. read_text_file  fails on valid input (Cannot specify both head and tail parameters 
+simultaneously)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  8. write_file  fails on valid input (Access denied - path outside allowed directories: 
+/tmp/data.json not in $SANDBOX)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  ... and 5 more issue(s).

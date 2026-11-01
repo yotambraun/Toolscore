@@ -1,0 +1,11 @@
+{
+  "builtins": false,
+  "relations": [
+    {"id": "head", "tool": "read_text_file", "param": "head", "values": [1, 3, 10, 20],
+     "expect": "prefix", "args": {"path": "/tmp/sandbox/ten.txt"}},
+    {"id": "tail", "tool": "read_text_file", "param": "tail", "values": [1, 3, 10, 20],
+     "expect": "suffix", "args": {"path": "/tmp/sandbox/ten.txt"}},
+    {"id": "head-zero", "tool": "read_text_file", "param": "head", "values": [0],
+     "expect": "prefix", "args": {"path": "/tmp/sandbox/ten.txt"}}
+  ]
+}
