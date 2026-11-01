@@ -18,8 +18,8 @@ import os
 from pathlib import Path
 
 try:
-    from openai import OpenAI
     from dotenv import load_dotenv
+    from openai import OpenAI
 except ImportError:
     print("Error: Required packages not installed.")
     print("Install them with: pip install openai python-dotenv")
@@ -47,19 +47,16 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": "Name of the file to create"
-                    },
+                    "filename": {"type": "string", "description": "Name of the file to create"},
                     "lines_of_text": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Lines of text to write to the file"
-                    }
+                        "description": "Lines of text to write to the file",
+                    },
                 },
-                "required": ["filename", "lines_of_text"]
-            }
-        }
+                "required": ["filename", "lines_of_text"],
+            },
+        },
     },
     {
         "type": "function",
@@ -69,15 +66,12 @@ tools = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "filename": {
-                        "type": "string",
-                        "description": "Name of the file to read"
-                    }
+                    "filename": {"type": "string", "description": "Name of the file to read"}
                 },
-                "required": ["filename"]
-            }
-        }
-    }
+                "required": ["filename"],
+            },
+        },
+    },
 ]
 
 # Task prompt
@@ -90,10 +84,7 @@ print("Calling OpenAI API...")
 messages = [{"role": "user", "content": task}]
 
 response = client.chat.completions.create(
-    model="gpt-4",
-    messages=messages,
-    tools=tools,
-    tool_choice="auto"
+    model="gpt-4", messages=messages, tools=tools, tool_choice="auto"
 )
 
 print(f"Response received. Model: {response.model}")
@@ -104,21 +95,20 @@ trace = []
 # Add assistant message with tool calls
 assistant_message = response.choices[0].message
 if assistant_message.tool_calls:
-    trace.append({
-        "role": "assistant",
-        "content": assistant_message.content,
-        "tool_calls": [
-            {
-                "id": tc.id,
-                "type": "function",
-                "function": {
-                    "name": tc.function.name,
-                    "arguments": tc.function.arguments
+    trace.append(
+        {
+            "role": "assistant",
+            "content": assistant_message.content,
+            "tool_calls": [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {"name": tc.function.name, "arguments": tc.function.arguments},
                 }
-            }
-            for tc in assistant_message.tool_calls
-        ]
-    })
+                for tc in assistant_message.tool_calls
+            ],
+        }
+    )
 
     print(f"\nTool calls captured: {len(assistant_message.tool_calls)}")
     for tc in assistant_message.tool_calls:
@@ -126,29 +116,28 @@ if assistant_message.tool_calls:
 
     # Simulate tool results (in real scenario, you'd execute the tools)
     for tc in assistant_message.tool_calls:
-        trace.append({
-            "role": "tool",
-            "tool_call_id": tc.id,
-            "name": tc.function.name,
-            "content": json.dumps({"success": True, "result": "Tool executed"})
-        })
+        trace.append(
+            {
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "name": tc.function.name,
+                "content": json.dumps({"success": True, "result": "Tool executed"}),
+            }
+        )
 else:
     print("\nNo tool calls were made by the model.")
-    trace.append({
-        "role": "assistant",
-        "content": assistant_message.content
-    })
+    trace.append({"role": "assistant", "content": assistant_message.content})
 
 # Save trace to file
 output_file = Path(__file__).parent / "my_trace_openai.json"
-with open(output_file, "w") as f:
+with output_file.open("w") as f:
     json.dump(trace, f, indent=2)
 
 print(f"\n✓ Trace saved to: {output_file}")
-print(f"\nTo evaluate this trace, run:")
+print("\nTo evaluate this trace, run:")
 print(f"  toolscore eval examples/gold_calls.json {output_file} --format openai")
-print(f"\nOr use the Python API directly (no file needed):")
-print(f"  from toolscore import evaluate")
-print(f"  from toolscore.integrations import from_openai")
-print(f"  actual = from_openai(response)")
-print(f"  result = evaluate(expected=[...], actual=actual)")
+print("\nOr use the Python API directly (no file needed):")
+print("  from toolscore import evaluate")
+print("  from toolscore.integrations import from_openai")
+print("  actual = from_openai(response)")
+print("  result = evaluate(expected=[...], actual=actual)")

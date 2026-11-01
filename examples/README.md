@@ -130,9 +130,7 @@ You can also use the Python API directly:
 from toolscore import evaluate_trace
 
 result = evaluate_trace(
-    gold_file="gold_calls.json",
-    trace_file="trace_openai.json",
-    format="openai"
+    gold_file="gold_calls.json", trace_file="trace_openai.json", format="openai"
 )
 
 print(f"Invocation Accuracy: {result.metrics['invocation_accuracy']:.2%}")

@@ -9,7 +9,6 @@ in errors or reprs.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
@@ -31,6 +30,7 @@ from toolscore.mcp.config import expand_env, parse_header
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
+    from pathlib import Path
 
 
 @pytest.fixture

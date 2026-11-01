@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+import toolscore
+
 # Resolve example data files relative to *this* file so the suite passes
 # regardless of the current working directory or the configured gold/trace dirs.
 # ``toolscore_eval`` passes absolute paths straight through without joining the
@@ -174,20 +176,21 @@ def test_in_memory_evaluation():
 # ---------------------------------------------------------------------------
 # Data-driven testing with @toolscore.cases()
 # ---------------------------------------------------------------------------
-import toolscore
 
 
-@toolscore.cases([
-    {
-        "input": "weather NYC",
-        "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}],
-    },
-    {
-        "input": "weather SF",
-        "expected": [{"tool": "get_weather", "args": {"city": "SF"}}],
-    },
-])
-def test_weather_agent_cases(input, expected):
+@toolscore.cases(
+    [
+        {
+            "input": "weather NYC",
+            "expected": [{"tool": "get_weather", "args": {"city": "NYC"}}],
+        },
+        {
+            "input": "weather SF",
+            "expected": [{"tool": "get_weather", "args": {"city": "SF"}}],
+        },
+    ]
+)
+def test_weather_agent_cases(input, expected):  # noqa: ARG001 (input is the case prompt)
     """Data-driven test using @toolscore.cases()."""
     # Simulate an agent that always returns the expected call
     actual = expected

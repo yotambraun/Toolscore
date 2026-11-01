@@ -175,6 +175,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
 "tests/**/*.py" = ["ARG", "S101"]  # Allow pytest fixtures and asserts
+# Notebooks load .env in their first cell before importing, and use open() for readability.
+"examples/notebooks/*.ipynb" = ["E402", "PTH123"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["toolscore"]

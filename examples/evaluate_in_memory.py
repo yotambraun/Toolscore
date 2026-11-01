@@ -5,7 +5,7 @@ Demonstrates the evaluate(), assert_tools(), and integration helpers
 using hardcoded mock data — no API keys or file I/O required.
 """
 
-from toolscore import assert_tools, evaluate
+from toolscore import assert_tools, evaluate, test_agent
 from toolscore.integrations import from_anthropic, from_openai
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,12 @@ print()
 result_custom = evaluate(
     expected=[{"tool": "search"}],
     actual=[{"tool": "search"}],
-    weights={"selection_accuracy": 1.0, "argument_f1": 0.0, "sequence_accuracy": 0.0, "redundant_rate": 0.0},
+    weights={
+        "selection_accuracy": 1.0,
+        "argument_f1": 0.0,
+        "sequence_accuracy": 0.0,
+        "redundant_rate": 0.0,
+    },
 )
 print("=== Custom weights ===")
 print(f"  Score (selection only): {result_custom.score:.3f}")
@@ -119,10 +124,9 @@ print(f"  Anthropic auto-detect score: {result_auto_anthropic.score:.3f}")
 # ---------------------------------------------------------------------------
 # 7. test_agent() — end-to-end helper
 # ---------------------------------------------------------------------------
-from toolscore import test_agent
 
 
-def my_mock_agent(prompt):
+def my_mock_agent(_prompt):
     """Simulate an agent that always calls get_weather."""
     return [{"tool": "get_weather", "args": {"city": "San Francisco"}}]
 

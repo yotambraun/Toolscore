@@ -45,18 +45,15 @@ tools = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": "Name of the file to create"
-                },
+                "filename": {"type": "string", "description": "Name of the file to create"},
                 "lines_of_text": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "description": "Lines of text to write to the file"
-                }
+                    "description": "Lines of text to write to the file",
+                },
             },
-            "required": ["filename", "lines_of_text"]
-        }
+            "required": ["filename", "lines_of_text"],
+        },
     },
     {
         "name": "read_file",
@@ -64,14 +61,11 @@ tools = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": "Name of the file to read"
-                }
+                "filename": {"type": "string", "description": "Name of the file to read"}
             },
-            "required": ["filename"]
-        }
-    }
+            "required": ["filename"],
+        },
+    },
 ]
 
 # Task prompt
@@ -85,9 +79,7 @@ message = client.messages.create(
     model="claude-3-5-sonnet-20241022",
     max_tokens=1024,
     tools=tools,
-    messages=[
-        {"role": "user", "content": task}
-    ]
+    messages=[{"role": "user", "content": task}],
 )
 
 print(f"Response received. Model: {message.model}")
@@ -100,11 +92,9 @@ if message.content:
     tool_uses = [block for block in message.content if block.type == "tool_use"]
 
     if tool_uses:
-        trace.append({
-            "role": "assistant",
-            "content": message.content,
-            "stop_reason": message.stop_reason
-        })
+        trace.append(
+            {"role": "assistant", "content": message.content, "stop_reason": message.stop_reason}
+        )
 
         print(f"\nTool calls captured: {len(tool_uses)}")
         for tool_use in tool_uses:
@@ -113,35 +103,32 @@ if message.content:
         # Simulate tool results (in real scenario, you'd execute the tools)
         tool_results = []
         for tool_use in tool_uses:
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": tool_use.id,
-                "content": json.dumps({"success": True, "result": "Tool executed"})
-            })
+            tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tool_use.id,
+                    "content": json.dumps({"success": True, "result": "Tool executed"}),
+                }
+            )
 
         # Add tool results as user message
-        trace.append({
-            "role": "user",
-            "content": tool_results
-        })
+        trace.append({"role": "user", "content": tool_results})
     else:
         print("\nNo tool calls were made by the model.")
-        trace.append({
-            "role": "assistant",
-            "content": message.content,
-            "stop_reason": message.stop_reason
-        })
+        trace.append(
+            {"role": "assistant", "content": message.content, "stop_reason": message.stop_reason}
+        )
 
 # Save trace to file
 output_file = Path(__file__).parent / "my_trace_anthropic.json"
-with open(output_file, "w") as f:
+with output_file.open("w") as f:
     json.dump(trace, f, indent=2)
 
 print(f"\n✓ Trace saved to: {output_file}")
-print(f"\nTo evaluate this trace, run:")
+print("\nTo evaluate this trace, run:")
 print(f"  toolscore eval examples/gold_calls.json {output_file} --format anthropic")
-print(f"\nOr use the Python API directly (no file needed):")
-print(f"  from toolscore import evaluate")
-print(f"  from toolscore.integrations import from_anthropic")
-print(f"  actual = from_anthropic(message)")
-print(f"  result = evaluate(expected=[...], actual=actual)")
+print("\nOr use the Python API directly (no file needed):")
+print("  from toolscore import evaluate")
+print("  from toolscore.integrations import from_anthropic")
+print("  actual = from_anthropic(message)")
+print("  result = evaluate(expected=[...], actual=actual)")
