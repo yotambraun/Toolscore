@@ -53,7 +53,7 @@ class AgentRunResult:
 
 
 def run_agent(prompt: str) -> AgentRunResult:  # noqa: ARG001 - stub ignores the prompt
-    """Stand-in for ``Agent('openai:gpt-4o', tools=[...]).run_sync(prompt)``."""
+    """Stand-in for ``Agent('openai:gpt-6-luna', tools=[...]).run_sync(prompt)``."""
     return AgentRunResult(
         messages=[
             Message(parts=[ToolCallPart("get_weather", {"city": "NYC"})]),

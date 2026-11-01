@@ -146,10 +146,10 @@ jobs:
 #   run: |
 #     toolscore compare \
 #       tests/gold_standard.json \
-#       tests/gpt4_trace.json \
+#       tests/openai_trace.json \
 #       tests/claude_trace.json \
-#       -n gpt-4 \
-#       -n claude-3.5 \
+#       -n gpt-6-luna \
+#       -n claude-haiku-5-5 \
 #       --output comparison.json
 
 # Example with custom thresholds in pytest (enforce thresholds inside your
