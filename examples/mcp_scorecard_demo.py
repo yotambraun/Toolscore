@@ -6,6 +6,11 @@ over stdio, generates happy-path and edge-case scenarios from each advertised
 tool's JSON schema, runs them, lints the schemas, and prints an A--F scorecard
 -- the same thing ``toolscore mcp test`` does, but from Python.
 
+``score_server(client)`` runs every step in one call; the steps are spelled out
+below so you can customize them. For a remote server, use
+``MCPHttpClient("https://example.com/mcp", headers={...})`` (needs
+``pip install "tool-scorer[http]"``) in place of ``MCPStdioClient``.
+
 Run it:
 
     uv run python examples/mcp_scorecard_demo.py
@@ -29,6 +34,7 @@ from toolscore.mcp import (
     print_scorecard,
     run_scenarios,
 )
+from toolscore.mcp.harness import output_schema_issues
 
 # Locate the bundled fake server relative to this file (works from any CWD).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -54,19 +60,24 @@ def main() -> int:
 
         console.print(
             f"Connected to [bold]{server_info.get('name', 'server')}[/bold] "
-            f"({len(tools)} tools advertised)\n"
+            f"({len(tools)} tools advertised, MCP {client.protocol_version})\n"
         )
 
-        # Plan + execute scenarios, and lint the schemas.
+        # Plan + execute scenarios, lint the definitions, and check results
+        # against any declared outputSchema.
         scenarios = generate_scenarios(tools, cases_per_tool=3, include_edge_cases=True)
         results = run_scenarios(client, scenarios)
-        lint = lint_tools(tools)
+        lint = lint_tools(tools, instructions=client.server_instructions)
+        lint.extend(output_schema_issues(tools, results))
+        protocol_version, era = client.protocol_version, client.era
 
     card = MCPScorecard(
         server_info=server_info,
         tools=tools,
         results=results,
         lint=lint,
+        protocol_version=protocol_version,
+        era=era,
     )
 
     # Pretty console scorecard (the same renderer the CLI uses).
