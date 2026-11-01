@@ -7,6 +7,21 @@ import pytest
 
 from toolscore.adapters.base import ToolCall
 
+#: Provider credentials that must never reach a test (no test makes a paid call).
+_PROVIDER_KEYS = (
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "GOOGLE_API_KEY",
+    "GEMINI_API_KEY",
+)
+
+
+@pytest.fixture(autouse=True)
+def _no_provider_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove provider API keys from the environment of every test."""
+    for name in _PROVIDER_KEYS:
+        monkeypatch.delenv(name, raising=False)
+
 
 @pytest.fixture
 def sample_gold_calls() -> list[ToolCall]:
