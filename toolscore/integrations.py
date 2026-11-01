@@ -729,9 +729,7 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     6. Dict/object with ``"messages"`` where some message has ``tool_calls`` → LangGraph
     7. Object with callable ``all_messages`` → Pydantic AI
     8. Object/dict with ``new_items`` → OpenAI Agents SDK
-    9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK;
-       a list of Pydantic AI messages, OpenAI Agents SDK ``tool_call_item`` items, or
-       CrewAI ``tool_name``/``tool_args`` entries → that framework's extractor
+    9. List whose items have content blocks with ``type == "tool_use"`` → Claude Agent SDK; a list of Pydantic AI messages, OpenAI Agents SDK ``tool_call_item`` items, or CrewAI ``tool_name``/``tool_args`` entries → that framework's extractor
     10. Bare list of messages where some message has ``tool_calls`` → LangGraph
 
     OpenTelemetry GenAI tool spans (an OTLP export with ``resourceSpans``, or a
