@@ -34,6 +34,7 @@ from toolscore.mcp.output_schema import validate_instance
 
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPClient, MCPToolDef
+    from toolscore.mcp.fixtures import ArgumentFixtures
 
 #: Minimum acceptable length for a tool description before a lint warning fires.
 _MIN_DESCRIPTION_LENGTH = 10
@@ -312,6 +313,7 @@ def generate_scenarios(
     tools: list[MCPToolDef],
     cases_per_tool: int = 3,
     include_edge_cases: bool = True,
+    fixtures: ArgumentFixtures | None = None,
 ) -> list[Scenario]:
     """Generate test scenarios for every advertised tool.
 
@@ -325,10 +327,16 @@ def generate_scenarios(
     Tools whose schema is empty or invalid cannot be introspected, so they each
     receive a single no-arguments scenario whose description flags the problem.
 
+    ``fixtures`` (``--arg`` values) replace generated values in happy-path
+    scenarios, so a server that only accepts paths inside its sandbox gets
+    paths it accepts. Edge cases keep their deliberately bad values.
+
     Args:
         tools: The tool definitions to plan scenarios for.
         cases_per_tool: Number of happy-path scenarios per tool.
         include_edge_cases: Whether to also generate edge-case scenarios.
+        fixtures: Known-good argument values, see
+            :class:`toolscore.mcp.fixtures.ArgumentFixtures`.
 
     Returns:
         The planned scenarios across all tools.
@@ -342,7 +350,7 @@ def generate_scenarios(
             scenarios.append(
                 Scenario(
                     tool=tool.name,
-                    arguments={},
+                    arguments=fixtures.apply(tool, {}) if fixtures else {},
                     kind="happy",
                     description="no-args call (empty or invalid input schema)",
                 )
@@ -352,10 +360,11 @@ def generate_scenarios(
         # Seeded per tool name: the same server yields the same scenarios every run.
         rng = random.Random(tool.name)
         for index in range(max(cases_per_tool, 0)):
+            arguments = _happy_arguments(schema, rng)
             scenarios.append(
                 Scenario(
                     tool=tool.name,
-                    arguments=_happy_arguments(schema, rng),
+                    arguments=fixtures.apply(tool, arguments) if fixtures else arguments,
                     kind="happy",
                     description=f"happy path #{index + 1}",
                 )

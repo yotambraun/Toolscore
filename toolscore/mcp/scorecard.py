@@ -53,6 +53,7 @@ from toolscore.verdict import GRADE_ORDER, FixSuggestion, letter_grade
 
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPClient, MCPToolDef
+    from toolscore.mcp.fixtures import ArgumentFixtures
     from toolscore.mcp.harness import LintIssue, ScenarioResult
 
 #: Weight of the happy-path pass rate in the overall score.
@@ -177,7 +178,10 @@ class MCPScorecard:
 
 
 def score_server(
-    client: MCPClient, cases_per_tool: int = 3, include_edge_cases: bool = True
+    client: MCPClient,
+    cases_per_tool: int = 3,
+    include_edge_cases: bool = True,
+    fixtures: ArgumentFixtures | None = None,
 ) -> MCPScorecard:
     """Run the full scorecard against a started client.
 
@@ -188,13 +192,18 @@ def score_server(
         client: A started :class:`~toolscore.mcp.client.MCPClient` (stdio or HTTP).
         cases_per_tool: Happy-path scenarios per tool.
         include_edge_cases: Whether to run edge-case scenarios.
+        fixtures: Known-good argument values (``--arg``) for the happy paths,
+            for servers that only accept values from a sandbox.
 
     Returns:
         The scorecard.
     """
     tools = client.list_tools()
     scenarios = generate_scenarios(
-        tools, cases_per_tool=cases_per_tool, include_edge_cases=include_edge_cases
+        tools,
+        cases_per_tool=cases_per_tool,
+        include_edge_cases=include_edge_cases,
+        fixtures=fixtures,
     )
     results = run_scenarios(client, scenarios)
     lint = lint_tools(tools, instructions=client.server_instructions)

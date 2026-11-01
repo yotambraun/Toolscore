@@ -49,6 +49,7 @@ from toolscore.reports import (
 
 if TYPE_CHECKING:
     from toolscore.mcp import MCPClient, MCPServerSpec
+    from toolscore.mcp.fixtures import ArgumentFixtures
 
 
 @click.group()
@@ -1011,6 +1012,20 @@ def _mcp_connection_options(func: Any) -> Any:
     return func
 
 
+def _argument_fixtures(
+    options: tuple[str, ...], path: Path | None, console: Console
+) -> ArgumentFixtures:
+    """Read ``--args-file`` and ``--arg`` values (``--arg`` wins)."""
+    from toolscore.mcp.fixtures import ArgumentFixtures, load_fixtures
+
+    try:
+        fixtures = load_fixtures(path) if path is not None else ArgumentFixtures()
+        return fixtures.merged(ArgumentFixtures.from_options(options))
+    except ValueError as exc:
+        print_error(f"Invalid argument values: {exc}", console)
+        sys.exit(2)
+
+
 def _connect(
     command: tuple[str, ...],
     config: Path | None,
@@ -1251,6 +1266,24 @@ def mcp_lint(
         "issues (a tool that fails on valid input, an edge crash, or a schema error)."
     ),
 )
+@click.option(
+    "--arg",
+    "arg_options",
+    multiple=True,
+    metavar="[TOOL:]NAME=VALUE",
+    help=(
+        "A value the server accepts, used in every happy path (repeatable). NAME=VALUE applies "
+        "to each tool with that parameter, TOOL:NAME=VALUE to one tool. VALUE is read as JSON "
+        "when it parses (5, true, [1]), else as text. For servers limited to allowed roots: "
+        "--arg path=/tmp/sandbox/notes.txt"
+    ),
+)
+@click.option(
+    "--args-file",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help='JSON or YAML file of argument values: {"*": {NAME: VALUE}, "TOOL": {NAME: VALUE}}.',
+)
 def mcp_test(
     command: tuple[str, ...],
     config: Path | None,
@@ -1267,6 +1300,8 @@ def mcp_test(
     badge_json: Path | None,
     fail_under: str | None,
     ci: bool,
+    arg_options: tuple[str, ...],
+    args_file: Path | None,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
@@ -1298,11 +1333,17 @@ def mcp_test(
         print_error("--report requires --output PATH.", console)
         sys.exit(2)
 
+    fixtures = _argument_fixtures(arg_options, args_file, console)
     client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
     try:
         with client:
-            card = score_server(client, cases_per_tool=cases, include_edge_cases=not no_edge_cases)
+            card = score_server(
+                client,
+                cases_per_tool=cases,
+                include_edge_cases=not no_edge_cases,
+                fixtures=fixtures,
+            )
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to test MCP server: {exc}", console)
         sys.exit(1)
