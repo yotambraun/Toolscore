@@ -7,6 +7,59 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
+## [1.11.0] - Unreleased
+
+Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote servers, so any MCP server, local or hosted, can be graded in CI and show its grade in its README.
+
+### Highlights
+
+- **MCP 2026-07-28, with a fallback.** The MCP clients probe with `server/discover` and send the protocol version, client info and capabilities in each request's `_meta`, as the stateless 2026-07-28 revision requires. A server built on an earlier revision (any non-modern error, or no answer within 5 seconds) gets the `initialize` handshake with 2025-11-25 instead. `UnsupportedProtocolVersionError` answers pick a version from the server's list, and the scorecard shows which protocol a run used.
+- **Remote MCP servers.** `toolscore mcp test`, `mcp lint` and `mcp list` accept a Streamable HTTP URL, or a `url` entry in a Claude Desktop, Cursor, Claude Code or VS Code config file (`pip install "tool-scorer[http]"`). Credentials come from the environment (`--auth-env VAR`, `--header 'Name: ${VAR}'`, `${VAR}` / `${env:VAR}` in config files) and are never printed.
+- **Lint for what clients rely on.** Behavior annotations (`readOnlyHint`, `destructiveHint`, ...) missing on tools whose names say they write or delete, `readOnlyHint: true` on `delete_*`, and conflicting hints; and `structuredContent` that does not match a tool's `outputSchema`. Every lint issue now has a stable rule ID.
+- **Grade badges.** `mcp test --badge PATH` writes an SVG badge ("MCP grade: A · Toolscore") and `--badge-json PATH` a shields.io endpoint file, both from the run's own scorecard. A workflow example keeps the badge current.
+- **OpenAI Responses API.** `evaluate()` accepts `Response` objects and Responses item lists; `from_openai_responses()` reads `function_call`, `mcp_call` and `custom_tool_call` items and pairs `function_call_output` items to their calls.
+
+### Added
+
+#### MCP
+- `MCPClient`, the transport-independent protocol logic; `MCPStdioClient` and the new `MCPHttpClient` (Streamable HTTP, both eras: per-request `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name` and `Mcp-Param-*` headers for `x-mcp-header` parameters in 2026-07-28; `Mcp-Session-Id` sessions in 2025-11-25; JSON and server-sent-event responses). Both take `protocol="auto" | "modern" | "legacy"`; `client.era`, `client.protocol_version` and `client.server_versions` report what was agreed.
+- `MODERN_PROTOCOL_VERSION` ("2026-07-28") and `LEGACY_PROTOCOL_VERSION` ("2025-11-25").
+- `toolscore mcp test|lint|list --protocol`, `--header` and `--auth-env`; URL targets.
+- `load_mcp_config()` reads the VS Code `servers` layout and `url` / `serverUrl` entries with `headers`; `MCPServerSpec.url`, `.headers` and `.transport`; `open_client(spec)` returns the right client. Entries with the deprecated SSE transport are rejected with the reason.
+- `MCPToolDef.annotations`, `.output_schema` and `.title`; `MCPToolResult.structured_content`.
+- `LintIssue.rule`, a stable rule ID on every issue (`toolscore mcp lint` shows a Rule column; the JSON report has `rule`). New rules: `annotations-missing`, `annotation-read-only-contradiction`, `annotation-hints-conflict`, `annotation-invalid-value`, `structured-content-missing`, `structured-content-mismatch`. All are warnings.
+- `output_schema_issues()` and `toolscore.mcp.output_schema.validate_instance()`, a conservative JSON Schema check that never judges keywords it does not know.
+- `score_server(client)` runs the whole scorecard for any client; `MCPScorecard.protocol_version` and `.era`; the JSON report adds `protocol`.
+- `toolscore mcp test --badge` and `--badge-json` (`toolscore.mcp.badge`).
+- The bundled sample server (`python -m toolscore.mcp.sample_server`) speaks both eras and now declares annotations and an output schema; the demo grade stays B, with one new finding (`create_note` declares no annotations).
+
+#### GitHub Action
+- New inputs `mcp-auth-env`, `mcp-badge`, `mcp-badge-json` and `toolscore-version`; `mcp-command` accepts a URL. New outputs `mcp-grade` and `mcp-score`. MCP mode writes the scorecard to the job summary.
+- The action installs Toolscore from its own checkout, so the installed version matches the action ref (it installed the latest PyPI release before). `toolscore-version` installs a given PyPI release instead.
+- `examples/github_actions/mcp-badge.yml` commits an updated badge when the grade changes.
+
+#### Integrations
+- `from_openai_responses()` and auto-detection of Responses API responses, output lists and input item lists, in `evaluate()` and in trace files (`--format auto` / `openai`). Outputs become the call's `result`; an output counts as an `error` only when it clearly is one (a JSON object with `error` or `is_error: true`, or the OpenAI Agents SDK's tool error message). `mcp_call` items keep their `output` and `error`.
+
+#### Models and prices
+- `toolscore.models`: the current default model IDs in one place, with the date they were verified (2026-11-01).
+- `lookup_pricing()`, `UnknownModelPriceWarning`, `PRICES_VERIFIED_ON`, and `pricing=(input, output)` on `calculate_llm_cost()` and `estimate_trace_cost()`.
+
+### Changed
+
+- **The LLM judge sends no `temperature` unless you set one.** `JudgeConfig.temperature` defaults to `None` (it was `0.0`): current Claude models (Opus 4.7 and later, Sonnet 5 and later, Haiku 5.5) and OpenAI's GPT-6 models at their default reasoning effort reject a non-default temperature with a 400 error. Set `temperature=0.0` for models that accept it, such as local OpenAI-compatible servers.
+- **The default judge model is `gpt-6-luna`** (was `gpt-4o-mini`, which OpenAI retires on 2027-01-14). Docs and examples use `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` and `gemini-3.5-flash-lite`.
+- **Model prices match exactly or by longest prefix, and unknown models have no price.** `calculate_llm_cost()` and `estimate_trace_cost()` return `None` with an `UnknownModelPriceWarning` for a model they do not know (they used to fall back to the gpt-4o-mini price), so their return type is now `float | None`. The table is refreshed from the providers' pricing pages; retired models (Claude 3.x, Claude Opus 4.1, Gemini 1.5 and 2.0) were removed. `estimate_trace_cost()` defaults to `gpt-6-luna`.
+- `MCPStdioClient` sends `server/discover` before `initialize`. Servers built on earlier revisions answer it with an error (handled), or do not answer, which costs up to `probe_timeout` (5 seconds by default) before the handshake. `DEFAULT_PROTOCOL_VERSION` is now "2026-07-28".
+- Python 3.14 is supported and tested.
+- The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
+
+### Fixed
+
+- **A perfect run scores exactly 1.0.** The composite score summed its weights with plain float addition and gave 0.9999999999999999.
+- **Prices of similarly named models.** `gpt-5-mini` was priced as `gpt-5`, `gpt-4o-mini` as `gpt-4o`, and `gemini-2.5-flash-lite` as `gemini-2.5-flash` (the first table key contained in the name won). Claude Opus 4.6 was listed at $15/$75 per million tokens; it is $5/$25.
+- `evaluate()` on an OpenAI Responses API object failed with "Cannot auto-detect provider format".
+
 ## [1.10.0] - 2026-10-03
 
 Toolscore 1.10 scores what agents really did, not only which tools they named: record real MCP sessions or import OpenTelemetry spans, and see failed calls, required calls that never succeeded, leaked credentials and forbidden calls next to the score. Every new check was validated on real agents and real MCP servers, including GitHub's official MCP server.
@@ -539,6 +592,7 @@ This entry covers 1.7.0 through 1.8.1 (released 2026-06-13 to 2026-06-19).
 - Usage examples
 
 [Unreleased]: https://github.com/yotambraun/Toolscore/compare/v1.10.0...HEAD
+[1.11.0]: https://github.com/yotambraun/Toolscore/compare/v1.10.0...HEAD
 [1.10.0]: https://github.com/yotambraun/Toolscore/compare/v1.9.1...v1.10.0
 [1.9.1]: https://github.com/yotambraun/Toolscore/compare/v1.9.0...v1.9.1
 [1.9.0]: https://github.com/yotambraun/Toolscore/compare/v1.8.1...v1.9.0
