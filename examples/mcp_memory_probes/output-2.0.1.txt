@@ -1,0 +1,45 @@
+$ MEMORY_FILE_PATH=$(mktemp) toolscore mcp test "npx -y @modelcontextprotocol/server-memory@2.0.1" --probes --allow-writes
+╭──────────────────────────────────────────────────────╮
+│ MCP Scorecard: memory-server 2.0.1                   │
+│ Grade A   Score 93%                                  │
+│ happy 89%  |  edge 100%  |  lint 99%  |  effect 100% │
+│ MCP 2026-07-28 (stateless)                           │
+╰──────────────────────────────────────────────────────╯
+                             Tools                             
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Tool                ┃ Scenarios ┃ Avg latency ┃ Def. tokens ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ create_entities     │       6/6 │      4.6 ms │         223 │
+│ create_relations    │       3/6 │      1.9 ms │         169 │
+│ add_observations    │       6/6 │      2.0 ms │         148 │
+│ delete_entities     │       6/6 │      1.7 ms │          95 │
+│ delete_observations │       6/6 │      1.7 ms │         148 │
+│ delete_relations    │       6/6 │      1.8 ms │         168 │
+│ read_graph          │       3/3 │      1.2 ms │          46 │
+│ search_nodes        │       6/6 │      1.1 ms │          94 │
+│ open_nodes          │       6/6 │      1.1 ms │          86 │
+└─────────────────────┴───────────┴─────────────┴─────────────┘
+Tool definitions cost ~1177 estimated tokens of context across 9 tool(s).
+                                           Effect probes                                            
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Probe      ┃ Tool             ┃ Result       ┃ Confidence ┃ Detail                               ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ round-trip │ create_entities  │ pass         │ high       │ write visible and kept after another │
+│            │                  │              │            │ write; a same-key write was reported │
+│            │                  │              │            │ as skipped                           │
+│ round-trip │ create_relations │ inconclusive │            │ the write failed with probe values   │
+│            │                  │              │            │ (Entity with name tsp81d22f-from not │
+│            │                  │              │            │ found); supply values with --arg     │
+│ round-trip │ add_observations │ inconclusive │            │ the write failed with probe values   │
+│            │                  │              │            │ (Entity with name                    │
+│            │                  │              │            │ tsp913671-entityname not found);     │
+│            │                  │              │            │ supply values with --arg             │
+└────────────┴──────────────────┴──────────────┴────────────┴──────────────────────────────────────┘
+
+Top issues to fix
+  1. create_relations  fails on valid input (Entity with name sample_from not found)
+     -> The tool errors on well-formed arguments - check the handler and that the input schema 
+matches what the tool actually accepts.
+  2. create_entities  large tool definition (~223 estimated tokens)
+     -> Trim the description and tighten the schema (or split the tool); large definitions consume 
+context on every request.

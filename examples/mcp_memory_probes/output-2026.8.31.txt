@@ -1,0 +1,42 @@
+$ MEMORY_FILE_PATH=$(mktemp) toolscore mcp test "npx -y @modelcontextprotocol/server-memory@2026.8.31" --probes --allow-writes
+╭───────────────────────────────────────────────────────╮
+│ MCP Scorecard: memory-server 0.6.3                    │
+│ Grade A   Score 93%                                   │
+│ happy 100%  |  edge 100%  |  lint 100%  |  effect 50% │
+│ MCP 2025-11-25 (initialize handshake)                 │
+╰───────────────────────────────────────────────────────╯
+                             Tools                             
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Tool                ┃ Scenarios ┃ Avg latency ┃ Def. tokens ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ create_entities     │       6/6 │      1.5 ms │         160 │
+│ create_relations    │       6/6 │      0.8 ms │         168 │
+│ add_observations    │       6/6 │      0.6 ms │         146 │
+│ delete_entities     │       6/6 │      0.5 ms │          94 │
+│ delete_observations │       6/6 │      0.6 ms │         147 │
+│ delete_relations    │       6/6 │      0.5 ms │         166 │
+│ read_graph          │       3/3 │      0.4 ms │          45 │
+│ search_nodes        │       6/6 │      0.4 ms │          88 │
+│ open_nodes          │       6/6 │      0.3 ms │          84 │
+└─────────────────────┴───────────┴─────────────┴─────────────┘
+Tool definitions cost ~1098 estimated tokens of context across 9 tool(s).
+                                           Effect probes                                            
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Probe      ┃ Tool             ┃ Result       ┃ Confidence ┃ Detail                               ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ round-trip │ create_entities  │ FAIL         │ high       │ a second write to key                │
+│            │                  │              │            │ 'tspd11f8d-name' reported success;   │
+│            │                  │              │            │ state unchanged (probe-silent-noop)  │
+│ round-trip │ create_relations │ pass         │ high       │ write visible and kept after another │
+│            │                  │              │            │ write                                │
+│ round-trip │ add_observations │ inconclusive │            │ the write failed with probe values   │
+│            │                  │              │            │ (Entity with name                    │
+│            │                  │              │            │ tspb8c485-entityname not found);     │
+│            │                  │              │            │ supply values with --arg             │
+└────────────┴──────────────────┴──────────────┴────────────┴──────────────────────────────────────┘
+
+Top issues to fix
+  1. create_entities  a second write to key 'tspd11f8d-name' reported success; state unchanged 
+(probe-silent-noop)
+     -> Make the tool report what it did: return an error, or say which items were skipped, instead 
+of success when nothing was stored.
