@@ -2,13 +2,13 @@
 
 This module powers the "MCP Scorecard" harness. It turns a server's advertised
 tool schemas into concrete test :class:`Scenario` objects (happy paths plus edge
-cases), executes them against a live :class:`~toolscore.mcp.client.MCPStdioClient`
+cases), executes them against a live :class:`~toolscore.mcp.client.MCPClient`
 without ever aborting the whole run on a single failure, and statically lints the
 tool schemas for common quality problems.
 
 The pieces here are deliberately decoupled from rendering: scoring and report
 formatting live in :mod:`toolscore.mcp.scorecard`, while the
-:class:`~toolscore.mcp.client.MCPStdioClient` handles transport.
+:class:`~toolscore.mcp.client.MCPClient` (stdio or HTTP) handles transport.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from toolscore.mcp.lint_rules import (
 from toolscore.mcp.output_schema import validate_instance
 
 if TYPE_CHECKING:
-    from toolscore.mcp.client import MCPStdioClient, MCPToolDef
+    from toolscore.mcp.client import MCPClient, MCPToolDef
 
 #: Minimum acceptable length for a tool description before a lint warning fires.
 _MIN_DESCRIPTION_LENGTH = 10
@@ -414,7 +414,7 @@ def _content_excerpt(content: Any) -> str:
     return _excerpt(str(content))
 
 
-def run_scenarios(client: MCPStdioClient, scenarios: list[Scenario]) -> list[ScenarioResult]:
+def run_scenarios(client: MCPClient, scenarios: list[Scenario]) -> list[ScenarioResult]:
     """Execute every scenario against the server, never aborting on failure.
 
     Each scenario is called in turn. Transport problems
@@ -432,7 +432,7 @@ def run_scenarios(client: MCPStdioClient, scenarios: list[Scenario]) -> list[Sce
       fail only on a timeout or transport crash.
 
     Args:
-        client: A started MCP client connected to the server under test.
+        client: A started MCP client (stdio or HTTP) connected to the server under test.
         scenarios: The scenarios to execute.
 
     Returns:
@@ -569,7 +569,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
     Args:
         tools: The tool definitions to lint.
         instructions: The server's ``instructions`` from the initialize result
-            (:attr:`MCPStdioClient.server_instructions`), if any.
+            (:attr:`MCPClient.server_instructions`), if any.
 
     Returns:
         Every issue found, across all tools.

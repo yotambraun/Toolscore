@@ -168,14 +168,18 @@ def _check_bounds(value: Any, schema: dict[str, Any], path: str, errors: list[st
         if high is not None and len(value) > high:
             errors.append(f"{path}: longer than maxLength {high}")
     elif isinstance(value, (int, float)) and not isinstance(value, bool):
-        for key, fails in (
-            ("minimum", lambda b: value < b),
-            ("maximum", lambda b: value > b),
-            ("exclusiveMinimum", lambda b: value <= b),
-            ("exclusiveMaximum", lambda b: value >= b),
-        ):
+        number = float(value)
+        for key in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
             limit = bound(key)
-            if limit is not None and fails(limit):
+            if limit is None:
+                continue
+            fails = {
+                "minimum": number < limit,
+                "maximum": number > limit,
+                "exclusiveMinimum": number <= limit,
+                "exclusiveMaximum": number >= limit,
+            }[key]
+            if fails:
                 errors.append(f"{path}: {value!r} violates {key} {limit}")
     elif isinstance(value, list):
         low, high = bound("minItems"), bound("maxItems")
