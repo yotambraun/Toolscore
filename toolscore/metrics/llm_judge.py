@@ -23,6 +23,8 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
+from toolscore.models import DEFAULT_JUDGE_MODEL
+
 if TYPE_CHECKING:
     from toolscore.adapters.base import ToolCall
 
@@ -64,23 +66,28 @@ class JudgeConfig:
     """Configuration for the LLM judge.
 
     Args:
-        model: Model name (e.g. ``gpt-4o-mini``, ``claude-3-5-haiku``,
-            ``gemini-2.0-flash``, ``llama3.1``).
+        model: Model name (e.g. ``gpt-6-luna`` (the default), ``claude-haiku-5-5``,
+            ``gemini-3.5-flash-lite``, or a local ``llama3.1``). See
+            :mod:`toolscore.models`.
         provider: Provider to use. ``None`` infers it from ``model`` /
             ``base_url`` (see module docstring).
         api_key: API key. ``None`` falls back to the per-provider env var
             (``OPENAI_API_KEY`` / ``ANTHROPIC_API_KEY`` / ``GOOGLE_API_KEY``).
         base_url: Custom endpoint. When set, the provider becomes
             ``openai_compatible`` (covers Ollama/vLLM/Groq/etc.).
-        temperature: Sampling temperature (default ``0.0`` for determinism).
+        temperature: Sampling temperature. ``None`` (the default) sends no
+            temperature: current Claude models (Opus 4.7+, Sonnet 5+, Haiku 5.5)
+            and OpenAI GPT-6 models at their default reasoning effort reject a
+            non-default value with a 400 error. Set it (e.g. ``0.0``) only for
+            models that accept it, such as local OpenAI-compatible servers.
         max_retries: Max retries passed to the underlying SDK client.
     """
 
-    model: str = "gpt-4o-mini"
+    model: str = DEFAULT_JUDGE_MODEL
     provider: Provider | None = None
     api_key: str | None = None
     base_url: str | None = None
-    temperature: float = 0.0
+    temperature: float | None = None
     max_retries: int = 2
 
 
@@ -182,14 +189,17 @@ class _OpenAIBackend:
         self._temperature = config.temperature
 
     def complete(self, system: str, prompt: str) -> str:
+        extra: dict[str, Any] = {}
+        if self._temperature is not None:
+            extra["temperature"] = self._temperature
         response = self._client.chat.completions.create(
             model=self._model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
-            temperature=self._temperature,
             response_format={"type": "json_object"},
+            **extra,
         )
         content = response.choices[0].message.content
         return content or ""
@@ -218,10 +228,11 @@ class _AnthropicBackend:
         )
 
     def complete(self, system: str, prompt: str) -> str:
-        # Newer anthropic SDKs removed ``temperature`` from ``messages.create``
-        # and raise TypeError on it; pass it only where the SDK still accepts it.
+        # Current Claude models reject a non-default temperature, and newer
+        # anthropic SDKs removed the parameter (TypeError); send it only when
+        # the caller set one and the SDK still accepts it.
         extra: dict[str, Any] = {}
-        if self._accepts_temperature:
+        if self._temperature is not None and self._accepts_temperature:
             extra["temperature"] = self._temperature
         response = self._client.messages.create(
             model=self._model,
@@ -260,14 +271,16 @@ class _GeminiBackend:
         last_exc: Exception | None = None
         for _attempt in range(self._max_retries + 1):
             try:
+                config: dict[str, Any] = {
+                    "system_instruction": system,
+                    "response_mime_type": "application/json",
+                }
+                if self._temperature is not None:
+                    config["temperature"] = self._temperature
                 response = self._client.models.generate_content(
                     model=self._model,
                     contents=prompt,
-                    config={
-                        "system_instruction": system,
-                        "temperature": self._temperature,
-                        "response_mime_type": "application/json",
-                    },
+                    config=config,
                 )
                 return response.text or ""
             except Exception as e:

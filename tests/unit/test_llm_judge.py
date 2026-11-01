@@ -69,13 +69,13 @@ class TestProviderInference:
     @pytest.mark.parametrize(
         ("model", "expected"),
         [
-            ("gpt-4o-mini", "openai"),
-            ("gpt-4o", "openai"),
+            ("gpt-6-luna", "openai"),
+            ("gpt-6.1-sol", "openai"),
             ("o1-preview", "openai"),
-            ("claude-3-5-haiku", "anthropic"),
+            ("claude-haiku-5-5", "anthropic"),
             ("claude-opus-4-8", "anthropic"),
-            ("gemini-2.0-flash", "gemini"),
-            ("gemini-1.5-pro", "gemini"),
+            ("gemini-3.5-flash-lite", "gemini"),
+            ("gemini-2.5-pro", "gemini"),
             ("llama3.1", "openai"),  # unknown -> openai by default
         ],
     )
@@ -84,16 +84,16 @@ class TestProviderInference:
 
     def test_base_url_forces_openai_compatible(self):
         # base_url wins even for a claude-* model name.
-        cfg = JudgeConfig(model="claude-3-5-haiku", base_url="http://localhost:11434/v1")
+        cfg = JudgeConfig(model="claude-haiku-5-5", base_url="http://localhost:11434/v1")
         assert infer_provider(cfg) == "openai_compatible"
 
     def test_explicit_provider_wins_over_name(self):
-        cfg = JudgeConfig(model="gpt-4o-mini", provider="anthropic")
+        cfg = JudgeConfig(model="gpt-6-luna", provider="anthropic")
         assert infer_provider(cfg) == "anthropic"
 
     def test_explicit_provider_conflicting_base_url_raises(self):
         # An explicit non-compatible provider plus a base_url is ambiguous.
-        cfg = JudgeConfig(model="gpt-4o-mini", provider="anthropic", base_url="http://x/v1")
+        cfg = JudgeConfig(model="gpt-6-luna", provider="anthropic", base_url="http://x/v1")
         with pytest.raises(ValueError, match="conflicts with base_url"):
             infer_provider(cfg)
 
@@ -115,42 +115,42 @@ class TestProviderInference:
 class TestApiKeyFallback:
     def test_openai_env_fallback(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-openai")
-        assert llm_judge._resolve_api_key(JudgeConfig(model="gpt-4o-mini"), "openai") == (
+        assert llm_judge._resolve_api_key(JudgeConfig(model="gpt-6-luna"), "openai") == (
             "sk-openai"
         )
 
     def test_anthropic_env_fallback(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
-        cfg = JudgeConfig(model="claude-3-5-haiku")
+        cfg = JudgeConfig(model="claude-haiku-5-5")
         assert llm_judge._resolve_api_key(cfg, "anthropic") == "sk-ant"
 
     def test_gemini_env_fallback(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "g-key")
-        cfg = JudgeConfig(model="gemini-2.0-flash")
+        cfg = JudgeConfig(model="gemini-3.5-flash-lite")
         assert llm_judge._resolve_api_key(cfg, "gemini") == "g-key"
 
     def test_gemini_gemini_api_key_fallback(self, monkeypatch):
         # GEMINI_API_KEY is honored when GOOGLE_API_KEY is unset.
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
-        cfg = JudgeConfig(model="gemini-2.0-flash")
+        cfg = JudgeConfig(model="gemini-3.5-flash-lite")
         assert llm_judge._resolve_api_key(cfg, "gemini") == "gemini-key"
 
     def test_gemini_google_key_preferred_over_gemini_key(self, monkeypatch):
         monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
-        cfg = JudgeConfig(model="gemini-2.0-flash")
+        cfg = JudgeConfig(model="gemini-3.5-flash-lite")
         assert llm_judge._resolve_api_key(cfg, "gemini") == "google-key"
 
     def test_explicit_key_wins_over_env(self, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
-        cfg = JudgeConfig(model="gpt-4o-mini", api_key="sk-explicit")
+        cfg = JudgeConfig(model="gpt-6-luna", api_key="sk-explicit")
         assert llm_judge._resolve_api_key(cfg, "openai") == "sk-explicit"
 
     def test_missing_key_raises_value_error(self, monkeypatch, gold, trace):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with pytest.raises(ValueError, match="API key required"):
-            calculate_semantic_correctness(gold, trace, judge="gpt-4o-mini")
+            calculate_semantic_correctness(gold, trace, judge="gpt-6-luna")
 
     def test_openai_compatible_no_key_required(self, monkeypatch, gold, trace):
         # No key needed for a local OpenAI-compatible endpoint.
@@ -196,17 +196,17 @@ class TestMissingSDK:
     def test_openai_missing_hint(self, monkeypatch):
         _block_import(monkeypatch, "openai")
         with pytest.raises(ImportError, match=r"tool-scorer\[llm\]"):
-            llm_judge._make_backend(JudgeConfig(model="gpt-4o-mini"))
+            llm_judge._make_backend(JudgeConfig(model="gpt-6-luna"))
 
     def test_anthropic_missing_hint(self, monkeypatch):
         _block_import(monkeypatch, "anthropic")
         with pytest.raises(ImportError, match=r"tool-scorer\[anthropic\]"):
-            llm_judge._make_backend(JudgeConfig(model="claude-3-5-haiku"))
+            llm_judge._make_backend(JudgeConfig(model="claude-haiku-5-5"))
 
     def test_gemini_missing_hint(self, monkeypatch):
         _block_import(monkeypatch, "google")
         with pytest.raises(ImportError, match=r"tool-scorer\[gemini\]"):
-            llm_judge._make_backend(JudgeConfig(model="gemini-2.0-flash"))
+            llm_judge._make_backend(JudgeConfig(model="gemini-3.5-flash-lite"))
 
     def test_openai_compatible_missing_hint(self, monkeypatch):
         _block_import(monkeypatch, "openai")
@@ -232,9 +232,9 @@ class TestBackendRouting:
                 return "{}"
 
         monkeypatch.setattr(llm_judge, "_AnthropicBackend", FakeAnthropicBackend)
-        backend = llm_judge._make_backend(JudgeConfig(model="claude-3-5-haiku"))
+        backend = llm_judge._make_backend(JudgeConfig(model="claude-haiku-5-5"))
         assert isinstance(backend, FakeAnthropicBackend)
-        assert constructed["anthropic"].model == "claude-3-5-haiku"
+        assert constructed["anthropic"].model == "claude-haiku-5-5"
 
     def test_gemini_routes_to_gemini_backend(self, monkeypatch):
         class FakeGeminiBackend:
@@ -245,7 +245,7 @@ class TestBackendRouting:
                 return "{}"
 
         monkeypatch.setattr(llm_judge, "_GeminiBackend", FakeGeminiBackend)
-        backend = llm_judge._make_backend(JudgeConfig(model="gemini-2.0-flash"))
+        backend = llm_judge._make_backend(JudgeConfig(model="gemini-3.5-flash-lite"))
         assert isinstance(backend, FakeGeminiBackend)
 
     def test_openai_compatible_routes_to_openai_backend(self, monkeypatch):
@@ -296,14 +296,14 @@ class TestBatchedJudging:
             )
         )
         monkeypatch.setattr(llm_judge, "_make_backend", lambda config: backend)
-        result = calculate_semantic_correctness(gold, trace, judge="gpt-4o-mini")
+        result = calculate_semantic_correctness(gold, trace, judge="gpt-6-luna")
 
         # One batched request, not per-pair.
         assert len(backend.calls) == 1
         assert result["per_call_scores"] == [0.9, 0.8]
         assert result["explanations"] == ["close", "ok"]
         assert result["semantic_score"] == pytest.approx(0.85)
-        assert result["model_used"] == "gpt-4o-mini"
+        assert result["model_used"] == "gpt-6-luna"
         assert result["gold_count"] == 2
         assert result["trace_count"] == 2
         assert set(result.keys()) == EXPECTED_KEYS
@@ -440,7 +440,7 @@ class TestBatchedJudging:
     def test_empty_calls(self, monkeypatch):
         backend = FakeBackend("[]")
         monkeypatch.setattr(llm_judge, "_make_backend", lambda config: backend)
-        result = calculate_semantic_correctness([], [], judge="gpt-4o-mini")
+        result = calculate_semantic_correctness([], [], judge="gpt-6-luna")
         assert result["semantic_score"] == 0.0
         assert result["per_call_scores"] == []
         assert len(backend.calls) == 0  # nothing to judge
@@ -486,7 +486,7 @@ def _make_gemini_backend(config: JudgeConfig, models: _FakeGeminiModels):
 class TestGeminiRetry:
     def test_retries_then_succeeds(self):
         models = _FakeGeminiModels(fail_times=2, text='{"score": 1.0}')
-        cfg = JudgeConfig(model="gemini-2.0-flash", max_retries=2)
+        cfg = JudgeConfig(model="gemini-3.5-flash-lite", max_retries=2)
         backend = _make_gemini_backend(cfg, models)
         assert backend.complete("sys", "prompt") == '{"score": 1.0}'
         # 2 failures + 1 success == 3 attempts (max_retries + 1).
@@ -494,7 +494,7 @@ class TestGeminiRetry:
 
     def test_exhausts_retries_and_raises(self):
         models = _FakeGeminiModels(fail_times=5, text="never")
-        cfg = JudgeConfig(model="gemini-2.0-flash", max_retries=2)
+        cfg = JudgeConfig(model="gemini-3.5-flash-lite", max_retries=2)
         backend = _make_gemini_backend(cfg, models)
         with pytest.raises(RuntimeError, match="transient gemini error"):
             backend.complete("sys", "prompt")
@@ -551,10 +551,10 @@ class TestEvaluateTraceIntegration:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant")
         monkeypatch.setattr(llm_judge, "_AnthropicBackend", FakeAnthropicBackend)
 
-        result = evaluate_trace(gold_file, trace_file, judge="claude-3-5-haiku")
-        assert captured["model"] == "claude-3-5-haiku"
+        result = evaluate_trace(gold_file, trace_file, judge="claude-haiku-5-5")
+        assert captured["model"] == "claude-haiku-5-5"
         assert result.metrics["semantic_metrics"]["semantic_score"] == pytest.approx(1.0)
-        assert result.metrics["semantic_metrics"]["model_used"] == "claude-3-5-haiku"
+        assert result.metrics["semantic_metrics"]["model_used"] == "claude-haiku-5-5"
 
     def test_judge_missing_api_key_records_error(self, tmp_path, monkeypatch):
         gold_file, trace_file = _write_files(tmp_path)
@@ -622,7 +622,7 @@ class TestCliWiring:
         assert result.exit_code == 0, result.output
         judge = captured["judge"]
         assert isinstance(judge, JudgeConfig)
-        assert judge.model == "gpt-4o-mini"
+        assert judge.model == "gpt-6-luna"
         assert judge.provider is None
         assert judge.base_url is None
 
@@ -630,11 +630,11 @@ class TestCliWiring:
         result, captured = self._invoke(
             monkeypatch,
             cli_files,
-            ["--llm-judge", "--llm-model", "claude-3-5-haiku", "--llm-provider", "anthropic"],
+            ["--llm-judge", "--llm-model", "claude-haiku-5-5", "--llm-provider", "anthropic"],
         )
         assert result.exit_code == 0, result.output
         judge = captured["judge"]
-        assert judge.model == "claude-3-5-haiku"
+        assert judge.model == "claude-haiku-5-5"
         assert judge.provider == "anthropic"
 
     def test_llm_base_url_wired(self, monkeypatch, cli_files):
@@ -708,6 +708,103 @@ class TestAnthropicSdkCompat:
             return _text_response()
 
         _fake_anthropic(monkeypatch, create)
-        backend = llm_judge._AnthropicBackend(JudgeConfig(model="claude-3-5-haiku", api_key="k"))
+        backend = llm_judge._AnthropicBackend(
+            JudgeConfig(model="claude-haiku-4-5", api_key="k", temperature=0.0)
+        )
         backend.complete("sys", "prompt")
         assert seen["temperature"] == 0.0
+
+    def test_no_temperature_is_sent_by_default(self, monkeypatch):
+        """Current Claude models reject a non-default temperature with a 400 error."""
+        seen = {}
+
+        def create(self, **kwargs):
+            seen.update(kwargs)
+            return _text_response()
+
+        def create_with_temperature(
+            self, *, model, max_tokens, messages, system=None, temperature=None
+        ):
+            return create(
+                self,
+                model=model,
+                max_tokens=max_tokens,
+                messages=messages,
+                system=system,
+                **({} if temperature is None else {"temperature": temperature}),
+            )
+
+        _fake_anthropic(monkeypatch, create_with_temperature)
+        backend = llm_judge._AnthropicBackend(JudgeConfig(model="claude-haiku-5-5", api_key="k"))
+        backend.complete("sys", "prompt")
+        assert "temperature" not in seen
+
+
+# --------------------------------------------------------------------------- #
+# Temperature defaults (OpenAI and Gemini)
+# --------------------------------------------------------------------------- #
+
+
+def _fake_openai(monkeypatch, seen):
+    import sys
+    import types
+    from types import SimpleNamespace
+
+    class _Completions:
+        def create(self, **kwargs):
+            seen.update(kwargs)
+            message = SimpleNamespace(content="[]")
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    class _Client:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=_Completions())
+
+    module = types.ModuleType("openai")
+    module.OpenAI = _Client  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "openai", module)
+
+
+class TestTemperatureDefaults:
+    def test_default_config_has_no_temperature_and_a_current_model(self):
+        config = JudgeConfig()
+        assert config.temperature is None
+        assert config.model == "gpt-6-luna"
+
+    def test_openai_omits_temperature_by_default(self, monkeypatch):
+        seen: dict = {}
+        _fake_openai(monkeypatch, seen)
+        llm_judge._OpenAIBackend(JudgeConfig(api_key="k"), "openai").complete("s", "p")
+        assert "temperature" not in seen
+        assert seen["model"] == "gpt-6-luna"
+
+    def test_openai_sends_an_explicit_temperature(self, monkeypatch):
+        seen: dict = {}
+        _fake_openai(monkeypatch, seen)
+        config = JudgeConfig(
+            model="llama3.1", base_url="http://localhost:11434/v1", temperature=0.0
+        )
+        llm_judge._OpenAIBackend(config, "openai_compatible").complete("s", "p")
+        assert seen["temperature"] == 0.0
+
+    @pytest.mark.parametrize(("temperature", "sent"), [(None, False), (0.2, True)])
+    def test_gemini_sends_temperature_only_when_set(self, temperature, sent):
+        captured: dict = {}
+
+        class _Models:
+            def generate_content(self, *, model, contents, config):
+                captured.update(config)
+
+                class _Resp:
+                    text = "[]"
+
+                return _Resp()
+
+        cfg = JudgeConfig(model="gemini-3.5-flash-lite", temperature=temperature)
+        backend = llm_judge._GeminiBackend.__new__(llm_judge._GeminiBackend)
+        backend._client = _FakeGeminiClient(_Models())  # type: ignore[arg-type]
+        backend._model = cfg.model
+        backend._temperature = cfg.temperature
+        backend._max_retries = 0
+        backend.complete("s", "p")
+        assert ("temperature" in captured) is sent

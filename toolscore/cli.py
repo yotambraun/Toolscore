@@ -35,6 +35,7 @@ from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
 from toolscore.metrics.llm_judge import JudgeConfig, Provider
 from toolscore.metrics.policy import load_forbidden_rules
+from toolscore.models import DEFAULT_JUDGE_MODEL
 from toolscore.reports import (
     generate_csv_report,
     generate_html_report,
@@ -113,9 +114,9 @@ def main() -> None:
 @click.option(
     "--llm-model",
     type=str,
-    default="gpt-4o-mini",
+    default=DEFAULT_JUDGE_MODEL,
     help=(
-        "Model for the LLM judge (default: gpt-4o-mini). Provider is inferred "
+        f"Model for the LLM judge (default: {DEFAULT_JUDGE_MODEL}). Provider is inferred "
         "from the name (claude-* -> Anthropic, gemini-* -> Gemini). "
         "For a local OpenAI-compatible server: "
         "--llm-model llama3.1 --llm-base-url http://localhost:11434/v1"
@@ -614,7 +615,7 @@ def generate(
     "--names",
     "-n",
     multiple=True,
-    help="Model names (same order as trace files, e.g., -n gpt-4 -n claude-3)",
+    help="Model names (same order as trace files, e.g., -n gpt-6-luna -n claude-haiku-5-5)",
 )
 @click.option(
     "--format",
@@ -659,7 +660,7 @@ def compare(
     Example:
 
         toolscore compare gold.json gpt4_trace.json claude_trace.json \\
-            -n gpt-4 -n claude-3 -o comparison.json
+            -n gpt-6-luna -n claude-haiku-5-5 -o comparison.json
     """
     console = Console()
 
