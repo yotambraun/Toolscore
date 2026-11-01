@@ -1,0 +1,7 @@
+{
+  "seed": 7,
+  "faults": [
+    {"tools": ["create_note"], "calls": [2], "fault": "error"},
+    {"tools": ["list_notes"], "fault": "warning", "message": "WARNING: the list may be out of date."}
+  ]
+}

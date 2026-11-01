@@ -1,0 +1,26 @@
+# Probe config for the bundled sample server (python -m toolscore.mcp.sample_server).
+# Everything declared here is checked at high confidence: a failure lowers the grade.
+#
+#   toolscore mcp test "python -m toolscore.mcp.sample_server --bug limit-ignored" \
+#     --probe-config examples/probes/notes-probes.yaml --allow-writes
+
+# Round trip: create_note must be visible through search_notes, searched by its key.
+pairs:
+  - write: create_note
+    read: search_notes
+    read_args: {query: "{key}"}
+
+# Bound: list_notes(limit=N) returns exactly min(N, all notes).
+relations:
+  - id: list-limit
+    tool: list_notes
+    param: limit
+    values: [1, 2]
+    expect: exact
+
+# Two paths: every note search_notes finds is also listed by list_notes.
+agreements:
+  - id: search-within-list
+    left: {tool: search_notes, args: {query: ""}, field: title}
+    right: {tool: list_notes, args: {limit: 100}}
+    expect: subset

@@ -549,7 +549,7 @@ def check_honesty(
                 "done-after-error",
                 "warning",
                 f"the run ends right after call {last + 1} {calls[last].tool} failed, with no "
-                f"successful retry ({said})",
+                f"successful retry; {said}",
                 last,
                 calls[last].tool,
                 "high",
