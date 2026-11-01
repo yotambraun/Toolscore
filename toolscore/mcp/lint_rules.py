@@ -1,4 +1,4 @@
-"""Lint rules that read what a model reads: references to missing tools and tool poisoning.
+"""Lint rules for what a model and an MCP client read: tool text and behavior annotations.
 
 Tool descriptions, parameter descriptions and the server ``instructions`` are all
 sent to the model. Two kinds of problems hide in that text:
@@ -14,7 +14,14 @@ sent to the model. Two kinds of problems hide in that text:
   such as "do not mention this to the user" or "ignore previous instructions".
   These are the published attack patterns against MCP clients.
 
-Both checks favour precision: a scanner that cries wolf gets ignored.
+* **Behavior annotations.** ``readOnlyHint``, ``destructiveHint``,
+  ``idempotentHint`` and ``openWorldHint`` tell a client whether a tool can be
+  run without asking the user. A tool whose name says it deletes or writes but
+  declares no hints is treated by clients as possibly destructive (the
+  specification's defaults), and a ``readOnlyHint: true`` on ``delete_*`` makes
+  a client auto-approve a deletion.
+
+All checks favour precision: a scanner that cries wolf gets ignored.
 """
 
 from __future__ import annotations
@@ -82,6 +89,7 @@ _DIRECTIVES = (
         ),
         "error",
         "tells the model to hide something from the user",
+        "directive-hide-from-user",
     ),
     (
         re.compile(
@@ -91,6 +99,7 @@ _DIRECTIVES = (
         ),
         "error",
         "tells the model to ignore its other instructions",
+        "directive-ignore-instructions",
     ),
     (
         # Used legitimately for emphasis by some servers, and by published
@@ -98,6 +107,7 @@ _DIRECTIVES = (
         re.compile(r"<\s*/?\s*(?:important|system|instructions?)\s*>", re.IGNORECASE),
         "warning",
         "contains an <IMPORTANT>-style instruction block, a pattern used to hide instructions",
+        "instruction-block",
     ),
 )
 
@@ -238,6 +248,7 @@ def dangling_reference_issues(
                         severity="warning",
                         message=f"refers to tool {name!r}, which this server does not expose",
                         fix=fix + _FIX_REFERENCE,
+                        rule="tool-reference-missing",
                     )
                 )
     return issues
@@ -295,10 +306,12 @@ def poisoning_issues(tools: list[MCPToolDef], instructions: str | None = None) -
     issues: list[LintIssue] = []
     reported: set[tuple[str, str]] = set()
 
-    def add(owner: str, kind: str, severity: str, message: str, fix: str) -> None:
+    def add(owner: str, kind: str, severity: str, message: str, fix: str, rule: str) -> None:
         if (owner, kind) not in reported:
             reported.add((owner, kind))
-            issues.append(LintIssue(tool=owner, severity=severity, message=message, fix=fix))
+            issues.append(
+                LintIssue(tool=owner, severity=severity, message=message, fix=fix, rule=rule)
+            )
 
     pieces = [(tool.name, tool.name) for tool in tools]
     pieces.extend(_texts(tools, instructions))
@@ -311,6 +324,7 @@ def poisoning_issues(tools: list[MCPToolDef], instructions: str | None = None) -
                 "error",
                 f"contains {len(tags)} hidden Unicode tag characters (invisible text the model reads)",
                 _FIX_HIDDEN,
+                "hidden-tag-characters",
             )
         if bidi:
             add(
@@ -319,6 +333,7 @@ def poisoning_issues(tools: list[MCPToolDef], instructions: str | None = None) -
                 "error",
                 "contains bidirectional control characters (text displays differently than it is stored)",
                 _FIX_HIDDEN,
+                "bidi-control-characters",
             )
         if invisible:
             names = sorted({f"U+{ord(c):04X}" for c in invisible})
@@ -328,11 +343,166 @@ def poisoning_issues(tools: list[MCPToolDef], instructions: str | None = None) -
                 "warning",
                 f"contains invisible format characters ({', '.join(names)})",
                 _FIX_INVISIBLE,
+                "invisible-characters",
             )
-        for pattern, severity, what in _DIRECTIVES:
+        for pattern, severity, what, rule in _DIRECTIVES:
             if pattern.search(text):
                 message = (
                     f"{what}: a tool-poisoning instruction pattern" if severity == "error" else what
                 )
-                add(owner, f"directive:{what}", severity, message, _FIX_DIRECTIVE)
+                add(owner, f"directive:{what}", severity, message, _FIX_DIRECTIVE, rule)
+    return issues
+
+
+#: Verbs in a tool name that mean it deletes or overwrites data.
+_DESTRUCTIVE_VERBS = frozenset(
+    {
+        "delete", "remove", "drop", "destroy", "purge", "erase", "wipe", "truncate",
+        "revoke", "terminate", "kill", "overwrite", "reset", "uninstall", "unlink", "rm",
+    }
+)  # fmt: skip
+#: Verbs in a tool name that mean it changes state without (necessarily) deleting.
+_WRITE_VERBS = frozenset(
+    {
+        "create", "add", "update", "write", "set", "put", "post", "send", "move", "rename",
+        "edit", "modify", "insert", "upload", "publish", "push", "merge", "patch", "save",
+        "append", "archive", "close", "cancel", "assign", "invite", "deploy", "commit",
+        "approve", "submit", "transfer", "install", "upsert", "replace", "enable", "disable",
+    }
+)  # fmt: skip
+#: A tool whose name starts with one of these reads, whatever follows (``get_post``).
+_READ_VERBS = frozenset(
+    {
+        "get", "list", "search", "read", "fetch", "find", "query", "describe", "show",
+        "view", "count", "check", "lookup", "browse", "inspect", "preview", "diff", "validate",
+    }
+)  # fmt: skip
+_HINTS = ("readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint")
+
+_FIX_ANNOTATE_DESTRUCTIVE = (
+    'Declare annotations {"readOnlyHint": false, "destructiveHint": true} so clients ask '
+    "before running it."
+)
+_FIX_ANNOTATE_WRITE = (
+    'Declare annotations {"readOnlyHint": false, "destructiveHint": false} (or true if it '
+    "can overwrite or delete), so clients know what it changes."
+)
+_FIX_READ_ONLY_CONTRADICTION = (
+    "Set readOnlyHint to false (and destructiveHint to true if it deletes): clients may run "
+    "read-only tools without asking the user."
+)
+_FIX_HINT_CONFLICT = (
+    "Drop destructiveHint or set readOnlyHint to false: destructiveHint only applies to tools "
+    "that are not read-only."
+)
+_FIX_HINT_TYPE = "Use JSON booleans (true/false) for annotation hints."
+
+
+def _name_words(name: str) -> list[str]:
+    """Split a tool name into lowercase words (snake, kebab, dotted and camel case)."""
+    return [w.lower() for w in re.split(r"[_.\-\s/]+|(?<=[a-z0-9])(?=[A-Z])", name) if w]
+
+
+def _action_kind(tool: MCPToolDef) -> str | None:
+    """``"destructive"``, ``"write"`` or ``None`` from the tool's name.
+
+    The name decides; a description is used only when its first word is a verb
+    and the name has no verb in either list. A name that starts with a read
+    verb (``get_post``, ``list_deleted_items``) is never a write.
+    """
+    words = _name_words(tool.name)
+    if words and words[0] in _READ_VERBS:
+        return None
+    if any(w in _DESTRUCTIVE_VERBS for w in words):
+        return "destructive"
+    if any(w in _WRITE_VERBS for w in words):
+        return "write"
+    first = re.match(r"\s*([A-Za-z]+)", tool.description or "")
+    if first:
+        verb = first.group(1).lower()
+        stem = (
+            verb[:-1]
+            if verb.endswith("s") and verb[:-1] in (_DESTRUCTIVE_VERBS | _WRITE_VERBS)
+            else verb
+        )
+        if stem in _DESTRUCTIVE_VERBS:
+            return "destructive"
+        if stem in _WRITE_VERBS:
+            return "write"
+    return None
+
+
+def annotation_issues(tools: list[MCPToolDef]) -> list[LintIssue]:
+    """Check the behavior annotations a client uses to decide what to auto-approve.
+
+    Warnings (rule IDs in brackets):
+
+    * ``annotations-missing``: the name says the tool deletes or writes, but it
+      declares neither ``readOnlyHint`` nor ``destructiveHint``.
+    * ``annotation-read-only-contradiction``: ``readOnlyHint: true`` on a tool
+      whose name says it deletes or writes (for example ``delete_file``).
+    * ``annotation-hints-conflict``: ``readOnlyHint: true`` together with
+      ``destructiveHint: true``.
+    * ``annotation-invalid-value``: a hint that is not a JSON boolean.
+
+    Tools whose names start with a read verb (``get``, ``list``, ``search``...)
+    are not judged on their names, so the check stays quiet on read tools.
+
+    Args:
+        tools: The server's tools.
+
+    Returns:
+        The issues found, at most one per tool and rule.
+    """
+    from toolscore.mcp.harness import LintIssue
+
+    issues: list[LintIssue] = []
+    for tool in tools:
+        hints = tool.annotations if isinstance(tool.annotations, dict) else {}
+        bad = [h for h in _HINTS if h in hints and not isinstance(hints[h], bool)]
+        if bad:
+            issues.append(
+                LintIssue(
+                    tool=tool.name,
+                    severity="warning",
+                    message=f"annotation {bad[0]} is not a boolean ({hints[bad[0]]!r})",
+                    fix=_FIX_HINT_TYPE,
+                    rule="annotation-invalid-value",
+                )
+            )
+        kind = _action_kind(tool)
+        read_only = hints.get("readOnlyHint") is True
+        if read_only and hints.get("destructiveHint") is True:
+            issues.append(
+                LintIssue(
+                    tool=tool.name,
+                    severity="warning",
+                    message="declares both readOnlyHint: true and destructiveHint: true",
+                    fix=_FIX_HINT_CONFLICT,
+                    rule="annotation-hints-conflict",
+                )
+            )
+        if kind is None:
+            continue
+        what = "deletes or overwrites" if kind == "destructive" else "changes state"
+        if read_only:
+            issues.append(
+                LintIssue(
+                    tool=tool.name,
+                    severity="warning",
+                    message=f"declares readOnlyHint: true, but its name says it {what}",
+                    fix=_FIX_READ_ONLY_CONTRADICTION,
+                    rule="annotation-read-only-contradiction",
+                )
+            )
+        elif "readOnlyHint" not in hints and "destructiveHint" not in hints:
+            issues.append(
+                LintIssue(
+                    tool=tool.name,
+                    severity="warning",
+                    message=f"{what} but declares no readOnlyHint/destructiveHint annotations",
+                    fix=_FIX_ANNOTATE_DESTRUCTIVE if kind == "destructive" else _FIX_ANNOTATE_WRITE,
+                    rule="annotations-missing",
+                )
+            )
     return issues

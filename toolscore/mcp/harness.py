@@ -25,7 +25,12 @@ from toolscore.generators.synthetic import (
     schema_types,
 )
 from toolscore.mcp.client import MCPError, MCPTimeoutError
-from toolscore.mcp.lint_rules import dangling_reference_issues, poisoning_issues
+from toolscore.mcp.lint_rules import (
+    annotation_issues,
+    dangling_reference_issues,
+    poisoning_issues,
+)
+from toolscore.mcp.output_schema import validate_instance
 
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPStdioClient, MCPToolDef
@@ -124,6 +129,9 @@ class ScenarioResult:
         is_error: Whether the tool result reported an error.
         duration: Wall-clock seconds the call took.
         detail: A short outcome string (e.g. an error message excerpt).
+        structured_content: The result's ``structuredContent`` (``None`` when
+            absent or when the call failed).
+        has_structured_content: Whether the result carried ``structuredContent``.
     """
 
     scenario: Scenario
@@ -131,6 +139,8 @@ class ScenarioResult:
     is_error: bool
     duration: float
     detail: str
+    structured_content: Any = None
+    has_structured_content: bool = False
 
 
 @dataclass
@@ -144,12 +154,16 @@ class LintIssue:
         message: A human-readable description of the issue.
         fix: A short, concrete suggestion for how to resolve the issue. May be
             empty for issues raised without a specific remedy.
+        rule: The stable rule ID (for example ``"annotations-missing"``); see
+            the rule table in the MCP testing guide. Empty for issues built
+            without one.
     """
 
     tool: str
     severity: str
     message: str
     fix: str = ""
+    rule: str = ""
 
 
 def _schema_is_usable(schema: dict[str, Any]) -> bool:
@@ -465,6 +479,8 @@ def run_scenarios(client: MCPStdioClient, scenarios: list[Scenario]) -> list[Sce
                 is_error=result.is_error,
                 duration=result.duration,
                 detail=detail,
+                structured_content=result.structured_content,
+                has_structured_content=result.has_structured_content,
             )
         )
 
@@ -534,7 +550,10 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
 
     * missing or very short (< 10 chars) description,
     * a tool name that is not ``snake_case``,
-    * properties present but no ``required`` list declared.
+    * properties present but no ``required`` list declared,
+    * behavior annotations that are missing on a tool whose name says it
+      writes or deletes, contradict the name, or conflict with each other
+      (see :func:`toolscore.mcp.lint_rules.annotation_issues`).
 
     Text checks over tool names, descriptions, parameter descriptions and the
     server ``instructions`` (see :mod:`toolscore.mcp.lint_rules`):
@@ -569,6 +588,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                     tool=name,
                     severity="warning",
                     message="missing description",
+                    rule="description-missing",
                     fix=_FIX_DESCRIPTION,
                 )
             )
@@ -578,6 +598,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                     tool=name,
                     severity="warning",
                     message=f"description is very short (< {_MIN_DESCRIPTION_LENGTH} chars)",
+                    rule="description-short",
                     fix=_FIX_DESCRIPTION,
                 )
             )
@@ -590,6 +611,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                     tool=name,
                     severity="warning",
                     message=f"large tool definition (~{def_tokens} estimated tokens)",
+                    rule="definition-large",
                     fix=_FIX_LARGE_DEFINITION,
                 )
             )
@@ -601,6 +623,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                     tool=name,
                     severity="warning",
                     message=f"tool name {name!r} is not snake_case",
+                    rule="name-not-snake-case",
                     fix=_FIX_SNAKE_CASE,
                 )
             )
@@ -612,6 +635,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                     tool=name,
                     severity="error",
                     message="missing or empty inputSchema",
+                    rule="input-schema-missing",
                     fix=_FIX_INPUT_SCHEMA,
                 )
             )
@@ -623,6 +647,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                     tool=name,
                     severity="error",
                     message="inputSchema is missing 'type'",
+                    rule="input-schema-type-missing",
                     fix=_FIX_SCHEMA_TYPE,
                 )
             )
@@ -636,6 +661,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                             tool=name,
                             severity="error",
                             message=f"property {prop_name!r} is missing a 'type'",
+                            rule="property-type-missing",
                             fix=_FIX_PROP_TYPE,
                         )
                     )
@@ -649,6 +675,7 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                                 tool=name,
                                 severity="error",
                                 message=(f"required property {req_name!r} is not in 'properties'"),
+                                rule="required-not-in-properties",
                                 fix=_FIX_REQUIRED_MISSING,
                             )
                         )
@@ -658,10 +685,79 @@ def lint_tools(tools: list[MCPToolDef], instructions: str | None = None) -> list
                         tool=name,
                         severity="warning",
                         message="properties defined but no 'required' list declared",
+                        rule="required-list-missing",
                         fix=_FIX_NO_REQUIRED,
                     )
                 )
 
+    issues.extend(annotation_issues(tools))
     issues.extend(dangling_reference_issues(tools, instructions))
     issues.extend(poisoning_issues(tools, instructions))
+    return issues
+
+
+_FIX_STRUCTURED_MISSING = (
+    "Return 'structuredContent' that conforms to the tool's outputSchema (and keep the text "
+    "content for older clients), or drop the outputSchema."
+)
+_FIX_STRUCTURED_MISMATCH = (
+    "Make the result match the declared outputSchema, or correct the schema to describe what "
+    "the tool really returns; clients validate structured results against it."
+)
+
+
+def output_schema_issues(tools: list[MCPToolDef], results: list[ScenarioResult]) -> list[LintIssue]:
+    """Check successful results against each tool's declared ``outputSchema``.
+
+    The MCP specification requires a tool that declares an ``outputSchema`` to
+    return ``structuredContent`` conforming to it. Only happy-path calls that
+    succeeded are checked. Validation covers a conservative subset of JSON
+    Schema (see :func:`toolscore.mcp.output_schema.validate_instance`): unknown
+    keywords and ``$ref`` are not judged, so a reported mismatch is real.
+
+    Warnings, at most one per tool and rule:
+
+    * ``structured-content-missing``: a successful result has no ``structuredContent``.
+    * ``structured-content-mismatch``: ``structuredContent`` does not conform.
+
+    Args:
+        tools: The server's tools.
+        results: The executed scenario results.
+
+    Returns:
+        The issues found.
+    """
+    schemas = {t.name: t.output_schema for t in tools if t.output_schema is not None}
+    issues: list[LintIssue] = []
+    reported: set[tuple[str, str]] = set()
+    for result in results:
+        tool = result.scenario.tool
+        schema = schemas.get(tool)
+        if schema is None or result.scenario.kind != "happy" or not result.ok:
+            continue
+        if not result.has_structured_content:
+            if (tool, "missing") not in reported:
+                reported.add((tool, "missing"))
+                issues.append(
+                    LintIssue(
+                        tool=tool,
+                        severity="warning",
+                        message="declares an outputSchema but a successful result has no structuredContent",
+                        fix=_FIX_STRUCTURED_MISSING,
+                        rule="structured-content-missing",
+                    )
+                )
+            continue
+        errors = validate_instance(result.structured_content, schema)
+        if errors and (tool, "mismatch") not in reported:
+            reported.add((tool, "mismatch"))
+            issues.append(
+                LintIssue(
+                    tool=tool,
+                    severity="warning",
+                    message=f"structuredContent does not match the outputSchema ({errors[0]})",
+                    fix=_FIX_STRUCTURED_MISMATCH,
+                    rule="structured-content-mismatch",
+                )
+            )
     return issues
