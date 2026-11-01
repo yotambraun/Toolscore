@@ -60,17 +60,18 @@ class MCPServerSpec:
         name: The key under ``mcpServers`` / ``servers`` identifying this server.
         command: The full command vector, i.e. ``[command, *args]`` (empty for
             a remote server).
-        env: Environment variable overrides for the server process.
+        env: Environment variable overrides for the server process (often
+            API keys, so kept out of the repr).
         url: The Streamable HTTP endpoint of a remote server, or ``None`` for
-            a stdio server.
+            a stdio server. It may hold a token, so it is kept out of the repr.
         headers: HTTP headers for a remote server (environment references
             already expanded). Treat the values as secrets.
     """
 
     name: str
     command: list[str]
-    env: dict[str, str] = field(default_factory=dict)
-    url: str | None = None
+    env: dict[str, str] = field(default_factory=dict, repr=False)
+    url: str | None = field(default=None, repr=False)
     headers: dict[str, str] = field(default_factory=dict, repr=False)
 
     @property
@@ -121,7 +122,10 @@ def parse_header(text: str) -> tuple[str, str]:
     name, sep, value = text.partition(":")
     name = name.strip()
     if not sep or not name or any(c.isspace() for c in name):
-        raise ValueError(f"Expected a header as 'Name: value', got a value starting {text[:20]!r}.")
+        # Never echo the input: a mistyped option may be the secret itself.
+        raise ValueError(
+            "Expected a header as 'Name: value' (a name without spaces, then a colon)."
+        )
     return name, expand_env(value.strip(), f"header {name!r}")
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -586,7 +587,9 @@ def print_error(message: str, console: Console | None = None) -> None:
         console = Console()
 
     console.print()
-    console.print(Panel.fit(f"[red]ERROR[/red] {message}", border_style="red"))
+    # Messages can quote server output (an HTTP body, stderr); escape it so text
+    # such as "[/var/www]" is shown, not parsed as Rich markup.
+    console.print(Panel.fit(f"[red]ERROR[/red] {escape(message)}", border_style="red"))
     console.print()
 
 

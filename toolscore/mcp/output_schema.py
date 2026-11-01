@@ -168,7 +168,7 @@ def _check_bounds(value: Any, schema: dict[str, Any], path: str, errors: list[st
         if high is not None and len(value) > high:
             errors.append(f"{path}: longer than maxLength {high}")
     elif isinstance(value, (int, float)) and not isinstance(value, bool):
-        number = float(value)
+        number = value  # ints compare exactly with any bound; no float() overflow
         for key in ("minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"):
             limit = bound(key)
             if limit is None:

@@ -931,7 +931,9 @@ def _resolve_mcp_target(
 
     if positional:
         if len(command) == 1 and _is_url(command[0]):
-            spec = MCPServerSpec(name=command[0], command=[], url=command[0])
+            from toolscore.mcp.client import safe_url
+
+            spec = MCPServerSpec(name=safe_url(command[0]), command=[], url=command[0])
         elif len(command) == 1:
             spec = MCPServerSpec(name=positional, command=shlex.split(command[0]))
         else:

@@ -45,7 +45,8 @@ Toolscore first sends ``server/discover``:
   (``-32022``), means a 2026-07-28 server: requests carry ``_meta`` from then on
   (or, if the server lists only a handshake-based version, Toolscore uses that);
 * any other error, an HTTP ``4xx`` without a modern error body, or no answer
-  within 5 seconds means an earlier server, and Toolscore falls back to
+  within 5 seconds (on stdio; over HTTP, within the request timeout) means an
+  earlier server, and Toolscore falls back to
   ``initialize`` with 2025-11-25.
 
 The scorecard prints the protocol it used (``MCP 2026-07-28 (stateless)`` or

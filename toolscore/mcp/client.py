@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import urlsplit
 
 from toolscore.mcp.content import content_to_text
 
@@ -960,8 +961,23 @@ class MCPStdioClient(MCPClient):
 
 # -- Streamable HTTP ---------------------------------------------------------
 
-_HEADER_SAFE = re.compile(r"^[\x21-\x7e]([\x20-\x7e]*[\x21-\x7e])?$")
-_HEADER_TOKEN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
+_HEADER_SAFE = re.compile(r"[\x21-\x7e]([\x20-\x7e]*[\x21-\x7e])?")
+_HEADER_TOKEN = re.compile(r"[!#$%&'*+\-.^_`|~0-9A-Za-z]+")
+
+
+def safe_url(url: str) -> str:
+    """``url`` without credentials, query or fragment, for messages and reprs.
+
+    A URL from a config file may carry a token (``https://user:pass@host`` or
+    ``?token=...``); only ``scheme://host[:port]/path`` is ever shown.
+    """
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname or ""
+        port = f":{parts.port}" if parts.port else ""
+    except ValueError:
+        return "<invalid URL>"
+    return f"{parts.scheme}://{host}{port}{parts.path}"
 
 
 def encode_header_value(value: str) -> str:
@@ -979,7 +995,7 @@ def encode_header_value(value: str) -> str:
         The header-safe value.
     """
     looks_encoded = value.startswith("=?base64?") and value.endswith("?=")
-    if _HEADER_SAFE.match(value) and not looks_encoded:
+    if _HEADER_SAFE.fullmatch(value) and not looks_encoded:
         return value
     encoded = base64.b64encode(value.encode("utf-8")).decode("ascii")
     return f"=?base64?{encoded}?="
@@ -1004,7 +1020,7 @@ def _mirrored_headers(schema: dict[str, Any], arguments: dict[str, Any]) -> dict
                 continue
             value = values[prop_name]
             header = prop_schema.get("x-mcp-header")
-            if isinstance(header, str) and _HEADER_TOKEN.match(header):
+            if isinstance(header, str) and _HEADER_TOKEN.fullmatch(header):
                 if isinstance(value, bool):
                     headers[f"Mcp-Param-{header}"] = "true" if value else "false"
                 elif isinstance(value, int):
@@ -1066,19 +1082,32 @@ class MCPHttpClient(MCPClient):
             headers: Extra headers sent with every request (e.g. authorization).
             timeout: Default per-request timeout in seconds.
             protocol: Era selection, see :class:`MCPClient`.
-            probe_timeout: ``server/discover`` probe timeout, see :class:`MCPClient`.
+            probe_timeout: ``server/discover`` probe timeout. Defaults to
+                ``timeout``: over HTTP a legacy server answers the probe with an
+                error status, so a slow answer (a cold start) is waited for
+                rather than taken for a legacy server.
         """
-        super().__init__(timeout=timeout, protocol=protocol, probe_timeout=probe_timeout)
+        super().__init__(
+            timeout=timeout,
+            protocol=protocol,
+            probe_timeout=timeout if probe_timeout is None else probe_timeout,
+        )
         if not url.startswith(("http://", "https://")):
-            raise ValueError(f"MCP server URL must start with http:// or https://, got {url!r}")
+            raise ValueError("MCP server URL must start with http:// or https://.")
         self.url = url
+        #: The URL as shown in messages: no credentials, query or fragment.
+        self.display_url = safe_url(url)
         self._headers = dict(headers) if headers else {}
         self._http: Any = None
         self._session_id: str | None = None
 
     def __repr__(self) -> str:
         """Show the URL but never header values."""
-        return f"MCPHttpClient(url={self.url!r}, headers={sorted(self._headers)!r})"
+        return f"MCPHttpClient(url={self.display_url!r}, headers={sorted(self._headers)!r})"
+
+    def _scrub(self, text: str) -> str:
+        """Remove the full URL (which may hold credentials) from ``text``."""
+        return text.replace(self.url, self.display_url)
 
     def __enter__(self) -> MCPHttpClient:
         """Connect and agree on a protocol version.
@@ -1170,7 +1199,8 @@ class MCPHttpClient(MCPClient):
             ) from None
         except httpx.HTTPError as exc:
             raise MCPError(
-                f"HTTP request to {self.url} failed: {type(exc).__name__}: {exc}"
+                f"HTTP request to {self.display_url} failed: {type(exc).__name__}: "
+                f"{self._scrub(str(exc))}"
             ) from exc
 
     def _roundtrip(
@@ -1208,7 +1238,8 @@ class MCPHttpClient(MCPClient):
             ) from None
         except httpx.HTTPError as exc:
             raise MCPError(
-                f"HTTP request to {self.url} failed: {type(exc).__name__}: {exc}"
+                f"HTTP request to {self.display_url} failed: {type(exc).__name__}: "
+                f"{self._scrub(str(exc))}"
             ) from exc
         finally:
             response.close()
@@ -1219,14 +1250,14 @@ class MCPHttpClient(MCPClient):
         status = response.status_code
         if status in (401, 403):
             raise MCPHTTPStatusError(
-                f"The MCP server at {self.url} answered HTTP {status} to {method!r}: it needs "
+                f"The MCP server at {self.display_url} answered HTTP {status} to {method!r}: it needs "
                 "authorization. Pass a header (for example --auth-env TOKEN_VAR) or add "
                 "'headers' to the server entry in the config file.",
                 status,
             )
         excerpt = " ".join(text.split())[:_HTTP_BODY_EXCERPT]
         raise MCPHTTPStatusError(
-            f"The MCP server at {self.url} answered HTTP {status} to {method!r}"
+            f"The MCP server at {self.display_url} answered HTTP {status} to {method!r}"
             + (f": {excerpt}" if excerpt else " with no JSON-RPC response."),
             status,
         )
@@ -1247,7 +1278,7 @@ class MCPHttpClient(MCPClient):
         if time.monotonic() > deadline:
             raise MCPTimeoutError(f"Timed out after {wait}s waiting for response to {method!r}.")
         raise MCPError(
-            f"The MCP server at {self.url} closed the event stream for {method!r} "
+            f"The MCP server at {self.display_url} closed the event stream for {method!r} "
             "without sending a response."
         )
 

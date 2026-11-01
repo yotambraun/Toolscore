@@ -206,3 +206,58 @@ def test_parse_header(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_expand_env_leaves_plain_text_alone() -> None:
     assert expand_env("no references") == "no references"
+
+
+# -- credentials never reach messages or reprs ---------------------------------
+
+
+def test_safe_url_drops_credentials_query_and_fragment() -> None:
+    from toolscore.mcp.client import safe_url
+
+    assert (
+        safe_url("https://user:pw@example.com:8443/mcp?token=abc#x")
+        == "https://example.com:8443/mcp"
+    )
+
+
+def test_url_secrets_stay_out_of_errors_and_reprs() -> None:
+    client = MCPHttpClient("http://user:s3cret@127.0.0.1:9/mcp?token=s3cret", timeout=2.0)
+    assert "s3cret" not in repr(client)
+    with pytest.raises(MCPError) as caught:
+        client.start()
+    assert "s3cret" not in str(caught.value)
+    spec = MCPServerSpec(
+        name="r", command=[], url="https://x.dev/mcp?token=s3cret", env={"K": "s3cret"}
+    )
+    assert "s3cret" not in repr(spec)
+
+
+def test_bad_header_option_does_not_echo_its_value() -> None:
+    with pytest.raises(ValueError) as caught:
+        parse_header("Authorization Bearer sk-live-secret")
+    assert "sk-live" not in str(caught.value)
+
+
+def test_trailing_newline_is_base64_encoded() -> None:
+    assert encode_header_value("abc\n") == "=?base64?YWJjCg==?="
+
+
+def test_http_probe_waits_the_full_timeout_by_default() -> None:
+    assert MCPHttpClient("https://example.com/mcp", timeout=30.0).probe_timeout == 30.0
+
+
+def test_error_panel_shows_brackets_literally() -> None:
+    from rich.console import Console
+
+    from toolscore.reports import print_error
+
+    console = Console(record=True, width=80)
+    print_error("server said [/var/www/app] not found", console)
+    assert "[/var/www/app]" in console.export_text()
+
+
+def test_huge_integers_do_not_overflow_the_bounds_check() -> None:
+    from toolscore.mcp.output_schema import validate_instance
+
+    assert validate_instance(10**400, {"type": "integer", "minimum": 0}) == []
+    assert validate_instance(-(10**400), {"type": "integer", "minimum": 0})

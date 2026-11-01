@@ -97,11 +97,14 @@ def _item_dict(item: Any) -> dict[str, Any]:
     """A Responses item (SDK model or dict) as a plain dict."""
     if isinstance(item, dict):
         return item
-    if hasattr(item, "model_dump"):
-        dumped = item.model_dump()
-        return dumped if isinstance(dumped, dict) else {}
-    if hasattr(item, "__dict__"):
-        return _object_to_dict(item)
+    try:
+        if hasattr(item, "model_dump"):
+            dumped = item.model_dump()
+            return dumped if isinstance(dumped, dict) else {}
+        if hasattr(item, "__dict__"):
+            return _object_to_dict(item)
+    except Exception:  # an object we cannot convert is simply not a Responses item
+        return {}
     return {}
 
 
@@ -812,9 +815,12 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     # Handle list inputs that aren't already-formatted tool dicts
     if isinstance(actual, list) and actual:
         # 3b. OpenAI Responses API item list (function_call / mcp_call items)
-        items = [_item_dict(i) for i in actual]
-        if _is_responses_payload(items):
-            return from_openai_responses(items)
+        if any(
+            _field(i, "type") in _RESPONSES_CALL_TYPES | _RESPONSES_OUTPUT_TYPES for i in actual
+        ):
+            items = [_item_dict(i) for i in actual]
+            if _is_responses_payload(items):
+                return from_openai_responses(items)
 
         # 7b. Pydantic AI message list (messages whose parts include tool calls)
         if _is_pydantic_ai_message_list(actual):
