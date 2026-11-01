@@ -7,11 +7,30 @@ import FeatureCard from '../components/FeatureCard.astro';
 import ComparisonMatrix from '../components/ComparisonMatrix.astro';
 import CTASection from '../components/CTASection.astro';
 import Button from '../components/Button.astro';
-import { features, url } from '../data/site';
+import { features, foundWith, url } from '../data/site';
 ---
 
 <BaseLayout>
   <Hero />
+
+  <!-- Proof strip -->
+  <section class="py-6">
+    <div class="wrap">
+      <div class="card flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-muted">
+          <span class="font-semibold text-ink">{foundWith.heading}:</span>
+          two bugs in the official MCP memory server, fixed upstream in
+          {foundWith.items.map((item, i) => (
+            <>
+              {i > 0 && ' and '}
+              <a class="font-mono text-brand hover:underline" href={item.prUrl} target="_blank" rel="noopener">{item.pr}</a>
+            </>
+          ))}.
+        </p>
+        <a class="shrink-0 text-sm text-brand hover:underline" href={url('mcp')}>How they were found →</a>
+      </div>
+    </div>
+  </section>
 
   <AudienceSplit />
 

@@ -14,12 +14,12 @@ export const asset = (name: string): string => url(name.replace(/^\//, ''));
 export const site = {
   name: 'Toolscore',
   pkg: 'tool-scorer',
-  tagline: 'the instant health-check for LLM tool-calling',
-  version: '1.10.0',
+  tagline: 'MCP server and agent tool-call testing',
+  version: '1.11.0',
   license: 'Apache-2.0',
   author: 'Yotam Braun',
   description:
-    'The instant, free, deterministic health-check for LLM tool-calling. Point Toolscore at an MCP server or an agent and get an A–F grade plus exactly what is broken — deterministically, offline, with zero API cost.',
+    'Test MCP servers and the tool calls your agents make. Toolscore grades any MCP server A–F (local or remote, MCP 2026-07-28) and checks agent tool calls against the ones you expect, with exactly what is broken — deterministically, offline, with zero API cost.',
   repo: 'https://github.com/yotambraun/Toolscore',
   pypi: 'https://pypi.org/project/tool-scorer/',
   pepy: 'https://pepy.tech/project/tool-scorer',
@@ -29,7 +29,7 @@ export const site = {
   installUvx: 'uvx tool-scorer demo',
 };
 
-export const ogTitle = 'Toolscore — the instant health-check for LLM tool-calling';
+export const ogTitle = 'Toolscore — MCP server and agent tool-call testing';
 
 // ---- navigation ----
 export const nav = [
@@ -50,12 +50,12 @@ export const audiences = [
     eyebrow: 'You ship an MCP server',
     title: 'Grade your MCP server',
     blurb:
-      'Toolscore runs your server through generated happy-path and adversarial edge-case scenarios, lints the schemas, measures token cost, and grades whether an LLM can actually use it — before you publish.',
+      'Toolscore runs your server, local or remote, through generated happy-path and adversarial edge-case scenarios, lints the definitions, checks output schemas, measures token cost, and grades whether an LLM can actually use it — before you publish.',
     cmd: 'toolscore mcp test "python my_server.py"',
     points: [
-      'Happy-path + edge-case scenarios, auto-generated',
-      'Lint for missing tools, tool poisoning and token cost',
-      'A–F grade with "Top issues to fix"',
+      'stdio or Streamable HTTP, MCP 2026-07-28 and earlier',
+      'Lint for annotations, output schemas, missing tools and tool poisoning',
+      'A–F grade with "Top issues to fix", and a README badge',
     ],
     href: url('mcp'),
     cta: 'Test your MCP server',
@@ -82,7 +82,7 @@ export const steps = [
   {
     n: '01',
     title: 'Point it at a target',
-    body: 'An MCP server launch command, or your agent’s tool calls. No glue code — raw OpenAI / Anthropic / Gemini / framework responses are auto-detected.',
+    body: 'An MCP server launch command or URL, or your agent’s tool calls. No glue code — raw OpenAI (Chat Completions or Responses) / Anthropic / Gemini / framework responses are auto-detected.',
     code: 'toolscore mcp test "python my_server.py"',
   },
   {
@@ -101,7 +101,7 @@ export const steps = [
     n: '04',
     title: 'You get a graded verdict',
     body: 'An A–F scorecard, a per-tool table, and a ranked "Top issues to fix" list with concrete suggestions. Gate CI with --fail-under or --ci.',
-    code: 'Grade B (87%)  ·  Top issues to fix →',
+    code: 'Grade B (86%)  ·  Top issues to fix →',
   },
 ];
 
@@ -129,7 +129,7 @@ export const features = [
   },
   {
     title: 'Framework auto-detect',
-    body: 'Pass raw responses from OpenAI, Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, or CrewAI. Toolscore detects the format.',
+    body: 'Pass raw responses from OpenAI (Chat Completions or Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, or CrewAI. Toolscore detects the format.',
     icon: 'plug',
   },
   {
@@ -152,29 +152,76 @@ export const features = [
     body: 'Catch descriptions that point models at tools that do not exist, hidden Unicode, and <IMPORTANT>-style instructions smuggled into tool metadata.',
     icon: 'scan',
   },
+  {
+    title: 'Lint what clients rely on',
+    body: 'A delete_* tool without destructiveHint, readOnlyHint: true on a tool that writes, or structuredContent that breaks its own outputSchema: each gets a warning with a rule ID and a fix.',
+    icon: 'shield',
+  },
+  {
+    title: 'Remote servers, current protocol',
+    body: 'Test a server by URL over Streamable HTTP with the token read from an environment variable. Speaks MCP 2026-07-28 and falls back to the initialize handshake of earlier revisions.',
+    icon: 'plug',
+  },
+  {
+    title: 'A grade badge for your README',
+    body: '--badge writes an SVG ("MCP grade: A · Toolscore") from the run’s own scorecard, and a workflow keeps it current. No way to set a grade by hand.',
+    icon: 'list',
+  },
 ];
+
+// ====================================================================
+// PROOF: bugs found with Toolscore and fixed upstream (verified 2026-11-01)
+// ====================================================================
+
+export const foundWith = {
+  heading: 'Found with Toolscore',
+  intro:
+    'Two bugs in the official MCP memory server, found with Agent Eval Flow and Toolscore, and fixed upstream. Both fixes port @yotambraun’s contributions with authorship kept; maintainer cliffhall merged them on 2026-10-05.',
+  items: [
+    {
+      pr: '#5035',
+      prUrl: 'https://github.com/modelcontextprotocol/servers/pull/5035',
+      title: 'fix(memory): keep unreadable lines when saving the graph',
+      issue: '#4885',
+      issueUrl: 'https://github.com/modelcontextprotocol/servers/issues/4885',
+      what: 'Unreadable lines in the memory file were deleted by the next write.',
+    },
+    {
+      pr: '#5008',
+      prUrl: 'https://github.com/modelcontextprotocol/servers/pull/5008',
+      title: 'fix(memory): report entities that create_entities skipped',
+      issue: '#4887',
+      issueUrl: 'https://github.com/modelcontextprotocol/servers/issues/4887',
+      what: 'create_entities silently dropped observations for entities that already existed.',
+    },
+  ],
+  caseStudy: 'https://github.com/guybass/agent-eval-flow/tree/main/examples/data/mcp-memory',
+  agentEvalFlow: 'https://github.com/guybass/agent-eval-flow',
+};
 
 // ====================================================================
 // THE ANIMATED SCORECARD DEMO (centerpiece data)
 // ====================================================================
 
+// Real output of `toolscore demo` (the bundled sample server), Toolscore 1.11.0.
 export const scorecard = {
-  command: 'uvx tool-scorer mcp test "python my_server.py"',
+  command: 'uvx tool-scorer demo',
   server: 'notes-server',
-  serverVersion: '1.0.0',
+  serverVersion: '1.1.0',
   grade: 'B',
-  score: 87,
+  score: 86,
+  protocol: 'MCP 2026-07-28 (stateless)',
   dims: [
     { label: 'happy', value: 80 },
     { label: 'edge', value: 100 },
-    { label: 'lint', value: 93 },
+    { label: 'lint', value: 91 },
   ],
   tools: [
-    { name: 'create_note', scenarios: '6/6', pass: true, latency: '0.1 ms', tokens: 80 },
-    { name: 'list_notes', scenarios: '6/6', pass: true, latency: '0.1 ms', tokens: 59 },
-    { name: 'search_notes', scenarios: '6/6', pass: true, latency: '0.1 ms', tokens: 48 },
-    { name: 'delete_note', scenarios: '6/6', pass: true, latency: '0.1 ms', tokens: 52 },
-    { name: 'export_notes', scenarios: '3/6', pass: false, latency: '0.1 ms', tokens: 64 },
+    { name: 'create_note', scenarios: '6/6', pass: true, latency: '0.6 ms', tokens: 80 },
+    { name: 'list_notes', scenarios: '6/6', pass: true, latency: '0.5 ms', tokens: 59 },
+    { name: 'search_notes', scenarios: '6/6', pass: true, latency: '0.5 ms', tokens: 48 },
+    { name: 'delete_note', scenarios: '6/6', pass: true, latency: '0.5 ms', tokens: 52 },
+    { name: 'export_notes', scenarios: '3/6', pass: false, latency: '0.5 ms', tokens: 64 },
   ],
   tokenNote: 'Tool definitions cost ~303 estimated tokens of context across 5 tool(s).',
   issues: [
@@ -182,19 +229,25 @@ export const scorecard = {
       n: 1,
       tool: 'export_notes',
       problem: 'fails on valid input (export failed: storage backend not configured)',
-      fix: 'The tool errors on well-formed arguments — check the handler and the input schema.',
+      fix: 'The tool errors on well-formed arguments - check the handler and that the input schema matches what the tool actually accepts.',
     },
     {
       n: 2,
       tool: 'delete_note',
       problem: "property 'note_id' is missing a 'type'",
-      fix: 'Give the property a JSON-schema type (and an enum where values are fixed).',
+      fix: 'Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.',
     },
     {
       n: 3,
+      tool: 'create_note',
+      problem: 'changes state but declares no readOnlyHint/destructiveHint annotations',
+      fix: 'Declare annotations {"readOnlyHint": false, "destructiveHint": false} (or true if it can overwrite or delete), so clients know what it changes.',
+    },
+    {
+      n: 4,
       tool: 'search_notes',
       problem: 'description is very short (< 10 chars)',
-      fix: 'Describe what the tool does and when to use it.',
+      fix: 'Describe what the tool does and when to use it - models choose tools by their description.',
     },
   ],
 };
@@ -220,7 +273,7 @@ export const mcpDimensions = [
     label: 'Lint',
     weight: '20%',
     grade: 'C',
-    body: 'Static checks on the tool definitions and server instructions: missing types and descriptions, references to tools the server does not expose, and tool-poisoning patterns such as hidden Unicode.',
+    body: 'Static checks on the tool definitions and server instructions: missing types and descriptions, behavior annotations, results that break the declared output schema, references to tools the server does not expose, and tool-poisoning patterns such as hidden Unicode. Every issue has a rule ID.',
   },
   {
     label: 'Token cost',
@@ -234,15 +287,21 @@ export const mcpCommands = [
   { cmd: 'toolscore demo', note: 'Grade a bundled sample MCP server — zero setup, no API key.' },
   { cmd: 'toolscore mcp test "python my_server.py"', note: 'Grade your own server by launch command.' },
   {
+    cmd: 'toolscore mcp test https://mcp.example.com/mcp --auth-env MCP_TOKEN',
+    note: 'Grade a remote server over Streamable HTTP (needs tool-scorer[http]); the token is never printed.',
+  },
+  {
     cmd: 'uvx tool-scorer mcp test --config claude_desktop_config.json --server my-server',
-    note: 'Straight from a Claude Desktop config, zero install.',
+    note: 'Straight from a Claude Desktop, Cursor, Claude Code or VS Code config, zero install.',
   },
   { cmd: 'toolscore mcp list "python my_server.py"', note: 'Show the advertised tools.' },
-  { cmd: 'toolscore mcp lint "python my_server.py"', note: 'Lint only: schemas, missing tools, tool poisoning (exit 1 on errors).' },
+  { cmd: 'toolscore mcp lint "python my_server.py"', note: 'Lint only: schemas, annotations, missing tools, tool poisoning, with rule IDs (exit 1 on errors).' },
   { cmd: 'toolscore mcp record -o session.json -- python my_server.py', note: 'Record a real client session, then score it with toolscore eval.' },
   { cmd: 'toolscore mcp test "python my_server.py" --report md --output SCORECARD.md', note: 'Export a Markdown report for a PR or README.' },
   { cmd: 'toolscore mcp test "python my_server.py" --fail-under B', note: 'CI gate: exit 1 below a B.' },
   { cmd: 'toolscore mcp test "python my_server.py" --ci', note: 'Write the verdict to $GITHUB_STEP_SUMMARY, fail on blocking issues.' },
+  { cmd: 'toolscore mcp test "python my_server.py" --badge mcp-grade.svg', note: 'Write an SVG grade badge from this run (--badge-json for shields.io).' },
+  { cmd: 'toolscore mcp test "python my_server.py" --protocol legacy', note: 'Force the pre-2026 initialize handshake (auto detects the era).' },
 ];
 
 // ====================================================================
@@ -280,7 +339,7 @@ export const matchers = [
 ];
 
 export const frameworks = [
-  { name: 'OpenAI', detail: 'Chat Completions + legacy function_call' },
+  { name: 'OpenAI', detail: 'Chat Completions + Responses API' },
   { name: 'Anthropic', detail: 'tool_use blocks' },
   { name: 'Google Gemini', detail: 'functionCall parts' },
   { name: 'LangGraph', detail: 'state / message lists' },
@@ -351,7 +410,7 @@ export const entryPoints = [
   {
     title: 'Grade your MCP server',
     cmd: 'toolscore mcp test "python my_server.py"',
-    body: 'Point it at your own server. Add --fail-under B to gate CI, or --report md to export a Markdown scorecard.',
+    body: 'Point it at your own server, or its URL. Add --fail-under B to gate CI, --report md to export a Markdown scorecard, or --badge for a README badge.',
   },
   {
     title: 'Evaluate a trace',

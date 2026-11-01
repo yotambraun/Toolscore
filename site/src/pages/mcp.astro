@@ -7,7 +7,7 @@ import CodeBlock from '../components/CodeBlock.astro';
 import GradeBadge from '../components/GradeBadge.astro';
 import CTASection from '../components/CTASection.astro';
 import Button from '../components/Button.astro';
-import { mcpDimensions, mcpCommands, scorecard, site, url } from '../data/site';
+import { asset, foundWith, mcpDimensions, mcpCommands, scorecard, site, url } from '../data/site';
 
 const githubLint = `$ toolscore mcp lint "github-mcp-server stdio --toolsets all"
 
@@ -38,17 +38,77 @@ const recordConfig = `{
 const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
 - run: pip install tool-scorer
 - run: toolscore mcp test "python my_server.py" --fail-under B --ci
-#        --ci writes the verdict to $GITHUB_STEP_SUMMARY`;
+#        --ci writes the verdict to $GITHUB_STEP_SUMMARY
+
+# Or the action: a command or a URL, plus a token from a secret
+- uses: yotambraun/toolscore@v1
+  env:
+    MCP_TOKEN: \${{ secrets.MCP_TOKEN }}
+  with:
+    mcp-command: 'https://mcp.example.com/mcp'
+    mcp-auth-env: MCP_TOKEN
+    mcp-fail-under: 'B'`;
+
+const remoteConfig = `{
+  "servers": {
+    "remote": {
+      "type": "http",
+      "url": "https://mcp.example.com/mcp",
+      "headers": { "Authorization": "Bearer \${env:MCP_TOKEN}" }
+    }
+  }
+}`;
+
+const annotationLint = `$ toolscore mcp lint "python -m toolscore.mcp.sample_server"
+
+Lint: 1 errors, 2 warnings
+
+│ warning │ search_notes │ description-short     │ description is very short (< 10 chars)    │
+│ error   │ delete_note  │ property-type-missing │ property 'note_id' is missing a 'type'    │
+│ warning │ create_note  │ annotations-missing   │ changes state but declares no             │
+│         │              │                       │ readOnlyHint/destructiveHint annotations  │`;
+
+const badgeSnippet = `toolscore mcp test "python my_server.py" --badge .github/badges/mcp-grade.svg
+
+# README.md
+[![MCP grade](.github/badges/mcp-grade.svg)](https://github.com/yotambraun/toolscore)`;
+
+const scorecardMd = `# MCP Scorecard: notes-server 1.1.0
+
+**Grade: B** &middot; Score 86%
+
+- Happy-path pass rate: 80%
+- Edge-case resilience: 100%
+- Lint score: 91% (1 errors, 2 warnings)
+- Tool-definition tokens (estimated): ~303 across 5 tool(s)
+- Protocol: MCP 2026-07-28 (stateless)
+
+## Tools
+
+| Tool | Scenarios | Avg latency | Def. tokens |
+| --- | --- | --- | --- |
+| \`create_note\` | 6/6 | 0.6 ms | 80 |
+| \`list_notes\` | 6/6 | 0.6 ms | 59 |
+| \`search_notes\` | 6/6 | 0.5 ms | 48 |
+| \`delete_note\` | 6/6 | 0.5 ms | 52 |
+| \`export_notes\` | 3/6 | 0.6 ms | 64 |
+
+## Top issues to fix
+
+- **\`export_notes\`** — fails on valid input (export failed: storage backend not configured). _Fix:_ The tool errors on well-formed arguments - check the handler and that the input schema matches what the tool actually accepts.
+- **\`delete_note\`** — property 'note_id' is missing a 'type'. _Fix:_ Give the property a JSON-schema type (and an enum where the values are fixed) so the model does not have to guess.
+- **\`create_note\`** — changes state but declares no readOnlyHint/destructiveHint annotations. _Fix:_ Declare annotations {"readOnlyHint": false, "destructiveHint": false} (or true if it can overwrite or delete), so clients know what it changes.
+- **\`search_notes\`** — description is very short (< 10 chars). _Fix:_ Describe what the tool does and when to use it - models choose tools by their description.`;
 ---
 
 <BaseLayout
   title="Test your MCP server"
-  description="Grade any MCP server with Toolscore: happy-path + adversarial edge-case scenarios, lint for missing tools and tool poisoning, token cost, session recording, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
+  description="Grade any MCP server with Toolscore, local (stdio) or remote (Streamable HTTP), on MCP 2026-07-28 or earlier: happy-path + adversarial edge-case scenarios, lint for annotations, output schemas, missing tools and tool poisoning, token cost, session recording, a README badge, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
 >
   <PageHeader
     eyebrow="For MCP server authors"
     title="Test your <span class='brand-text'>MCP server</span>"
-    sub="Toolscore spins your server up over stdio, generates happy-path and adversarial edge-case scenarios from each tool's schema, lints the definitions, measures token cost, and returns an A–F grade — before you publish."
+    sub="Toolscore connects to your server over stdio or Streamable HTTP, generates happy-path and adversarial edge-case scenarios from each tool's schema, checks results against declared output schemas, lints the definitions, measures token cost, and returns an A–F grade — before you publish."
   >
     <div class="mt-8 flex flex-wrap gap-3">
       <Button href={url('quickstart')} variant="primary">Quickstart</Button>
@@ -73,7 +133,8 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
         </div>
 
         <p class="mt-6 text-sm text-muted">
-          Already in Claude Desktop? Point Toolscore straight at your config — zero install:
+          Already configured in Claude Desktop, Cursor, Claude Code or VS Code? Point Toolscore
+          straight at the config — zero install:
         </p>
         <InstallCommand
           class="mt-2"
@@ -85,6 +146,58 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
         <p class="mb-3 font-mono text-[11px] uppercase tracking-wider text-faint">Live demo</p>
         <ScorecardDemo compact />
       </div>
+    </div>
+  </section>
+
+  <!-- Proof: found with Toolscore -->
+  <section class="section">
+    <div class="wrap">
+      <div class="card p-6 sm:p-8">
+        <p class="eyebrow mb-3">Real bugs, fixed upstream</p>
+        <h2 class="h2">{foundWith.heading}</h2>
+        <p class="lead mt-4 max-w-3xl">{foundWith.intro}</p>
+        <div class="mt-6 grid gap-4 sm:grid-cols-2">
+          {
+            foundWith.items.map((item) => (
+              <div class="rounded-lg border border-line2/60 bg-bg/50 p-5">
+                <a class="font-mono text-sm text-brand hover:underline" href={item.prUrl} target="_blank" rel="noopener">
+                  modelcontextprotocol/servers {item.pr}
+                </a>
+                <p class="mt-2 font-mono text-[13px] text-ink">{item.title}</p>
+                <p class="mt-2 text-sm text-muted">
+                  {item.what} (<a class="text-brand hover:underline" href={item.issueUrl} target="_blank" rel="noopener">issue {item.issue}</a>)
+                </p>
+              </div>
+            ))
+          }
+        </div>
+        <p class="mt-5 text-sm text-muted">
+          Read the <a class="text-brand hover:underline" href={foundWith.caseStudy} target="_blank" rel="noopener">case study</a>
+          (protocol, captures and measurements) in
+          <a class="text-brand hover:underline" href={foundWith.agentEvalFlow} target="_blank" rel="noopener">Agent Eval Flow</a>,
+          which evaluates whole agent runs and uses Toolscore for the tool calls.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Remote servers + protocol -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Local or hosted</p>
+        <h2 class="h2">Remote servers and the current protocol</h2>
+        <p class="lead mt-4">
+          Pass a URL to test a server over Streamable HTTP. Tokens come from the environment
+          (<code class="font-mono text-sm text-brand">--auth-env VAR</code>, or
+          <code class="font-mono text-sm text-brand">${'${env:VAR}'}</code> in a config file) and are
+          never printed. Toolscore speaks MCP 2026-07-28, where every request carries its version,
+          and falls back to the <code class="font-mono text-sm text-brand">initialize</code> handshake
+          for servers built on earlier revisions. The scorecard says which one it used.
+        </p>
+        <InstallCommand class="mt-6" cmd="toolscore mcp test https://mcp.example.com/mcp --auth-env MCP_TOKEN" />
+      </div>
+      <CodeBlock title=".vscode/mcp.json (or any MCP client config)" lang="json" code={remoteConfig} />
     </div>
   </section>
 
@@ -139,6 +252,14 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
           blocks, and text that tells the model to hide something from the user.
         </p>
         <p class="mt-4 text-sm text-muted">
+          It also reads the behavior annotations clients use to decide what to run without asking:
+          a tool whose name says it writes or deletes but declares no
+          <code class="font-mono text-brand">readOnlyHint</code>/<code class="font-mono text-brand">destructiveHint</code>,
+          or a <code class="font-mono text-brand">delete_*</code> tool marked read-only. And it checks
+          that results match the tool's declared <code class="font-mono text-brand">outputSchema</code>.
+          Every finding has a rule ID.
+        </p>
+        <p class="mt-4 text-sm text-muted">
           On GitHub's official MCP server (v1.12.2), <code class="font-mono text-brand">label_write</code>
           told models to use an <code class="font-mono text-brand">update_issue</code> tool that did not
           exist. The lint found exactly the two real stale references in that server, with no false
@@ -148,6 +269,7 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
       <div class="space-y-4">
         <CodeBlock title="GitHub MCP server v1.12.2 — real output" lang="text" code={githubLint} />
         <CodeBlock title="a deliberately poisoned test server" lang="text" code={poisonLint} />
+        <CodeBlock title="the bundled sample server (table rows, narrowed)" lang="text" code={annotationLint} />
       </div>
     </div>
   </section>
@@ -256,26 +378,31 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
           renders the whole verdict — grade, per-tool table, and top issues — as Markdown designed
           to paste into your server's README or a PR comment.
         </p>
-        <CodeBlock
-          class="mt-6"
-          title="SCORECARD.md"
-          lang="markdown"
-          code={`# MCP Scorecard: notes-server 1.0.0
-
-**Grade: B** · Score 87%
-
-- Happy-path pass rate: 80%
-- Edge-case resilience: 100%
-- Lint score: 93% (1 errors, 1 warnings)
-- Tool-definition tokens: ~303 across 5 tool(s)
-
-## Top issues to fix
-
-- **export_notes** — fails on valid input.
-- **delete_note** — property 'note_id' is missing a 'type'.
-- **search_notes** — description is very short (< 10 chars).`}
-        />
+        <CodeBlock class="mt-6" title="SCORECARD.md — the sample server, real output" lang="markdown" code={scorecardMd} />
       </div>
+    </div>
+  </section>
+
+  <!-- Badge -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Show it</p>
+        <h2 class="h2">An MCP grade badge for your README</h2>
+        <p class="lead mt-4">
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--badge</code>
+          writes an SVG badge from the run's own scorecard, colored by grade, and
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--badge-json</code>
+          a shields.io endpoint file. There is no option to set a grade by hand. The sample
+          server's badge from the run above:
+        </p>
+        <img class="mt-5" src={asset('sample-mcp-grade.svg')} alt="MCP grade: B · Toolscore" height="20" />
+        <p class="mt-5 text-sm text-muted">
+          The <a class="text-brand hover:underline" href={`${site.repo}/blob/main/examples/github_actions/mcp-badge.yml`} target="_blank" rel="noopener">badge workflow</a>
+          regrades your server on every push and commits the badge when the grade changes.
+        </p>
+      </div>
+      <CodeBlock title="badge" lang="bash" code={badgeSnippet} />
     </div>
   </section>
 
