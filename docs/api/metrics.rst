@@ -65,6 +65,27 @@ Performance Metrics
 
 .. autofunction:: calculate_cost_attribution
 
+Model prices
+~~~~~~~~~~~~
+
+List prices per million tokens, verified on the providers' pricing pages on
+2026-11-01. Names match exactly or by the longest known prefix; an unknown model
+has no price (``None`` and an :class:`~toolscore.metrics.UnknownModelPriceWarning`).
+
+.. autofunction:: toolscore.metrics.calculate_llm_cost
+
+.. autofunction:: toolscore.metrics.lookup_pricing
+
+.. autofunction:: toolscore.metrics.estimate_trace_cost
+
+.. autoclass:: toolscore.metrics.UnknownModelPriceWarning
+
+Default models
+~~~~~~~~~~~~~~
+
+.. automodule:: toolscore.models
+   :members:
+
 LLM-as-a-judge Metrics (Optional)
 ----------------------------------
 

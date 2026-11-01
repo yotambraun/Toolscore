@@ -49,23 +49,28 @@ This includes:
 * mypy - Type checking
 * ruff - Linting and formatting
 * types-click - Type stubs for Click
+* httpx - Runs the Streamable HTTP transport tests
 
 Optional Dependencies
 ---------------------
 
-HTTP Validators
-^^^^^^^^^^^^^^^
+Remote MCP Servers and HTTP Validators
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For HTTP side-effect validation:
+To test MCP servers over Streamable HTTP (``toolscore mcp test https://...``)
+and for HTTP side-effect validation (adds ``httpx``):
 
 .. code-block:: bash
 
-   pip install tool-scorer[http]
+   pip install "tool-scorer[http]"
+
+Testing stdio MCP servers needs no extra.
 
 LLM-as-a-judge Metrics
 ^^^^^^^^^^^^^^^^^^^^^^
 
-For semantic correctness evaluation using OpenAI API:
+For semantic correctness evaluation using OpenAI API (default model ``gpt-6-luna``;
+``[anthropic]`` and ``[gemini]`` extras cover the other providers):
 
 .. code-block:: bash
 

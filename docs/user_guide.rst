@@ -94,12 +94,12 @@ OpenAI-compatible endpoint (Ollama/vLLM/Groq).
    from toolscore.metrics.llm_judge import calculate_semantic_correctness, JudgeConfig
 
    # A bare model-name string is shorthand for JudgeConfig(model=...).
-   result = calculate_semantic_correctness(gold_calls, trace_calls, judge="gpt-4o-mini")
+   result = calculate_semantic_correctness(gold_calls, trace_calls, judge="gpt-6-luna")
 
    # Or full control via JudgeConfig (provider inferred from the model name):
    result = calculate_semantic_correctness(
        gold_calls, trace_calls,
-       judge=JudgeConfig(model="claude-3-5-haiku-latest"),
+       judge=JudgeConfig(model="claude-haiku-5-5"),
    )
 
    print(f"Semantic Score: {result['semantic_score']:.2%}")
@@ -301,30 +301,18 @@ From OpenAI
 
    client = OpenAI()
 
-   response = client.chat.completions.create(
-       model="gpt-4",
-       messages=[{"role": "user", "content": "Create a file called test.txt"}],
+   # Responses API: save the response as it is; the format is auto-detected.
+   response = client.responses.create(
+       model="gpt-6-luna",
+       input="Create a file called test.txt",
        tools=[...],  # Your tool definitions
    )
 
-   # Save trace
-   trace = [{
-       "role": "assistant",
-       "tool_calls": [
-           {
-               "id": tc.id,
-               "type": "function",
-               "function": {
-                   "name": tc.function.name,
-                   "arguments": tc.function.arguments
-               }
-           }
-           for tc in response.choices[0].message.tool_calls
-       ]
-   }]
-
    with open("trace_openai.json", "w") as f:
-       json.dump(trace, f)
+       json.dump(response.model_dump(mode="json"), f)
+
+   # Chat Completions responses work the same way:
+   # json.dump(completion.model_dump(mode="json"), f)
 
 From Anthropic
 ^^^^^^^^^^^^^^
@@ -337,14 +325,14 @@ From Anthropic
    client = Anthropic()
 
    message = client.messages.create(
-       model="claude-3-5-sonnet-20241022",
+       model="claude-haiku-5-5",
        max_tokens=1024,
        tools=[...],  # Your tool definitions
        messages=[{"role": "user", "content": "Create a file called test.txt"}]
    )
 
    # Save trace
-   trace = [{"role": "assistant", "content": message.content}]
+   trace = [{"role": "assistant", "content": [b.model_dump(mode="json") for b in message.content]}]
 
    with open("trace_anthropic.json", "w") as f:
        json.dump(trace, f)

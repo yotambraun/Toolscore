@@ -3,18 +3,27 @@ MCP Module
 
 .. currentmodule:: toolscore.mcp
 
-A standard-library-only client for Model Context Protocol (MCP) servers over the
-stdio transport, plus the scorecard harness (scenario generation, execution,
-linting, and A--F scoring). See :doc:`../mcp_testing` for the CLI guide and
+Clients for Model Context Protocol (MCP) servers over stdio (standard library
+only) and Streamable HTTP (``httpx``, the ``[http]`` extra), speaking MCP
+2026-07-28 with a fallback to the ``initialize`` handshake, plus the scorecard
+harness (scenario generation, execution, linting, output-schema checks, A--F
+scoring and badges). See :doc:`../mcp_testing` for the CLI guide and
 :download:`the demo script <../../examples/mcp_scorecard_demo.py>` for
 programmatic usage.
 
-Client
-------
+Clients
+-------
+
+.. autoclass:: MCPClient
+   :members: start, close, list_tools, call_tool
 
 .. autoclass:: MCPStdioClient
-   :members:
-   :undoc-members:
+
+.. autoclass:: MCPHttpClient
+
+.. autodata:: MODERN_PROTOCOL_VERSION
+
+.. autodata:: LEGACY_PROTOCOL_VERSION
 
 .. autoclass:: MCPToolDef
    :members:
@@ -27,6 +36,8 @@ Client
 .. autoexception:: MCPError
 
 .. autoexception:: MCPTimeoutError
+
+.. autoexception:: MCPHTTPStatusError
 
 .. autofunction:: content_to_text
 
@@ -46,6 +57,8 @@ Server configuration
 
 .. autofunction:: load_mcp_config
 
+.. autofunction:: open_client
+
 Scorecard harness
 -----------------
 
@@ -58,6 +71,12 @@ Scorecard harness
 .. autofunction:: toolscore.mcp.lint_rules.dangling_reference_issues
 
 .. autofunction:: toolscore.mcp.lint_rules.poisoning_issues
+
+.. autofunction:: toolscore.mcp.lint_rules.annotation_issues
+
+.. autofunction:: toolscore.mcp.harness.output_schema_issues
+
+.. autofunction:: toolscore.mcp.output_schema.validate_instance
 
 .. autoclass:: Scenario
    :members:
@@ -78,6 +97,8 @@ Scorecard
    :members:
    :undoc-members:
 
+.. autofunction:: toolscore.mcp.scorecard.score_server
+
 .. autofunction:: grade_meets
 
 .. autofunction:: print_scorecard
@@ -85,3 +106,10 @@ Scorecard
 .. autofunction:: scorecard_to_json
 
 .. autofunction:: scorecard_to_markdown
+
+Badges
+------
+
+.. autofunction:: toolscore.mcp.badge.badge_svg
+
+.. autofunction:: toolscore.mcp.badge.badge_endpoint

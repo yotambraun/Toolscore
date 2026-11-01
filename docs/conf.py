@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # Project information
 project = "Toolscore"
-copyright = "2025, Yotam Braun"
+copyright = "2025-2026, Yotam Braun"
 author = "Yotam Braun"
 
 # Import version from package
@@ -98,7 +98,7 @@ html_context = {
 }
 
 # Exclude patterns
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "superpowers"]  # superpowers: local notes, git-ignored
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = []

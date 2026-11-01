@@ -28,6 +28,8 @@ Main Functions
 
 .. autofunction:: from_otel
 
+.. autofunction:: from_openai_responses
+
 .. currentmodule:: toolscore.core
 
 Result Container

@@ -135,9 +135,9 @@ Pass raw LLM provider responses directly — auto-detected:
    from toolscore import evaluate
 
    client = OpenAI()
-   response = client.chat.completions.create(model="gpt-4o", messages=[...], tools=[...])
+   response = client.responses.create(model="gpt-6-luna", input="...", tools=[...])
 
-   # No from_openai() needed — auto-detected!
+   # No helper needed: Responses API and Chat Completions objects are auto-detected.
    result = evaluate(expected=[...], actual=response)
 
 Python API (File-Based)

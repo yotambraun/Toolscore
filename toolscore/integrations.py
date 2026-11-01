@@ -701,9 +701,7 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     Detection order:
     1. Already a list of dicts with ``"tool"`` keys → pass through
     2. Object with ``model_dump()`` → convert to dict, then re-detect
-    3. Dict with ``"choices"`` → OpenAI Chat Completions; a Responses API
-       response (``object == "response"`` or ``function_call`` / ``mcp_call``
-       items in ``output``) or item list → :func:`from_openai_responses`
+    3. Dict with ``"choices"`` → OpenAI Chat Completions; a Responses API response (``object == "response"`` or ``function_call`` / ``mcp_call`` items in ``output``) or item list → :func:`from_openai_responses`
     4. Dict with ``"content"`` list containing ``"type"`` keys → Anthropic format
     5. Dict with ``"candidates"`` → Gemini format
     6. Dict/object with ``"messages"`` where some message has ``tool_calls`` → LangGraph

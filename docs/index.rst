@@ -13,20 +13,20 @@ Toolscore Documentation
    :target: https://pepy.tech/project/tool-scorer
    :alt: Downloads
 
-**Toolscore** is a Python package for evaluating LLM tool usage against gold standard specifications. It helps developers benchmark different models, validate agent behavior, and track improvements in function calling accuracy over time.
+**Toolscore** tests MCP servers and the tool calls agents make. It grades any MCP server A--F (local or remote, MCP 2026-07-28 and earlier revisions) and checks the tool calls an agent makes against the ones you expect, locally, deterministically and without an API key.
 
 What is Toolscore?
 ------------------
 
 Toolscore evaluates LLM tool usage - it doesn't call LLM APIs directly. Think of it as a testing framework for function-calling agents:
 
-✅ **Evaluates** tool usage traces from OpenAI, Anthropic, Gemini, agent frameworks, recorded MCP sessions, OpenTelemetry spans, or custom sources
+✅ **Evaluates** tool usage traces from OpenAI (Chat Completions and Responses), Anthropic, Gemini, agent frameworks, recorded MCP sessions, OpenTelemetry spans, or custom sources
 
 ✅ **Compares** actual behavior against expected gold standards
 
 ✅ **Reports** detailed metrics on accuracy, efficiency, and correctness, plus failed calls, leaked credentials and forbidden calls
 
-✅ **Grades and lints** MCP servers, including references to missing tools and tool poisoning
+✅ **Grades and lints** MCP servers over stdio or Streamable HTTP, including behavior annotations, output schemas, references to missing tools and tool poisoning
 
 ❌ **Does NOT** call LLM APIs or execute tools (you capture traces separately)
 
@@ -40,8 +40,10 @@ Quick Start
    # Run evaluation
    toolscore eval examples/gold_calls.json examples/trace_openai.json --html report.html
 
-   # Grade an MCP server
+   # Grade a bundled sample MCP server, then your own (a command or a URL)
+   toolscore demo
    toolscore mcp test "python my_server.py"
+   toolscore mcp test https://mcp.example.com/mcp --auth-env MCP_TOKEN   # needs tool-scorer[http]
 
 Key Features
 ------------
@@ -49,8 +51,8 @@ Key Features
 * **Comprehensive Metrics Suite**: Tool invocation accuracy, selection accuracy, sequence edit distance, argument matching, redundant and repeated calls, required calls completed, and side-effect validation
 * **Behavior and Safety Checks**: Failed calls, blind retries, credentials passed into tool arguments, and forbidden-call policies, with a CI gate (:doc:`behavior_safety`)
 * **Snapshot Testing**: Record, approve and replay your agent's tool calls in pytest (:doc:`snapshot_testing`)
-* **MCP Scorecard, Lint and Recorder**: Grade any MCP server, lint it for missing-tool references and tool poisoning, and record real sessions (:doc:`mcp_testing`)
-* **Native Everywhere**: OpenAI, Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI, MCP and OpenTelemetry traces (:doc:`frameworks`)
+* **MCP Scorecard, Lint and Recorder**: Grade any MCP server (stdio or Streamable HTTP, MCP 2026-07-28 with a fallback to the ``initialize`` handshake), lint its annotations, output schemas, missing-tool references and tool poisoning, write a grade badge, and record real sessions (:doc:`mcp_testing`)
+* **Native Everywhere**: OpenAI (Chat Completions and Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI, MCP and OpenTelemetry traces (:doc:`frameworks`)
 * **CLI, Python API and GitHub Action**: Command-line interface, programmatic usage and CI gates
 * **Rich Reports**: Console, HTML, Markdown, CSV and machine-readable JSON reports, plus a versioned record for evaluation harnesses
 * **Extensible**: Easy to add custom metrics and validators

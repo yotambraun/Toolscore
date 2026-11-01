@@ -80,7 +80,7 @@ used (JSON string is parsed automatically).
     from toolscore import evaluate
     from toolscore.integrations import from_pydantic_ai
 
-    agent = Agent("openai:gpt-4o", tools=[get_weather])
+    agent = Agent("openai:gpt-6-luna", tools=[get_weather])
     run_result = agent.run_sync("What's the weather in NYC?")
 
     expected = [{"tool": "get_weather", "args": {"city": "NYC"}}]
@@ -104,6 +104,44 @@ Or use :func:`toolscore.test_agent_async` for async Pydantic AI agents:
         min_score=0.9,
     )
 
+
+OpenAI Responses API
+--------------------
+
+Use :func:`toolscore.from_openai_responses` (or pass the response straight to
+:func:`toolscore.evaluate` -- it is auto-detected) to extract tool calls from a
+Responses API ``Response``.
+
+Accepted inputs:
+
+* a ``Response`` object (``client.responses.create(...)``) or its dict form,
+* its ``output`` list,
+* the input item list of a multi-turn conversation.
+
+``function_call`` items give ``name`` and ``arguments`` (JSON string, parsed);
+``mcp_call`` items (remote MCP tools the API called) keep their ``output`` and
+``error``; ``custom_tool_call`` items give ``{"input": ...}``. When the list
+holds ``function_call_output`` items, each output is attached to its call by
+``call_id`` as ``result``, and counts as an ``error`` only when it clearly is one
+(a JSON object with ``error`` or ``is_error: true``, or the OpenAI Agents SDK's
+"An error occurred while running the tool" message). Built-in tools (web search,
+file search, code interpreter) are skipped.
+
+.. code-block:: python
+
+    from openai import OpenAI
+    from toolscore import evaluate
+
+    client = OpenAI()
+    response = client.responses.create(
+        model="gpt-6-luna", input="What's the weather in NYC?", tools=[weather_tool]
+    )
+
+    result = evaluate(expected=[{"tool": "get_weather", "args": {"city": "NYC"}}],
+                      actual=response)
+
+Trace files saved with ``response.model_dump(mode="json")`` are detected as
+OpenAI traces by ``toolscore eval``.
 
 OpenAI Agents SDK
 -----------------

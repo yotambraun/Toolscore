@@ -27,13 +27,25 @@ A single dataclass configures every provider:
    from toolscore.metrics.llm_judge import JudgeConfig
 
    JudgeConfig(
-       model="gpt-4o-mini",   # model name; drives provider inference
+       model="gpt-6-luna",    # model name; drives provider inference
        provider=None,         # None = infer from model / base_url
        api_key=None,          # None = read the per-provider env var
        base_url=None,         # set → OpenAI-compatible endpoint (Ollama/vLLM/...)
-       temperature=0.0,       # 0.0 for determinism
+       temperature=None,      # None = send no temperature (see below)
        max_retries=2,         # passed to the underlying SDK
    )
+
+.. note::
+   ``temperature`` defaults to ``None``, and then no temperature is sent.
+   Current Claude models (Opus 4.7 and later, Sonnet 5 and later, Haiku 5.5)
+   and OpenAI's GPT-6 models at their default reasoning effort reject a
+   non-default temperature with a 400 error. Set ``temperature=0.0`` only for
+   models that accept it, such as most local OpenAI-compatible servers.
+
+Current model IDs, verified against the providers' documentation on
+2026-11-01, are in :mod:`toolscore.models`: ``gpt-6-luna`` (the default),
+``claude-haiku-5-5`` and ``claude-sonnet-5-5`` (a stronger judge), and
+``gemini-3.5-flash-lite``.
 
 Anywhere a judge is accepted you can also pass a **bare model-name string**
 (shorthand for ``JudgeConfig(model=...)``) or ``None`` (the default config).
@@ -57,13 +69,13 @@ When ``provider`` is ``None`` it is resolved from the model name (or
      - ``llama3.1``
    * - model starts with ``claude``
      - ``anthropic``
-     - ``claude-3-5-haiku``
+     - ``claude-haiku-5-5``
    * - model starts with ``gemini``
      - ``gemini``
-     - ``gemini-2.0-flash``
+     - ``gemini-3.5-flash-lite``
    * - anything else
      - ``openai``
-     - ``gpt-4o-mini``
+     - ``gpt-6-luna``
 
 You can always set ``provider`` explicitly. Two combinations are rejected:
 ``provider="openai_compatible"`` **requires** a ``base_url``, and any other
@@ -180,16 +192,16 @@ that folds semantic correctness into the result:
    from toolscore import evaluate_trace
    from toolscore.metrics.llm_judge import JudgeConfig
 
-   # judge=True  → default JudgeConfig() (gpt-4o-mini, OpenAI)
+   # judge=True  → default JudgeConfig() (gpt-6-luna, OpenAI)
    result = evaluate_trace("gold.json", "trace.json", judge=True)
 
-   # judge="claude-3-5-haiku-latest"  → string shorthand, inferred as Anthropic
-   result = evaluate_trace("gold.json", "trace.json", judge="claude-3-5-haiku-latest")
+   # judge="claude-haiku-5-5"  → string shorthand, inferred as Anthropic
+   result = evaluate_trace("gold.json", "trace.json", judge="claude-haiku-5-5")
 
    # judge=JudgeConfig(...)  → full control
    result = evaluate_trace(
        "gold.json", "trace.json",
-       judge=JudgeConfig(model="gemini-2.0-flash"),
+       judge=JudgeConfig(model="gemini-3.5-flash-lite"),
    )
 
 ``judge=False`` (the default) skips the judge entirely. The in-memory
@@ -210,12 +222,12 @@ The ``toolscore eval`` command exposes the judge:
 
 .. code-block:: bash
 
-   # OpenAI (default model gpt-4o-mini, reads OPENAI_API_KEY):
+   # OpenAI (default model gpt-6-luna, reads OPENAI_API_KEY):
    toolscore eval gold.json trace.json --llm-judge
 
    # Pick a model; the provider is inferred from the name:
-   toolscore eval gold.json trace.json --llm-judge --llm-model claude-3-5-haiku-latest
-   toolscore eval gold.json trace.json --llm-judge --llm-model gemini-2.0-flash
+   toolscore eval gold.json trace.json --llm-judge --llm-model claude-haiku-5-5
+   toolscore eval gold.json trace.json --llm-judge --llm-model gemini-3.5-flash-lite
 
    # Force a provider:
    toolscore eval gold.json trace.json --llm-judge --llm-provider anthropic --llm-model ...
@@ -233,7 +245,7 @@ The ``toolscore eval`` command exposes the judge:
    * - ``--llm-judge``
      - Enable the semantic judge (off by default).
    * - ``--llm-model NAME``
-     - Judge model (default ``gpt-4o-mini``). Drives provider inference.
+     - Judge model (default ``gpt-6-luna``). Drives provider inference.
    * - ``--llm-provider P``
      - Force ``openai`` / ``anthropic`` / ``gemini`` / ``openai_compatible``.
    * - ``--llm-base-url URL``
