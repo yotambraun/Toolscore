@@ -48,7 +48,7 @@ jobs:
   evaluate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Your agent execution step here
       - name: Run Agent
@@ -75,8 +75,8 @@ jobs:
   scorecard:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.0
       - name: Score the MCP server
         run: uvx tool-scorer mcp test "python my_server.py" --ci --fail-under B
 ```

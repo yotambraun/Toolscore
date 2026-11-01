@@ -79,6 +79,7 @@ dev = [
     "ruff>=0.6.0",
     "types-click",
     "python-semantic-release>=9.0.0",
+    "httpx>=0.27.0",  # runs the Streamable HTTP transport tests
 ]
 http = [
     "httpx>=0.27.0",

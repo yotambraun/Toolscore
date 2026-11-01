@@ -20,7 +20,7 @@ jobs:
       selection-accuracy: ${{ steps.eval.outputs.selection-accuracy }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Evaluate Agent
         uses: yotambraun/toolscore@v1
@@ -37,7 +37,7 @@ jobs:
     name: Safety Check
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check Agent Behavior
         uses: yotambraun/toolscore@v1
@@ -56,7 +56,7 @@ jobs:
     if: needs.threshold-check.outputs.passed == 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check for Regressions
         uses: yotambraun/toolscore@v1

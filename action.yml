@@ -1,5 +1,5 @@
-name: 'Toolscore - LLM Agent Evaluation'
-description: 'Catch LLM agent regressions before deployment. Test tool-calling accuracy for OpenAI, Anthropic, Gemini with pytest-like simplicity.'
+name: 'Toolscore - MCP Server and Agent Tool-Call Testing'
+description: 'Grade an MCP server A-F (stdio or URL) or gate agent tool calls against expected calls. Local and deterministic; no API key needed.'
 author: 'Yotam Braun'
 
 branding:
@@ -50,13 +50,29 @@ inputs:
     required: false
     default: '3.11'
   mcp-command:
-    description: 'MCP server command to test (e.g. "uvx my-mcp-server"). When set, the action runs `toolscore mcp test <command>` instead of the eval/regression path.'
+    description: 'MCP server to test: a launch command (e.g. "uvx my-mcp-server") or a Streamable HTTP URL (https://...). When set, the action runs `toolscore mcp test` instead of the eval/regression path.'
     required: false
     default: ''
   mcp-fail-under:
-    description: 'Minimum MCP scorecard grade (A-F or 0.0-1.0). Only used with mcp-command.'
+    description: 'Minimum MCP scorecard grade (A-F). Only used with mcp-command.'
     required: false
     default: 'B'
+  mcp-auth-env:
+    description: 'For a URL server: name of an environment variable (set it from a secret with `env:` on the step) whose value is sent as "Authorization: Bearer <value>". The value is never printed.'
+    required: false
+    default: ''
+  mcp-badge:
+    description: 'Path to write an SVG grade badge ("MCP grade: A · Toolscore") from this run. Commit it to show the grade in your README.'
+    required: false
+    default: ''
+  mcp-badge-json:
+    description: 'Path to write a shields.io endpoint JSON file with this run''s grade.'
+    required: false
+    default: ''
+  toolscore-version:
+    description: 'tool-scorer version to install from PyPI (e.g. "1.11.0"). Empty (the default) installs the version of this action itself, so a pinned action tag runs the matching Toolscore.'
+    required: false
+    default: ''
 
 outputs:
   selection-accuracy:
@@ -86,18 +102,34 @@ outputs:
   regression-detected:
     description: 'Whether a regression was detected (true/false). Only set when using baseline-file.'
     value: ${{ steps.eval.outputs.regression_detected }}
+  mcp-grade:
+    description: 'MCP scorecard grade (A-F). Only set with mcp-command.'
+    value: ${{ steps.mcp-test.outputs.grade }}
+  mcp-score:
+    description: 'MCP scorecard score (0.0-1.0). Only set with mcp-command.'
+    value: ${{ steps.mcp-test.outputs.score }}
 
 runs:
   using: 'composite'
   steps:
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ inputs.python-version }}
 
     - name: Install Toolscore
       shell: bash
-      run: pip install tool-scorer
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        INPUT_TOOLSCORE_VERSION: ${{ inputs.toolscore-version }}
+      run: |
+        if [ -n "$INPUT_TOOLSCORE_VERSION" ]; then
+          pip install "tool-scorer[http]==$INPUT_TOOLSCORE_VERSION"
+        else
+          # The action's own checkout: the Toolscore version matches the action ref.
+          pip install "${ACTION_PATH}[http]"
+        fi
+        toolscore --version
 
     - name: Run MCP Scorecard
       id: mcp-test
@@ -106,9 +138,21 @@ runs:
       env:
         INPUT_MCP_COMMAND: ${{ inputs.mcp-command }}
         INPUT_MCP_FAIL_UNDER: ${{ inputs.mcp-fail-under }}
+        INPUT_MCP_AUTH_ENV: ${{ inputs.mcp-auth-env }}
+        INPUT_MCP_BADGE: ${{ inputs.mcp-badge }}
+        INPUT_MCP_BADGE_JSON: ${{ inputs.mcp-badge-json }}
       run: |
         echo "Running Toolscore MCP scorecard for: $INPUT_MCP_COMMAND"
-        toolscore mcp test "$INPUT_MCP_COMMAND" --fail-under "$INPUT_MCP_FAIL_UNDER"
+        FLAGS=(--fail-under "$INPUT_MCP_FAIL_UNDER" --ci --report json -o toolscore-mcp.json)
+        if [ -n "$INPUT_MCP_AUTH_ENV" ]; then FLAGS+=(--auth-env "$INPUT_MCP_AUTH_ENV"); fi
+        if [ -n "$INPUT_MCP_BADGE" ]; then FLAGS+=(--badge "$INPUT_MCP_BADGE"); fi
+        if [ -n "$INPUT_MCP_BADGE_JSON" ]; then FLAGS+=(--badge-json "$INPUT_MCP_BADGE_JSON"); fi
+        STATUS=0
+        toolscore mcp test "$INPUT_MCP_COMMAND" "${FLAGS[@]}" || STATUS=$?
+        if [ -f toolscore-mcp.json ]; then
+          python3 -c "import json; d = json.load(open('toolscore-mcp.json')); print(f\"grade={d['grade']}\"); print(f\"score={d['score']}\")" >> "$GITHUB_OUTPUT"
+        fi
+        exit $STATUS
 
     - name: Run Evaluation
       id: eval
@@ -269,7 +313,7 @@ runs:
 
     - name: Upload HTML Report
       if: inputs.mcp-command == '' && inputs.generate-report == 'true' && always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: toolscore-report
         path: |
