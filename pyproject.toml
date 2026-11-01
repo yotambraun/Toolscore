@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tool-scorer"
-version = "1.10.0"
-description = "Lightweight tool-call testing for LLM agents. Deterministic, local, zero API cost. Compare expected vs actual tool calls in 3 lines of Python. Supports OpenAI, Anthropic, Gemini."
+version = "1.11.0"
+description = "MCP server testing and agent tool-call testing. Grade any MCP server A-F (stdio or Streamable HTTP, MCP 2026-07-28) and check the tool calls your agent makes against the ones you expect. Local, deterministic, no API key."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
@@ -26,12 +26,14 @@ keywords = [
     "agent-testing",
     "llm-testing",
     "ci-cd",
+    # MCP
+    "mcp",
+    "model-context-protocol",
     # Providers
     "openai",
     "anthropic",
     "gemini",
     "langchain",
-    "mcp",
     # Frameworks & evaluation
     "langgraph",
     "pydantic-ai",
@@ -55,6 +57,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Quality Assurance",
