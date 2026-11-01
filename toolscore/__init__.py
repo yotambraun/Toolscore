@@ -27,6 +27,7 @@ from toolscore.integrations import (
     from_langgraph,
     from_openai,
     from_openai_agents,
+    from_openai_responses,
     from_otel,
     from_pydantic_ai,
 )
@@ -106,6 +107,7 @@ __all__ = [
     "from_langgraph",
     "from_openai",
     "from_openai_agents",
+    "from_openai_responses",
     "from_otel",
     "from_pydantic_ai",
     "letter_grade",

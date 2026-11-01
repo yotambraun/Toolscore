@@ -94,14 +94,19 @@ class EvaluationResult:
         completed = 1.0 if recall is None else recall
 
         w = self._weights
-        composite: float = (
-            w["selection_accuracy"] * sel
-            + w["argument_f1"] * arg
-            + w["sequence_accuracy"] * seq
-            + w["redundant_rate"] * (1.0 - red)
-            + w.get("required_call_recall", 0.0) * completed
+        # fsum adds the weighted terms without accumulating rounding error, so a
+        # perfect run is exactly 1.0 (plain addition of 0.4 + 0.3 + 0.2 + 0.1
+        # gives 0.9999999999999999). The clamp keeps float noise inside [0, 1].
+        composite = math.fsum(
+            (
+                w["selection_accuracy"] * sel,
+                w["argument_f1"] * arg,
+                w["sequence_accuracy"] * seq,
+                w["redundant_rate"] * (1.0 - red),
+                w.get("required_call_recall", 0.0) * completed,
+            )
         )
-        return composite
+        return min(1.0, max(0.0, round(composite, 12)))
 
     @property
     def grade(self) -> str:
@@ -368,8 +373,12 @@ def _detect_format(data: Any) -> BaseAdapter:
     if isinstance(data, dict) and "candidates" in data:
         return GeminiAdapter()
 
-    # Check for OpenAI format
+    # Check for OpenAI format (Chat Completions, then the Responses API)
     if isinstance(data, dict) and ("messages" in data or "choices" in data):
+        return OpenAIAdapter()
+    from toolscore.integrations import _is_responses_payload
+
+    if _is_responses_payload(data):
         return OpenAIAdapter()
 
     if isinstance(data, list) and data:

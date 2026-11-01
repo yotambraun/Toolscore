@@ -10,7 +10,9 @@ class OpenAIAdapter(BaseAdapter):
     """Adapter for OpenAI function call traces.
 
     Parses OpenAI Chat Completion API conversation logs that include
-    function/tool calls in the message history.
+    function/tool calls in the message history, and Responses API responses or
+    item lists (``function_call``, ``mcp_call`` and ``custom_tool_call`` items,
+    with outputs paired by ``call_id``).
     """
 
     def parse(self, trace_data: dict[str, Any] | list[Any]) -> list[ToolCall]:
@@ -27,6 +29,11 @@ class OpenAIAdapter(BaseAdapter):
             ValueError: If trace format is invalid.
         """
         self._validate_trace_data(trace_data)
+
+        from toolscore.integrations import _is_responses_payload, from_openai_responses
+
+        if _is_responses_payload(trace_data):
+            return [_responses_call(c) for c in from_openai_responses(trace_data)]
 
         # Extract messages list
         if isinstance(trace_data, dict):
@@ -90,3 +97,16 @@ class OpenAIAdapter(BaseAdapter):
                         )
 
         return tool_calls
+
+
+def _responses_call(item: dict[str, Any]) -> ToolCall:
+    """Turn one :func:`toolscore.integrations.from_openai_responses` dict into a ToolCall."""
+    metadata: dict[str, Any] = {"format": "responses"}
+    if item.get("id"):
+        metadata["id"] = item["id"]
+    if item.get("error"):
+        metadata["error"] = item["error"]
+        metadata["is_error"] = True
+    return ToolCall(
+        tool=item["tool"], args=item.get("args") or {}, result=item.get("result"), metadata=metadata
+    )

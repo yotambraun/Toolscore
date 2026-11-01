@@ -83,6 +83,153 @@ def from_openai(response: Any) -> list[dict[str, Any]]:
     return calls
 
 
+#: Responses API item types that are calls of a named tool.
+_RESPONSES_CALL_TYPES = frozenset({"function_call", "mcp_call", "custom_tool_call"})
+#: Responses API item types that carry a tool's output back to the model.
+_RESPONSES_OUTPUT_TYPES = frozenset({"function_call_output", "custom_tool_call_output"})
+
+# The OpenAI Agents SDK's default tool error handler returns this text as the
+# function_call_output when a tool raises.
+_AGENTS_SDK_TOOL_ERROR = "An error occurred while running the tool"
+
+
+def _item_dict(item: Any) -> dict[str, Any]:
+    """A Responses item (SDK model or dict) as a plain dict."""
+    if isinstance(item, dict):
+        return item
+    if hasattr(item, "model_dump"):
+        dumped = item.model_dump()
+        return dumped if isinstance(dumped, dict) else {}
+    if hasattr(item, "__dict__"):
+        return _object_to_dict(item)
+    return {}
+
+
+def _responses_items(response: Any) -> list[dict[str, Any]]:
+    """The item list of a Response object/dict, its ``output``, or an input list."""
+    if isinstance(response, list):
+        return [_item_dict(i) for i in response]
+    data = _item_dict(response)
+    output = data.get("output")
+    return [_item_dict(i) for i in output] if isinstance(output, list) else []
+
+
+def _is_responses_payload(data: Any) -> bool:
+    """Whether ``data`` looks like a Responses API response or item list."""
+    if isinstance(data, dict):
+        if data.get("object") == "response":
+            return True
+        items = data.get("output")
+    else:
+        items = data
+    if not isinstance(items, list) or not items:
+        return False
+    return any(
+        isinstance(i, dict) and i.get("type") in (_RESPONSES_CALL_TYPES | _RESPONSES_OUTPUT_TYPES)
+        for i in items
+    )
+
+
+def _output_error(output: Any) -> str | None:
+    """An error message carried by a tool output, if it clearly is one."""
+    text = output if isinstance(output, str) else None
+    if text is not None:
+        if text.startswith(_AGENTS_SDK_TOOL_ERROR):
+            return text
+        try:
+            output = json.loads(text)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    if isinstance(output, dict):
+        if output.get("is_error") is True or output.get("isError") is True:
+            return str(output.get("error") or output.get("message") or "tool reported an error")
+        error = output.get("error")
+        if error:
+            return error if isinstance(error, str) else json.dumps(error)
+    return None
+
+
+def _error_text(error: Any) -> str:
+    """Readable text for an ``mcp_call`` error (a string, or a typed error object)."""
+    if isinstance(error, dict):
+        if error.get("message"):
+            return str(error["message"])
+        content = error.get("content")
+        if isinstance(content, list):
+            texts = [c.get("text", "") for c in content if isinstance(c, dict)]
+            if any(texts):
+                return " ".join(t for t in texts if t)
+        return json.dumps(error)
+    return str(error)
+
+
+def from_openai_responses(response: Any) -> list[dict[str, Any]]:
+    """Extract tool calls from an OpenAI Responses API response or item list.
+
+    Accepts an ``openai.types.responses.Response`` (or its dict form), its
+    ``output`` list, or the input item list of a multi-turn conversation.
+
+    Handles:
+
+    - ``function_call`` items (``name`` + JSON ``arguments``),
+    - ``mcp_call`` items (remote MCP tools; their ``output`` and ``error`` are kept),
+    - ``custom_tool_call`` items (free-form ``input``, kept as ``{"input": ...}``).
+
+    When the list also holds ``function_call_output`` /
+    ``custom_tool_call_output`` items, each output is attached to its call (by
+    ``call_id``) as ``result``. An output is recorded as an ``error`` only when
+    it clearly is one: a JSON object with ``error`` or ``is_error: true``, or the
+    OpenAI Agents SDK's "An error occurred while running the tool" message.
+    Built-in tool items (web search, file search, code interpreter, ...) have no
+    tool name and arguments and are skipped.
+
+    Args:
+        response: A Responses API response (object or dict) or a list of items.
+
+    Returns:
+        List of dicts with ``tool``, ``args`` and, when known, ``id``,
+        ``result`` and ``error``.
+    """
+    items = _responses_items(response)
+    outputs: dict[str, Any] = {}
+    for item in items:
+        if item.get("type") in _RESPONSES_OUTPUT_TYPES and item.get("call_id"):
+            outputs[str(item["call_id"])] = item.get("output")
+
+    calls: list[dict[str, Any]] = []
+    for item in items:
+        kind = item.get("type")
+        name = item.get("name")
+        if kind not in _RESPONSES_CALL_TYPES or not name:
+            continue
+        if kind == "custom_tool_call":
+            args: Any = {"input": item.get("input", "")}
+        else:
+            args = item.get("arguments", "{}")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args) if args.strip() else {}
+                except (json.JSONDecodeError, TypeError):
+                    args = {"raw": args}
+        call: dict[str, Any] = {"tool": str(name), "args": args if args is not None else {}}
+        call_id = item.get("call_id") or item.get("id")
+        if call_id:
+            call["id"] = str(call_id)
+        if kind == "mcp_call":
+            if item.get("output") is not None:
+                call["result"] = item["output"]
+            if item.get("error"):
+                call["error"] = _error_text(item["error"])
+        elif call_id and str(call_id) in outputs:
+            output = outputs[str(call_id)]
+            call["result"] = output
+            error = _output_error(output)
+            if error:
+                call["error"] = error
+        calls.append(call)
+    return calls
+
+
 def from_anthropic(response: Any) -> list[dict[str, Any]]:
     """Extract tool calls from an Anthropic message response.
 
@@ -554,7 +701,9 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     Detection order:
     1. Already a list of dicts with ``"tool"`` keys → pass through
     2. Object with ``model_dump()`` → convert to dict, then re-detect
-    3. Dict with ``"choices"`` → OpenAI format
+    3. Dict with ``"choices"`` → OpenAI Chat Completions; a Responses API
+       response (``object == "response"`` or ``function_call`` / ``mcp_call``
+       items in ``output``) or item list → :func:`from_openai_responses`
     4. Dict with ``"content"`` list containing ``"type"`` keys → Anthropic format
     5. Dict with ``"candidates"`` → Gemini format
     6. Dict/object with ``"messages"`` where some message has ``tool_calls`` → LangGraph
@@ -613,9 +762,11 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
         actual = _object_to_dict(actual)
 
     if isinstance(actual, dict):
-        # 3. OpenAI
+        # 3. OpenAI (Chat Completions, then the Responses API)
         if "choices" in actual:
             return from_openai(actual)
+        if _is_responses_payload(actual):
+            return from_openai_responses(actual)
 
         # 4. Anthropic (single message — NOT a list of Claude Agent SDK messages)
         content = actual.get("content")
@@ -640,6 +791,11 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
 
     # Handle list inputs that aren't already-formatted tool dicts
     if isinstance(actual, list) and actual:
+        # 3b. OpenAI Responses API item list (function_call / mcp_call items)
+        items = [_item_dict(i) for i in actual]
+        if _is_responses_payload(items):
+            return from_openai_responses(items)
+
         # 9. Claude Agent SDK: list of messages with tool_use content blocks
         if _is_claude_agent_sdk_list(actual):
             return from_claude_agent_sdk(actual)
@@ -656,8 +812,9 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
 
     raise TypeError(
         f"Cannot auto-detect provider format from {type(actual).__name__}. "
-        "Pass a raw OpenAI/Anthropic/Gemini/LangGraph/PydanticAI/OpenAIAgents/"
-        "ClaudeAgentSDK response, or a list of dicts with 'tool' and 'args' keys."
+        "Pass a raw OpenAI (Chat Completions or Responses)/Anthropic/Gemini/LangGraph/"
+        "PydanticAI/OpenAIAgents/ClaudeAgentSDK response, or a list of dicts with 'tool' "
+        "and 'args' keys."
     )
 
 
