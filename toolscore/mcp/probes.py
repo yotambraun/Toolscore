@@ -788,9 +788,12 @@ def _probe_round_trip(
         ok, _, text = caller.call(write.name, second.args)
         skip_reported = ok and _reports_skip(text)
         if ok and not skip_reported:
-            shown = any(
-                any(m in visible(r, second)[1] for m in second.value_markers) for r in with_values
-            )
+            shown = False
+            for reader in with_values:
+                found = visible(reader, second)[1]
+                if any(m in found for m in second.value_markers):
+                    shown = True
+                    break
             if not shown:
                 return result(
                     "fail",
