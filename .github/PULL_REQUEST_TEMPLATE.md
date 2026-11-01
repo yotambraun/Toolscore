@@ -25,5 +25,5 @@
 
 - [ ] Tests added or updated for the changed behaviour
 - [ ] Docs updated (docstrings, `docs/`, or `TUTORIAL.md`) if the public API changed
-- [ ] `ruff check toolscore` and `mypy toolscore` pass locally
+- [ ] `ruff check toolscore tests examples`, `ruff format --check toolscore tests examples` and `mypy toolscore` pass locally
 - [ ] PR title follows Conventional Commits (see table above)

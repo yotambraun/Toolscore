@@ -27,7 +27,7 @@ Development Setup
 
    pytest
    mypy toolscore
-   ruff check toolscore
+   ruff check toolscore tests examples
 
 Code Style
 ----------
@@ -124,7 +124,7 @@ Pull Request Process
 
    pytest
    mypy toolscore
-   ruff check toolscore
+   ruff check toolscore tests examples
 
 4. Commit your changes:
 

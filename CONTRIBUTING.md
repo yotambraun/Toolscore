@@ -25,7 +25,7 @@ uv pip install -e ".[dev]"
 ```bash
 pytest
 mypy toolscore
-ruff check toolscore
+ruff check toolscore tests examples
 ```
 
 ## Development Workflow
@@ -42,10 +42,10 @@ We use modern Python tooling (2025 best practices):
 Run all checks:
 ```bash
 # Format code
-ruff format toolscore tests
+ruff format toolscore tests examples
 
 # Lint code
-ruff check toolscore tests
+ruff check toolscore tests examples
 
 # Type check
 mypy toolscore
@@ -133,7 +133,7 @@ git checkout -b feature/your-feature-name
 ```bash
 pytest
 mypy toolscore
-ruff check toolscore
+ruff check toolscore tests examples
 ```
 
 4. Commit your changes:
