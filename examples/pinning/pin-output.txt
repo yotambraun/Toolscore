@@ -1,0 +1,23 @@
+$ toolscore mcp pin "npx -y @modelcontextprotocol/server-memory@2.0.1" -o memory.lock.json
+                                     Pinned memory-server 2.0.1                                     
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Tool                ┃ Capabilities  ┃ Why                                                        ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ add_observations    │ write         │ annotation readOnlyHint: false; name word 'add'            │
+│ create_entities     │ write         │ annotation readOnlyHint: false; name word 'create'         │
+│ create_relations    │ write         │ annotation readOnlyHint: false; name word 'create'         │
+│ delete_entities     │ write, delete │ annotation readOnlyHint: false; annotation                 │
+│                     │               │ destructiveHint: true; name word 'delete'; description     │
+│                     │               │ verb 'delete'                                              │
+│ delete_observations │ write, delete │ annotation readOnlyHint: false; annotation                 │
+│                     │               │ destructiveHint: true; name word 'delete'; description     │
+│                     │               │ verb 'delete'                                              │
+│ delete_relations    │ write, delete │ annotation readOnlyHint: false; annotation                 │
+│                     │               │ destructiveHint: true; name word 'delete'; description     │
+│                     │               │ verb 'delete'                                              │
+│ open_nodes          │ read          │ annotation readOnlyHint: true                              │
+│ read_graph          │ read          │ annotation readOnlyHint: true; name word 'read'            │
+│ search_nodes        │ read          │ annotation readOnlyHint: true; name word 'search'          │
+└─────────────────────┴───────────────┴────────────────────────────────────────────────────────────┘
+Wrote memory.lock.json (9 tools, lock_sha256 040e5120beda...). Commit it and run `toolscore mcp 
+verify-pin` in CI.

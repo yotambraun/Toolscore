@@ -1,0 +1,204 @@
+$ toolscore mcp verify-pin "npx -y @modelcontextprotocol/server-memory@2026.8.31" --lock memory.lock.json
+Pin check
+  ERROR  'add_observations' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "observations": {
+                "items": {
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "results": {
+  ERROR  'create_entities' changed: description, inputSchema, outputSchema (pin-tool-changed)
+         --- description (lock)
+         +++ description
+         @@ -1 +1 @@
+         -Create multiple new entities in the knowledge graph. An entity whose name already exists, 
+or repeats an earlier entity in the same call, is skipped and its observations are not added; the 
+result lists the skipped names in `skipped`. Use add_observations to add observations to an existing
+entity.
+         +Create multiple new entities in the knowledge graph
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "entities": {
+                "items": {
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "entities": {
+         @@ -30,12 +30,6 @@
+                  "type": "object"
+                },
+                "type": "array"
+         -    },
+         -    "skipped": {
+         -      "items": {
+         -        "type": "string"
+         -      },
+         -      "type": "array"
+              }
+            },
+            "required": [
+  ERROR  'create_relations' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "relations": {
+                "items": {
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "relations": {
+  ERROR  'delete_entities' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "entityNames": {
+                "description": "An array of entity names to delete",
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+  ERROR  'delete_observations' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "deletions": {
+                "items": {
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+  ERROR  'delete_relations' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "relations": {
+                "description": "An array of relations to delete",
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "message": {
+  ERROR  'open_nodes' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "names": {
+                "description": "An array of entity names to retrieve",
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "entities": {
+  ERROR  'read_graph' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {},
+            "type": "object"
+          }
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "entities": {
+  ERROR  'search_nodes' changed: inputSchema, outputSchema (pin-tool-changed)
+         --- inputSchema (lock)
+         +++ inputSchema
+         @@ -1,9 +1,8 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "properties": {
+              "query": {
+                "description": "The search query to match against entity names, types, and 
+observation content",
+         -      "maxLength": 2048,
+                "type": "string"
+              }
+            },
+         --- outputSchema (lock)
+         +++ outputSchema
+         @@ -1,5 +1,5 @@
+          {
+         -  "$schema": "https://json-schema.org/draft/2020-12/schema",
+         +  "$schema": "http://json-schema.org/draft-07/schema#",
+            "additionalProperties": false,
+            "properties": {
+              "entities": {
+  INFO   protocol 2026-07-28 -> 2025-11-25 (pin-protocol-changed)
+  INFO   server version 2.0.1 -> 0.6.3 (pin-server-changed)
+Pin check: FAIL (9 failing of 11 finding(s), --fail-on drift)
+
+verify exit 1

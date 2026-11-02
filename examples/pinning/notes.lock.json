@@ -1,0 +1,246 @@
+{
+  "lock_version": "1",
+  "kind": "toolscore.mcp-lock",
+  "generated_by": "toolscore 1.11.0",
+  "created_at": "2026-11-02T01:36:29+00:00",
+  "server": {
+    "name": "notes-server",
+    "version": "1.1.0"
+  },
+  "protocol": {
+    "version": "2026-07-28",
+    "era": "modern"
+  },
+  "instructions_sha256": null,
+  "tools": {
+    "create_note": {
+      "sha256": "b29d6d5c577d55b7698ffa0367e7106ee0f2f1ebd36f72a2f27ea587f57e2cf9",
+      "fields": {
+        "name": "92d76f212d5b71fafa4f2ad9af5580b794c970214247f1c9997e32e0a74fb2b6",
+        "title": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "description": "540f2474545a519e511c6853d9b228229f60391ea431a88ec3023cad25f3c7c4",
+        "inputSchema": "09bc107c91ba8b1d3e6fb7761cb1e7e81ef1f8d2834f248f9f94c3e0710c3e1c",
+        "outputSchema": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "annotations": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+      },
+      "capabilities": [
+        "write"
+      ],
+      "capability_sources": {
+        "write": [
+          "name word 'create'"
+        ]
+      },
+      "definition": {
+        "name": "create_note",
+        "title": null,
+        "description": "Create a note with a title and body and return its id.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Short title for the note."
+            },
+            "body": {
+              "type": "string",
+              "description": "Full text content of the note."
+            }
+          },
+          "required": [
+            "title"
+          ]
+        },
+        "outputSchema": null,
+        "annotations": null
+      }
+    },
+    "delete_note": {
+      "sha256": "2279b3544f24726000536aadb11e3ecad634f0b3f3b112068488b1574eec2818",
+      "fields": {
+        "name": "c22daddbd66861c75978b59aec6d6742f540465edc2f5142593669f5fdbb7c4f",
+        "title": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "description": "bf73ac2b066bcd747aca66c9359723750f7b3de4e9b52d308573015696550291",
+        "inputSchema": "033837fc92c245f15a90c9ae96a765711ec6b7cef69a39a2ef252f80ed5036c8",
+        "outputSchema": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "annotations": "d1b84d42d82a80d600c4bb21918330d5d6716ef4ce0985c57562cbb15ded04d8"
+      },
+      "capabilities": [
+        "write",
+        "delete"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false"
+        ],
+        "delete": [
+          "annotation destructiveHint: true",
+          "name word 'delete'",
+          "description verb 'delete'"
+        ]
+      },
+      "definition": {
+        "name": "delete_note",
+        "title": null,
+        "description": "Delete the note with the given id.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "note_id": {
+              "description": "Id of the note to delete."
+            }
+          },
+          "required": [
+            "note_id"
+          ]
+        },
+        "outputSchema": null,
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true
+        }
+      }
+    },
+    "export_notes": {
+      "sha256": "cbc36d483f063238f8a6a3c546b8040e89df1d73f3603e4e0af8a7e4be6925a3",
+      "fields": {
+        "name": "bb5160a8ef1b87df76197c81da329a6fa4970a760a10097ec4e46357243c122d",
+        "title": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "description": "587c6835de822a898401011ea1daa38fa816635f28b7f8268424fb0d860bccd6",
+        "inputSchema": "cc87ede361abe09118707ab1e5025d647d445be8009005772811baffcf953002",
+        "outputSchema": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "annotations": "8803fb4b4971327e527bfc007f694c25d5553baffc4acd00784c86ae97dfd056"
+      },
+      "capabilities": [
+        "read"
+      ],
+      "capability_sources": {
+        "read": [
+          "annotation readOnlyHint: true"
+        ]
+      },
+      "definition": {
+        "name": "export_notes",
+        "title": null,
+        "description": "Export all notes to the given format (json or markdown).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "string",
+              "description": "Export format: json or markdown."
+            }
+          },
+          "required": [
+            "format"
+          ]
+        },
+        "outputSchema": null,
+        "annotations": {
+          "readOnlyHint": true
+        }
+      }
+    },
+    "list_notes": {
+      "sha256": "274417d3cdba7459f97496df21ccdd8adcd4b2e72a34dcbf536e2e50c45293c8",
+      "fields": {
+        "name": "f888ad162913c9970d5c98b822bdd4e54cec863719667d90f5eeaef24419023d",
+        "title": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "description": "b93f7da2101cfc2c80d9384d6efd02bc66e83cc6ea10996194742e259fefcec7",
+        "inputSchema": "33043b4dc579d2a41fb20c558bd6498bfdbac1c5fdf62c962d4887e30485e2c9",
+        "outputSchema": "46edd20e8aa5980b91be662cfe10aa68f9ab83f267a53df727282b604c15c22a",
+        "annotations": "8803fb4b4971327e527bfc007f694c25d5553baffc4acd00784c86ae97dfd056"
+      },
+      "capabilities": [
+        "read"
+      ],
+      "capability_sources": {
+        "read": [
+          "annotation readOnlyHint: true",
+          "name word 'list'"
+        ]
+      },
+      "definition": {
+        "name": "list_notes",
+        "title": null,
+        "description": "List existing notes, newest first, up to a limit.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": "integer",
+              "description": "Maximum notes to return."
+            }
+          },
+          "required": [
+            "limit"
+          ]
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "notes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "count": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "notes",
+            "count"
+          ]
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      }
+    },
+    "search_notes": {
+      "sha256": "3b91bf70f2c1d840f3042be46d1a5c20e0bcfeba0370f4f777a9746d3d66d0de",
+      "fields": {
+        "name": "a253419d95c60cc5bf6df91d2399cd96b2e000923ec4fb17d6cbfab42b8c3c07",
+        "title": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "description": "320d8ab2baa030a6d11a36bfc2db877990b3d65acb7f03992d1f134685ed1d87",
+        "inputSchema": "18fcd0856979046a8c3fbec6d337de3a8a3597940970cfab563b90f4c8e8cf5b",
+        "outputSchema": "74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+        "annotations": "8803fb4b4971327e527bfc007f694c25d5553baffc4acd00784c86ae97dfd056"
+      },
+      "capabilities": [
+        "read"
+      ],
+      "capability_sources": {
+        "read": [
+          "annotation readOnlyHint: true",
+          "name word 'search'"
+        ]
+      },
+      "definition": {
+        "name": "search_notes",
+        "title": null,
+        "description": "Search.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Text to search for."
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": null,
+        "annotations": {
+          "readOnlyHint": true
+        }
+      }
+    }
+  },
+  "overrides": {},
+  "lock_sha256": "7ed0bd7d54c24b59a6d8252739bc87ece1b03afdacac5443c35805be32cb8ebb"
+}

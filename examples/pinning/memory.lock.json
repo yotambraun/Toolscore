@@ -1,0 +1,895 @@
+{
+  "lock_version": "1",
+  "kind": "toolscore.mcp-lock",
+  "generated_by": "toolscore 1.11.0",
+  "created_at": "2026-11-02T01:36:05+00:00",
+  "server": {
+    "name": "memory-server",
+    "version": "2.0.1"
+  },
+  "protocol": {
+    "version": "2026-07-28",
+    "era": "modern"
+  },
+  "instructions_sha256": null,
+  "tools": {
+    "add_observations": {
+      "sha256": "1cfe175c1b1959b73de6ce4b50a56cdd2c06f967008ca47596b1f0072fc25a94",
+      "fields": {
+        "name": "d0e30ac2e79c347a0598e2d3f641b7ecde896ddff21f232668ff4b9844c3aa88",
+        "title": "fee57f91cb197dd8a4d594dd9439e908a5c6d56d807c20c2a31c8034595b93f5",
+        "description": "ff2fb5d38c2442cc2f1eb423b633d93c034141f318cf3f4cfdf5a9cad184c5cc",
+        "inputSchema": "e6e972efdb09e1d29eab808468864b502490d36263d969b11037cb2b4692e6b2",
+        "outputSchema": "b9b2c6c7b37ffdb404f65251017200850871dcdb6f42dee9afd64db5adc192cd",
+        "annotations": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
+      },
+      "capabilities": [
+        "write"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false",
+          "name word 'add'"
+        ]
+      },
+      "definition": {
+        "name": "add_observations",
+        "title": "Add Observations",
+        "description": "Add new observations to existing entities in the knowledge graph",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "observations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "entityName": {
+                    "type": "string",
+                    "description": "The name of the entity to add the observations to"
+                  },
+                  "contents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observation contents to add"
+                  }
+                },
+                "required": [
+                  "entityName",
+                  "contents"
+                ]
+              }
+            }
+          },
+          "required": [
+            "observations"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "results": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "entityName": {
+                    "type": "string"
+                  },
+                  "addedObservations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "entityName",
+                  "addedObservations"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "results"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      }
+    },
+    "create_entities": {
+      "sha256": "949fe9747852e6e6eb71441a8dcd4492a84dac3260990b63a4da9d49c7375bdb",
+      "fields": {
+        "name": "9305910f197869e585031706a26d3d122a566b1a3ab0583fc02f91f2be534c77",
+        "title": "eaba1755b0c7dfdd0a6299d3169c49f29845d0700fbad2734b24062aa134e607",
+        "description": "c1a7086bc5ceebf85680df1596591cb132711d1cd360738fcaef786ca45dd6f6",
+        "inputSchema": "e539cb1e7f1baacf480946f42574fde20486f313248137d3da36568d0f27b067",
+        "outputSchema": "0bedbc560b1b73533f3a1ce118c05eea750feee82063daeff6440350f61fe12a",
+        "annotations": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
+      },
+      "capabilities": [
+        "write"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false",
+          "name word 'create'"
+        ]
+      },
+      "definition": {
+        "name": "create_entities",
+        "title": "Create Entities",
+        "description": "Create multiple new entities in the knowledge graph. An entity whose name already exists, or repeats an earlier entity in the same call, is skipped and its observations are not added; the result lists the skipped names in `skipped`. Use add_observations to add observations to an existing entity.",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the entity"
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "description": "The type of the entity"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observation contents associated with the entity"
+                  }
+                },
+                "required": [
+                  "name",
+                  "entityType",
+                  "observations"
+                ]
+              }
+            }
+          },
+          "required": [
+            "entities"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the entity"
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "description": "The type of the entity"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observation contents associated with the entity"
+                  }
+                },
+                "required": [
+                  "name",
+                  "entityType",
+                  "observations"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "skipped": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "entities"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      }
+    },
+    "create_relations": {
+      "sha256": "175289c712080be33eab2a6970d6c86e503582e8d8599d6c255627639be27f4f",
+      "fields": {
+        "name": "6dcdadac1c6efac8d9c9046f0b714a1cbcc9184ca361a78488347d8380c5fc83",
+        "title": "3d9612ab01fd4b4b5f1ea21ff1f453a0f605365a6142e81ef6673340b5b51a98",
+        "description": "e2dd4540b9030148fe495bef81941f9524224115944a44a27a1b24c7b22054c1",
+        "inputSchema": "52aa80054f13ddc75f655a8166537240da29e1dac0d2a615cb40cfb5696dce00",
+        "outputSchema": "9c153118fdb4879fd5d5dd019da37f308c014a5693404b6cfaa74109f8b1278d",
+        "annotations": "d72d3cb182e3d7fcf0b1c6782251eee772cdf2a99470e1a4bd6a006b5c8f4e25"
+      },
+      "capabilities": [
+        "write"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false",
+          "name word 'create'"
+        ]
+      },
+      "definition": {
+        "name": "create_relations",
+        "title": "Create Relations",
+        "description": "Create multiple new relations between entities in the knowledge graph. Relations should be in active voice",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation starts"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation ends"
+                  },
+                  "relationType": {
+                    "type": "string",
+                    "description": "The type of the relation"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "relationType"
+                ]
+              }
+            }
+          },
+          "required": [
+            "relations"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation starts"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation ends"
+                  },
+                  "relationType": {
+                    "type": "string",
+                    "description": "The type of the relation"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "relationType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "relations"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        }
+      }
+    },
+    "delete_entities": {
+      "sha256": "95a62c3141ec4c28a66f52886c11967c94b8729bea645c11716836cc42d6f027",
+      "fields": {
+        "name": "71f9134b924da846874a36862c49e81ec828f90203e165fdf974560fbaca335e",
+        "title": "6e608a6159ae5d5a685cc2d003fe293e9a24a6d2ba68c5e0cc97892f928d8a9c",
+        "description": "086222eb6cb791391cb6ad23a4edca11ec2879f4fa993c079ae8906113fd05a6",
+        "inputSchema": "26d6e33884a0c6d0229e2e49f8474eb75e6f41da1d22cf4c3b5fdf092a8eca80",
+        "outputSchema": "ce72c2c31a1633c0be2aa69a7a8cb01413ad8f4ce89f0f7e78bb0d3f850fe5b8",
+        "annotations": "eac8ce4ef2f806dc71b6ab74b1b7f45db5d763fc21c243fac665161bb8d6fb60"
+      },
+      "capabilities": [
+        "write",
+        "delete"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false"
+        ],
+        "delete": [
+          "annotation destructiveHint: true",
+          "name word 'delete'",
+          "description verb 'delete'"
+        ]
+      },
+      "definition": {
+        "name": "delete_entities",
+        "title": "Delete Entities",
+        "description": "Delete multiple entities and their associated relations from the knowledge graph",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "entityNames": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "An array of entity names to delete"
+            }
+          },
+          "required": [
+            "entityNames"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "success",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    "delete_observations": {
+      "sha256": "7b786a8baf35fae402b97374b234d0d3843e4c63f9200a742e84527588eedf74",
+      "fields": {
+        "name": "b68c75469dd498210d2568f08367380e95cafecf001b082fbee4daa1242484e2",
+        "title": "217cc94e9d77f5519f11e6422f93c1b308a9f2661607a22166d85d7b1707b856",
+        "description": "30ffb2113bd8f0f022ccbb7a31d2ca610b5bb961cfd2677c4ebe492fc8f5fc97",
+        "inputSchema": "1eb55a341e93fbcda7f18409c5741fdacd8fc673ca64e59d5aa12f279c46810f",
+        "outputSchema": "ce72c2c31a1633c0be2aa69a7a8cb01413ad8f4ce89f0f7e78bb0d3f850fe5b8",
+        "annotations": "eac8ce4ef2f806dc71b6ab74b1b7f45db5d763fc21c243fac665161bb8d6fb60"
+      },
+      "capabilities": [
+        "write",
+        "delete"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false"
+        ],
+        "delete": [
+          "annotation destructiveHint: true",
+          "name word 'delete'",
+          "description verb 'delete'"
+        ]
+      },
+      "definition": {
+        "name": "delete_observations",
+        "title": "Delete Observations",
+        "description": "Delete specific observations from entities in the knowledge graph",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "deletions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "entityName": {
+                    "type": "string",
+                    "description": "The name of the entity containing the observations"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observations to delete"
+                  }
+                },
+                "required": [
+                  "entityName",
+                  "observations"
+                ]
+              }
+            }
+          },
+          "required": [
+            "deletions"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "success",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    "delete_relations": {
+      "sha256": "47845dc76655e6a3e11f1db09919799237e9d0c7d62fb3dcf3da822a0dafc30e",
+      "fields": {
+        "name": "e56798e2f6dc0628fcdf0fd4f322d4a09ba6ced8138cdfc20795e08bd319b762",
+        "title": "94d7478cbe35d6855f8b716422fc462af53711bb93e31efbed143ba1238c00d5",
+        "description": "ee6a0e5cd6554a9a84afd7fe11f50a474aec5c3fa0e989d431abcaa078144f37",
+        "inputSchema": "b0f3c44897d0fb224e5ef47d7baea3bb94a1298e1a1a87564b28a7eca1ee4684",
+        "outputSchema": "ce72c2c31a1633c0be2aa69a7a8cb01413ad8f4ce89f0f7e78bb0d3f850fe5b8",
+        "annotations": "eac8ce4ef2f806dc71b6ab74b1b7f45db5d763fc21c243fac665161bb8d6fb60"
+      },
+      "capabilities": [
+        "write",
+        "delete"
+      ],
+      "capability_sources": {
+        "write": [
+          "annotation readOnlyHint: false"
+        ],
+        "delete": [
+          "annotation destructiveHint: true",
+          "name word 'delete'",
+          "description verb 'delete'"
+        ]
+      },
+      "definition": {
+        "name": "delete_relations",
+        "title": "Delete Relations",
+        "description": "Delete multiple relations from the knowledge graph",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation starts"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation ends"
+                  },
+                  "relationType": {
+                    "type": "string",
+                    "description": "The type of the relation"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "relationType"
+                ]
+              },
+              "description": "An array of relations to delete"
+            }
+          },
+          "required": [
+            "relations"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "success",
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    "open_nodes": {
+      "sha256": "75c205e9d730da46f76f556a0c58da3af2b85385df5fdd458e2469e1ebed4d55",
+      "fields": {
+        "name": "31da9787673c62f3f04f5631bf848ba12138ddc6ff925b1b0d878af99be3e1ba",
+        "title": "7cbd83dcd008870a7d54c94edf42ae23047df44e1839cea9cd961a52fcf6cacf",
+        "description": "d4df7ff09e4b7e42a029d505efe4b8881e10f24f16ca9e33c5f3c3cea6484e48",
+        "inputSchema": "b5ddb299e887308656c8e02c2adc58e0a3a82e809f9d22f95b8ddf7986a6d4b4",
+        "outputSchema": "4480c3c1fefb2f38b9ac97a6cea309d45a83339557263e091af57a29506debc9",
+        "annotations": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
+      },
+      "capabilities": [
+        "read"
+      ],
+      "capability_sources": {
+        "read": [
+          "annotation readOnlyHint: true"
+        ]
+      },
+      "definition": {
+        "name": "open_nodes",
+        "title": "Open Nodes",
+        "description": "Open specific nodes in the knowledge graph by their names",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "An array of entity names to retrieve"
+            }
+          },
+          "required": [
+            "names"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the entity"
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "description": "The type of the entity"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observation contents associated with the entity"
+                  }
+                },
+                "required": [
+                  "name",
+                  "entityType",
+                  "observations"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation starts"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation ends"
+                  },
+                  "relationType": {
+                    "type": "string",
+                    "description": "The type of the relation"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "relationType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "entities",
+            "relations"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    "read_graph": {
+      "sha256": "f651a47dec6b1222061803c2bbf1eacfdb401cb8b5b1e9a74ad08faf0f287b7c",
+      "fields": {
+        "name": "97f48f008313d096c32be0a7ea3872f9673f3ea2123a7f50696352d7ae4db546",
+        "title": "e75fed97793163662c0493feb5c2f6f3afab3d65d8c590cfcaa150b2a1859434",
+        "description": "9701aab08ebf30e3248ebf4cfb80b17ff537834c2ccb4edbfeb24a48e5e42875",
+        "inputSchema": "93ab7499dc3c616f8db8780fed0d9f69270803cda913882ad2ef3943db8d7225",
+        "outputSchema": "4480c3c1fefb2f38b9ac97a6cea309d45a83339557263e091af57a29506debc9",
+        "annotations": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
+      },
+      "capabilities": [
+        "read"
+      ],
+      "capability_sources": {
+        "read": [
+          "annotation readOnlyHint: true",
+          "name word 'read'"
+        ]
+      },
+      "definition": {
+        "name": "read_graph",
+        "title": "Read Graph",
+        "description": "Read the entire knowledge graph",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {}
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the entity"
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "description": "The type of the entity"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observation contents associated with the entity"
+                  }
+                },
+                "required": [
+                  "name",
+                  "entityType",
+                  "observations"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation starts"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation ends"
+                  },
+                  "relationType": {
+                    "type": "string",
+                    "description": "The type of the relation"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "relationType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "entities",
+            "relations"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    },
+    "search_nodes": {
+      "sha256": "91412ee61bb324117c7446bb38dd6b8e8030b6a4b75743481faadc1b80aff31a",
+      "fields": {
+        "name": "b3b9c73416aee65cfa6bf60b34c9818ac66ced28b52667dc0db4688dcfb5b5b8",
+        "title": "83d63b0ab858efa5959f46192a4e84eb6d8ec0983cfaebd6d3ee95b14a3abb21",
+        "description": "17d75cae4af864a9fcc3adf96f9d209af1f758cf6849e3cb4088b3f1786b6631",
+        "inputSchema": "d9207e12931a135b036f96c102d1cacae2727d12f5c695ed1992e0368451db13",
+        "outputSchema": "4480c3c1fefb2f38b9ac97a6cea309d45a83339557263e091af57a29506debc9",
+        "annotations": "ae78503371695cf7d7b89784165a967b2135219ecf6527f06a2c1c73d05c6ae6"
+      },
+      "capabilities": [
+        "read"
+      ],
+      "capability_sources": {
+        "read": [
+          "annotation readOnlyHint: true",
+          "name word 'search'"
+        ]
+      },
+      "definition": {
+        "name": "search_nodes",
+        "title": "Search Nodes",
+        "description": "Search for nodes in the knowledge graph based on a query",
+        "inputSchema": {
+          "type": "object",
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "properties": {
+            "query": {
+              "type": "string",
+              "maxLength": 2048,
+              "description": "The search query to match against entity names, types, and observation content"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        },
+        "outputSchema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "entities": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the entity"
+                  },
+                  "entityType": {
+                    "type": "string",
+                    "description": "The type of the entity"
+                  },
+                  "observations": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "An array of observation contents associated with the entity"
+                  }
+                },
+                "required": [
+                  "name",
+                  "entityType",
+                  "observations"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "relations": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation starts"
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "The name of the entity where the relation ends"
+                  },
+                  "relationType": {
+                    "type": "string",
+                    "description": "The type of the relation"
+                  }
+                },
+                "required": [
+                  "from",
+                  "to",
+                  "relationType"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "entities",
+            "relations"
+          ],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        }
+      }
+    }
+  },
+  "overrides": {},
+  "lock_sha256": "040e5120bedaaf89f1471fa72b6fa7d06a6202e1f05e0b76802a4e591bc7779c"
+}
