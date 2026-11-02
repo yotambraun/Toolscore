@@ -73,7 +73,8 @@ Install with `pip install tool-scorer` (add `[http]` for remote servers). It spe
 
 | Plug in | How |
 |---------|-----|
-| MCP servers (stdio, Streamable HTTP, Claude Desktop / Cursor / VS Code / Claude Code configs) | `toolscore mcp test` (`--probes`), `mcp lint`, `mcp list`, `mcp record`, `mcp proxy --inject` |
+| MCP servers (stdio, Streamable HTTP, Claude Desktop / Cursor / VS Code / Claude Code configs) | `toolscore mcp test` (`--probes`), `mcp lint`, `mcp list`, `mcp record`, `mcp proxy --inject`, `mcp pin`, `mcp diff` |
+| An LLM agent (OpenAI Responses API, Anthropic Messages) against any MCP server | `toolscore agent run spec.yaml` |
 | OpenAI (Chat Completions and Responses API), Anthropic, Gemini | pass the raw response to `evaluate()` |
 | LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI | pass the run result to `evaluate()` |
 | OpenTelemetry GenAI spans, recorded MCP sessions | `toolscore eval gold.json trace.json` |
@@ -100,7 +101,7 @@ A tool can answer "success" and do nothing, and an agent can watch a tool fail a
 | `2026.8.31` (before the fix) | **FAIL** `probe-silent-noop`: "a second write to key 'tspd11f8d-name' reported success; state unchanged" |
 | `2.0.1` | pass: "a same-key write was reported as skipped" |
 
-On `@modelcontextprotocol/server-filesystem@2.1.0`, the built-in bounds flag `head: 0` and `tail: 0` returning the whole ten-line file ([example](examples/mcp_filesystem_probes/)). Write probes need `--allow-writes`; point them at a disposable server.
+A high-confidence probe failure also caps the grade at C (`Grade A by score, capped because: probe-silent-noop on create_entities`), so a tool that reports success and does nothing never ships with an A. On `@modelcontextprotocol/server-filesystem@2.1.0`, the built-in bounds flag `head: 0` and `tail: 0` returning the whole ten-line file ([example](examples/mcp_filesystem_probes/)). Write probes need `--allow-writes`; point them at a disposable server.
 
 **Honesty checks** compare the tool results with the agent's final answer, on every trace format, in `toolscore eval` and on their own:
 
@@ -117,11 +118,29 @@ Final answer (assistant message): 'Your order for the blue mug has been placed.'
 
 Guides: [effect probes](https://yotambraun.github.io/Toolscore/docs/effect_probes.html), [honesty checks](https://yotambraun.github.io/Toolscore/docs/honesty_checks.html), [fault injection](https://yotambraun.github.io/Toolscore/docs/fault_injection.html).
 
+## Rigor
+
+Toolscore is tool-level truth; [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) is study-level truth (design, pre-registration, grading, reports). Between the two:
+
+| What it does | Command | Guide |
+| --- | --- | --- |
+| Run an LLM agent against an MCP server: a guard on every tool call, a budget checked before every model call (unknown prices refused), resumable JSONL runs, build verification | `toolscore agent run spec.yaml` | [Agent harness](https://yotambraun.github.io/Toolscore/docs/agent_harness.html) |
+| Pin a server's tools and fail CI on drift or a new delete/exec capability (MCP rug pulls, description poisoning) | `toolscore mcp pin`, `mcp verify-pin`, `mcp test --pin` | [Diff & pinning](https://yotambraun.github.io/Toolscore/docs/pinning_diff.html) |
+| Compare two servers, builds or snapshots, with CI exit codes | `toolscore mcp diff A B` | [Diff & pinning](https://yotambraun.github.io/Toolscore/docs/pinning_diff.html) |
+| Required, optional and forbidden calls, and alternative paths | `toolscore eval contract.json trace.json` | [Contracts v2](https://yotambraun.github.io/Toolscore/docs/contracts.html) |
+| Record once, re-score forever: content-hashed receipts, regrade without re-running | `toolscore eval --receipt`, `toolscore regrade` | [Receipts](https://yotambraun.github.io/Toolscore/docs/receipts.html) |
+| Every check is pass, fail or unknown; missing latency and cost are unknown, never 0 | every report | [Receipts](https://yotambraun.github.io/Toolscore/docs/receipts.html) |
+| Repeated runs: Wilson intervals, Fisher test, pass^k, pre-declared rules; pick a variant by Pareto, weighted or lexicographic objectives | `toolscore compare --runs`, `toolscore select` | [Comparing runs](https://yotambraun.github.io/Toolscore/docs/comparing_runs.html) |
+| Preflight before any paid call (keys by name only, server, build, prices, budget) | `toolscore doctor` | [Agent harness](https://yotambraun.github.io/Toolscore/docs/agent_harness.html) |
+| Neutral, versioned run records for study frameworks | `toolscore export --format aef` | [Agent harness](https://yotambraun.github.io/Toolscore/docs/agent_harness.html) |
+
+Offline examples with real output: [agent harness](examples/agent_harness/), [pinning](examples/pinning/), [contracts](examples/contracts/).
+
 ## Releases
 
 | Version | Date | Highlights |
 |---------|------|------------|
-| **1.11.0** | Unreleased | Effect probes · honesty checks on agent traces · fault-injection proxy · `--arg` values for sandboxed servers · MCP 2026-07-28 with fallback to the handshake · remote servers over Streamable HTTP · lint for behavior annotations and output schemas · grade badges · OpenAI Responses API · current models and prices |
+| **1.11.0** | Unreleased | Effect probes (and a grade cap) · honesty checks on agent traces · fault-injection proxy · agent harness · pinning and server diffs · contracts v2 · receipts and regrade · tri-state evidence · repeated-run statistics · doctor · run-record export · `--arg` values for sandboxed servers · MCP 2026-07-28 with fallback to the handshake · remote servers over Streamable HTTP · lint for behavior annotations and output schemas · grade badges · OpenAI Responses API · current models and prices |
 | 1.10.0 | 2026-10-03 | Record real MCP sessions · behavior and safety checks · MCP lint for missing tools and tool poisoning · OpenTelemetry import |
 | 1.9.1 | 2026-10-01 | MCP scorecard fixes found on the official MCP reference servers |
 
@@ -585,11 +604,13 @@ The provider is inferred from the model name. No `temperature` is sent unless yo
     mcp-command: 'uvx my-mcp-server'      # or a URL; add mcp-auth-env for a token
     mcp-fail-under: 'B'
     mcp-probes: 'true'                    # effect probes; mcp-allow-writes for round trips
+    mcp-pin-file: 'toolscore.lock.json'   # fail on drift from `toolscore mcp pin`
+    mcp-diff-against: 'baseline.json'     # diff against a saved `mcp list --json` snapshot
 ```
 
 Add `fail-on-honesty: 'true'` to an eval step to fail when the agent claims success after a failure, overrides a refusal with a code-execution tool, or hides an injected fault.
 
-The action installs the Toolscore version that matches the action ref (`@v1` follows the latest 1.x release; pin `@v1.11.0` for a fixed version). It outputs `score`, `grade`, `required-call-recall`, `violations` and `honesty-errors`, and in MCP mode `mcp-grade` and `mcp-score`, for later steps.
+The action installs the Toolscore version that matches the action ref (`@v1` follows the latest 1.x release; pin `@v1.11.0` for a fixed version). It outputs `score`, `grade`, `required-call-recall`, `violations` and `honesty-errors`, and in MCP mode `mcp-grade`, `mcp-score` and `mcp-diff-breaking`, for later steps.
 
 Baseline regression checks catch slow degradation:
 
@@ -601,7 +622,7 @@ toolscore regression baseline.json new_trace.json --gold-file gold.json
 
 ## Evaluate Whole Agent Runs
 
-Toolscore checks tool calls and MCP servers. To evaluate complete agent runs (tasks, outcomes, evidence), [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) builds on it: `pip install "agent-eval-flow[toolscore]"`, then `result.report(path, tools=True)` adds the Toolscore view of every tool call to its report.
+Toolscore checks tool calls and MCP servers. To evaluate complete agent runs (tasks, outcomes, evidence), [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) builds on it: `pip install "agent-eval-flow[toolscore]"`, then `result.report(path, tools=True)` adds the Toolscore view of every tool call to its report. `toolscore export --format aef` writes Toolscore's own runs as neutral, versioned records for such frameworks.
 
 ## When to Use Toolscore vs. the Platforms
 
