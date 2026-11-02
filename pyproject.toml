@@ -230,6 +230,15 @@ ignore_missing_imports = true
 module = "google.*"
 ignore_missing_imports = true
 
+# Optional SDKs used by toolscore.recorders and toolscore.inspect_scorer
+[[tool.mypy.overrides]]
+module = ["claude_agent_sdk", "inspect_ai.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "toolscore.inspect_scorer"
+disallow_untyped_decorators = false
+
 [[tool.mypy.overrides]]
 module = "langchain.*"
 ignore_missing_imports = true
