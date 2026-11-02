@@ -2625,3 +2625,139 @@ def sessions_export(session: Path, output: Path, max_result_chars: int) -> None:
         f"Wrote [cyan]{output}[/cyan] ({len(trace['calls'])} calls, credentials redacted). "
         "Review it before sharing."
     )
+
+
+# ---------------------------------------------------------------------------
+# lint-config: agent instruction files and MCP host configs
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_options(values: tuple[str, ...]) -> list[tuple[str | None, Path]]:
+    """Parse ``[SERVER=]FILE`` options."""
+    parsed: list[tuple[str | None, Path]] = []
+    for value in values:
+        name, sep, file = value.partition("=")
+        if sep and not Path(value).exists():
+            parsed.append((name or None, Path(file)))
+        else:
+            parsed.append((None, Path(value)))
+    return parsed
+
+
+@main.command("lint-config")
+@click.argument("paths", nargs=-1, type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.option(
+    "--snapshot",
+    "snapshots",
+    multiple=True,
+    metavar="[SERVER=]FILE",
+    help=(
+        "The tools a server exposes: a 'toolscore mcp list --json' snapshot or a "
+        "'toolscore mcp pin' lock file (repeatable). SERVER is the server's name in your MCP "
+        "config; without it, the server's own name is used."
+    ),
+)
+@click.option(
+    "--pin",
+    "pins",
+    multiple=True,
+    metavar="[SERVER=]FILE",
+    help="A 'toolscore mcp pin' lock file (repeatable; same as --snapshot).",
+)
+@click.option(
+    "--connect",
+    is_flag=True,
+    default=False,
+    help="Start every server in the MCP configs found to list its tools (runs their commands).",
+)
+@click.option(
+    "--user",
+    "user_scope",
+    is_flag=True,
+    default=False,
+    help="Also read the user's ~/.claude.json MCP servers.",
+)
+@click.option(
+    "--json",
+    "json_path",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Also write the report as JSON.",
+)
+@click.option(
+    "--fail-on",
+    type=click.Choice(["error", "warning", "never"]),
+    default="error",
+    show_default=True,
+    help="Exit 1 on an issue of this severity or worse.",
+)
+def lint_config_command(
+    paths: tuple[Path, ...],
+    snapshots: tuple[str, ...],
+    pins: tuple[str, ...],
+    connect: bool,
+    user_scope: bool,
+    json_path: Path | None,
+    fail_on: str,
+) -> None:
+    """Lint agent instructions against the MCP tools that really exist.
+
+    Reads CLAUDE.md, AGENTS.md, SKILL.md files, Cursor rules and Copilot
+    instructions, and the MCP host configs (.mcp.json, .cursor/mcp.json,
+    .vscode/mcp.json, claude_desktop_config.json) under PATHS (default: the
+    current directory). Flags mcp__server__tool names whose server or tool does
+    not exist, and instructions that contradict a tool's annotations (deleting
+    with a readOnlyHint tool). Tool lists come from --snapshot/--pin files or,
+    with --connect, from the running servers.
+    """
+    from rich.markup import escape
+
+    from toolscore.config_lint import lint_config
+
+    console = Console()
+    try:
+        report = lint_config(
+            list(paths) or None,
+            snapshots=_snapshot_options(snapshots + pins),
+            connect=connect,
+            user_config=Path.home() / ".claude.json" if user_scope else None,
+        )
+    except (OSError, ValueError) as exc:
+        print_error(f"Could not lint the config: {exc}", console)
+        sys.exit(2)
+
+    known = {name: len(report.inventory[name]) for name in report.inventory}
+    servers = ", ".join(
+        f"{name} ({known[name]} tools)" if name in known else f"{name} (tools unknown)"
+        for name in report.servers
+    )
+    console.print(
+        f"\n[bold]Config lint[/bold]  {len(report.instruction_files)} instruction file(s), "
+        f"{len(report.host_configs)} MCP config(s)"
+    )
+    console.print(f"Servers: {escape(servers) if servers else '[dim]none found[/dim]'}")
+    for rule, reason in report.skipped_rules.items():
+        console.print(f"[yellow]Skipped[/yellow] {escape(rule)}: [dim]{escape(reason)}[/dim]")
+    console.print()
+
+    for issue in sorted(report.issues, key=lambda i: (i.path, i.line or 0)):
+        style = "red" if issue.severity == "error" else "yellow"
+        where = f"{issue.path}:{issue.line}" if issue.line else issue.path
+        console.print(
+            f"  [{style}]{issue.severity.upper():<7}[/{style}]  [cyan]{escape(where)}[/cyan]  "
+            f"{escape(issue.message)} [dim]({issue.rule})[/dim]"
+        )
+        console.print(f"           [dim]-> {escape(issue.fix)}[/dim]")
+    if report.issues:
+        console.print()
+    console.print(f"{report.errors} error(s), {report.warnings} warning(s)")
+
+    if json_path is not None:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(json.dumps(report.to_json(), indent=2), encoding="utf-8")
+        console.print(f"[dim]>[/dim] JSON: [cyan]{json_path}[/cyan]")
+
+    if (fail_on == "error" and report.errors) or (
+        fail_on == "warning" and (report.errors or report.warnings)
+    ):
+        sys.exit(1)
