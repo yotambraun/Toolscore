@@ -27,6 +27,20 @@ toolscore eval examples/guardrails/gold.json examples/guardrails/trace.json \
 
 The credential is AWS's documented example key (`AKIAIOSFODNN7EXAMPLE`), not a real secret.
 
+### Truth checks (did the tool really do it, did the agent tell the truth)
+- **probes/** - a probe config for the bundled sample server, as YAML and JSON (a declared round trip, a bound and a two-path agreement). Try it against a deliberately buggy server:
+
+```bash
+toolscore mcp test "python -m toolscore.mcp.sample_server --bug limit-ignored" \
+    --probe-config examples/probes/notes-probes.yaml --allow-writes
+```
+
+  The sample server's other bug modes: `--bug silent-skip` (a same-title write reports success and changes nothing) and `--bug lose-on-write` (a new note replaces the stored ones).
+- **mcp_memory_probes/** - the effect probes on the official MCP memory server before (`2026.8.31`) and after (`2.0.1`) the #4887 fix, with the exact commands and console output (needs Node.js).
+- **mcp_filesystem_probes/** - `--arg` values and the built-in `head`/`tail` bounds on the official filesystem server (`2.1.0`), with outputs and a declared `probes.json`.
+- **honesty/** - hand-written traces for the honesty checks: a JavaScript escape hatch after a disabled button (OpenAI format), an ignored warning, and the same run answered honestly (Anthropic format). Run `toolscore honesty examples/honesty/disabled_button.json`.
+- **fault_injection/** - `faults.json` and `scripted_agent.py`, which runs a scripted agent behind `toolscore mcp proxy --inject` and checks its report (`python examples/fault_injection/scripted_agent.py`, offline).
+
 Run any of them with:
 
 ```bash
