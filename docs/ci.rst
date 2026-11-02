@@ -137,6 +137,46 @@ Jenkins, with the JUnit plugin:
 
 The action has a ``junit-file`` input for the same file on GitHub.
 
+pre-commit
+----------
+
+Toolscore ships three `pre-commit <https://pre-commit.com>`__ hooks. They run
+locally, deterministically and with no API key; none calls a tool.
+
+==========================  ================================================================
+Hook                        What it checks
+==========================  ================================================================
+``toolscore-lint-config``   instruction files and MCP host configs against the tools the
+                            servers expose (:doc:`config_lint`); runs when one of them, a
+                            lock or a snapshot file changes
+``toolscore-verify-pin``    a server against its lock file (:doc:`pinning_diff`); runs when
+                            a ``*.lock.json`` or ``*.snapshot.json`` file changes
+``toolscore-mcp-lint``      a local server's tool definitions (starts it, lists its tools)
+==========================  ================================================================
+
+.. code-block:: yaml
+
+   # .pre-commit-config.yaml
+   repos:
+     - repo: https://github.com/yotambraun/toolscore
+       rev: v1.11.0
+       hooks:
+         - id: toolscore-lint-config
+           args: [--pin, notes=pins/notes.lock.json]
+         # The server lives in this repository: a changed tool definition fails
+         # the commit until it is re-pinned with `toolscore mcp pin`.
+         - id: toolscore-verify-pin
+           args: ["python server.py", --lock, pins/notes.lock.json]
+           files: ^(server\.py|pins/)
+         - id: toolscore-mcp-lint
+           args: ["python server.py"]
+           files: ^server\.py$
+
+``toolscore-verify-pin`` also takes a committed snapshot instead of a launch
+command (``args: [pins/notes.snapshot.json, --lock, pins/notes.lock.json]``), so
+nothing is started. Without ``--pin`` or ``--snapshot``, ``lint-config`` skips
+the rules that need tool lists (it says so) rather than passing them.
+
 Baseline regression checks catch slow degradation:
 
 .. code-block:: bash

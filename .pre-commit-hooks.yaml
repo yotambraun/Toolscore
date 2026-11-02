@@ -1,0 +1,37 @@
+# pre-commit hooks for Toolscore (https://pre-commit.com). All run locally and
+# deterministically with no API key. See docs/ci.rst ("pre-commit").
+
+- id: toolscore-lint-config
+  name: toolscore lint-config
+  description: >-
+    Check CLAUDE.md, AGENTS.md, SKILL.md, Cursor rules, Copilot instructions and MCP host
+    configs against the tools the servers really expose. Add --snapshot/--pin SERVER=FILE
+    in args to check tool names; without them the tool rules are skipped, not passed.
+  entry: toolscore lint-config
+  language: python
+  pass_filenames: false
+  files: >-
+    (^|/)(CLAUDE(\.local)?\.md|AGENTS\.md|SKILL\.md|\.cursorrules|\.mcp\.json|claude_desktop_config\.json|copilot-instructions\.md|[^/]+\.instructions\.md|\.cursor/mcp\.json|\.vscode/mcp\.json|\.cursor/rules/.+\.mdc?|.+\.lock\.json|.+\.snapshot\.json)$
+
+- id: toolscore-verify-pin
+  name: toolscore mcp verify-pin
+  description: >-
+    Fail when an MCP server drifts from its lock file (a changed tool definition, a new
+    tool, a new delete/exec capability, changed instructions). Pass the server (a
+    committed `toolscore mcp list --json` snapshot, or a local launch command) and
+    --lock in args.
+  entry: toolscore mcp verify-pin
+  language: python
+  pass_filenames: false
+  files: \.(lock|snapshot)\.json$
+
+- id: toolscore-mcp-lint
+  name: toolscore mcp lint
+  description: >-
+    Lint a local MCP server's tool definitions (schemas, descriptions, annotations,
+    references to missing tools, hidden instructions). Pass the launch command in args;
+    the hook starts the server, it does not call any tool.
+  entry: toolscore mcp lint
+  language: python
+  pass_filenames: false
+  always_run: true

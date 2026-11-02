@@ -578,7 +578,8 @@ exit 0`;
           <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--sarif</code>
           sends the findings to GitHub code scanning and
           <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--junit</code>
-          to GitLab or Jenkins test reports.
+          to GitLab or Jenkins test reports, and pre-commit hooks lint configs and verify pins
+          before a commit.
         </p>
         <CodeBlock class="mt-6" title=".github/workflows/scorecard.yml" lang="yaml" code={ciYaml} />
       </div>

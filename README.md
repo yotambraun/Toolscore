@@ -165,7 +165,7 @@ Optional extras: `[yaml]` for YAML configs, and `[llm]`, `[anthropic]`, `[gemini
     mcp-pin-file: 'toolscore.lock.json'    # fail on drift from `toolscore mcp pin`
 ```
 
-The action also gates agent traces (`gold-file`, `trace-file`, `threshold`, `fail-on-violations`, `fail-on-honesty`) and writes the scorecard to the job summary. `sarif-file` writes the findings as SARIF for GitHub code scanning (`github/codeql-action/upload-sarif`), and `junit-file` writes every check as JUnit XML; on the CLI, `--sarif` and `--junit` work on `mcp test`, `mcp lint`, `mcp verify-pin`, `mcp diff`, `lint-config`, `honesty` and `eval` ([CI guide](https://yotambraun.github.io/Toolscore/docs/ci.html), with GitLab and Jenkins examples).
+The action also gates agent traces (`gold-file`, `trace-file`, `threshold`, `fail-on-violations`, `fail-on-honesty`) and writes the scorecard to the job summary. `sarif-file` writes the findings as SARIF for GitHub code scanning (`github/codeql-action/upload-sarif`), and `junit-file` writes every check as JUnit XML; on the CLI, `--sarif` and `--junit` work on `mcp test`, `mcp lint`, `mcp verify-pin`, `mcp diff`, `lint-config`, `honesty` and `eval` ([CI guide](https://yotambraun.github.io/Toolscore/docs/ci.html), with GitLab and Jenkins examples). The repository is also a [pre-commit](https://pre-commit.com) hook source: `toolscore-lint-config`, `toolscore-verify-pin` and `toolscore-mcp-lint`.
 
 In Claude Code, the plugin adds skills that run these steps with you (audit an MCP server, add tool-call tests, check agent honesty, pin servers):
 
