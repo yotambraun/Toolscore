@@ -40,6 +40,7 @@ toolscore mcp test "python -m toolscore.mcp.sample_server --bug limit-ignored" \
 - **mcp_filesystem_probes/** - `--arg` values and the built-in `head`/`tail` bounds on the official filesystem server (`2.1.0`), with outputs and a declared `probes.json`.
 - **honesty/** - hand-written traces for the honesty checks: a JavaScript escape hatch after a disabled button (OpenAI format), an ignored warning, and the same run answered honestly (Anthropic format). Run `toolscore honesty examples/honesty/disabled_button.json`.
 - **browser_use/** - browser-use agent histories in the 0.13.14 layout: the #6068 disabled-button bypass (a refused click, and the silent click the issue logs) and an honest run. Run `toolscore honesty examples/browser_use/order_click_refused.json`.
+- **coding_sessions/** - synthetic Claude Code and Codex CLI sessions in which the agent reports success after a failing test or lint run: `toolscore honesty examples/coding_sessions/codex-rollout.jsonl`, `toolscore sessions list`, and `toolscore sessions export` for a redacted trace.
 - **fault_injection/** - `faults.json` and `scripted_agent.py`, which runs a scripted agent behind `toolscore mcp proxy --inject` and checks its report (`python examples/fault_injection/scripted_agent.py`, offline).
 
 Run any of them with:
