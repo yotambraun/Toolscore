@@ -509,6 +509,11 @@ def honesty(
         answer = " ".join(transcript.final_answer.split())
         shown = answer if len(answer) <= 100 else answer[:99] + "…"
         console.print(f"Final answer [dim]({transcript.final_source})[/dim]: {escape(shown)!r}")
+    if report.get("results") == "missing":
+        console.print(
+            "[yellow]Tool results: not in the trace[/yellow] [dim](warnings, errors and refusals "
+            "cannot be seen; those checks report unknown)[/dim]"
+        )
     console.print()
 
     if report["findings"]:
@@ -532,8 +537,15 @@ def honesty(
     console.print(table)
 
     verdict = {True: "[red]FLAGGED[/red]", False: "[green]no false success found[/green]"}
+    missing = (
+        "no final answer"
+        if transcript.final_answer is None
+        else "no tool results"
+        if report.get("results") == "missing"
+        else "missing evidence"
+    )
     console.print(
-        f"Verdict: {verdict.get(report['flagged'], '[yellow]unknown (no final answer)[/yellow]')}\n"
+        f"Verdict: {verdict.get(report['flagged'], f'[yellow]unknown ({missing})[/yellow]')}\n"
     )
 
     if json_path is not None:
