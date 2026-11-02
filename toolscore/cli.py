@@ -473,6 +473,7 @@ def honesty(
 
     from toolscore.core import load_gold_standard
     from toolscore.metrics.honesty import apply_injections, check_honesty
+    from toolscore.metrics.security import redact_secrets
     from toolscore.transcript import load_transcript
 
     console = Console()
@@ -505,7 +506,7 @@ def honesty(
             "unknown; pass --final-answer)[/dim]"
         )
     else:
-        answer = " ".join(transcript.final_answer.split())
+        answer = redact_secrets(" ".join(transcript.final_answer.split()))
         shown = answer if len(answer) <= 100 else answer[:99] + "…"
         console.print(f"Final answer [dim]({transcript.final_source})[/dim]: {escape(shown)!r}")
     if transcript.success is not None:
@@ -522,7 +523,7 @@ def honesty(
             style = "red" if finding["severity"] == "error" else "yellow"
             console.print(
                 f"  [{style}]{finding['severity'].upper():<7}[/{style}]  "
-                f"{escape(finding['message'])} [dim]({finding['rule']})[/dim]"
+                f"{escape(redact_secrets(finding['message']))} [dim]({finding['rule']})[/dim]"
             )
         console.print()
 
@@ -2439,3 +2440,188 @@ _register_commands()
 
 if __name__ == "__main__":
     main()
+
+
+# ---------------------------------------------------------------------------
+# sessions: coding-agent sessions on this machine (read-only)
+# ---------------------------------------------------------------------------
+
+
+@main.group()
+def sessions() -> None:
+    """Check what your coding agents did: Claude Code and Codex CLI sessions.
+
+    Reads the session files the agents keep on this machine
+    (~/.claude/projects, ~/.codex/sessions), read-only, and runs the honesty
+    checks on each. Nothing is uploaded. Any session file also works directly
+    with 'toolscore honesty FILE.jsonl' and 'toolscore eval GOLD FILE.jsonl'.
+    """
+
+
+@sessions.command("list")
+@click.option(
+    "--agent",
+    type=click.Choice(["all", "claude-code", "codex"]),
+    default="all",
+    help="Which agent's sessions to list.",
+)
+@click.option(
+    "--since",
+    default=None,
+    metavar="AGE|DATE",
+    help="Only sessions changed since then: 30m, 12h, 1d, 2w, or a date such as 2026-11-01.",
+)
+@click.option(
+    "--project", default=None, help="Only sessions whose working directory contains this text."
+)
+@click.option(
+    "--root",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Look for *.jsonl sessions under this folder instead of the agents' own folders.",
+)
+@click.option("--limit", type=int, default=20, show_default=True, help="Newest sessions to check.")
+@click.option("--flagged", "flagged_only", is_flag=True, help="Show only flagged sessions.")
+@click.option(
+    "--json",
+    "json_path",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Also write the summaries as JSON.",
+)
+def sessions_list(
+    agent: str,
+    since: str | None,
+    project: str | None,
+    root: Path | None,
+    limit: int,
+    flagged_only: bool,
+    json_path: Path | None,
+) -> None:
+    """List recent coding-agent sessions with their calls, failures and honesty findings."""
+    from rich.markup import escape
+
+    from toolscore.metrics.security import redact_secrets
+    from toolscore.sessions import (
+        SessionSummary,
+        default_roots,
+        find_session_files,
+        parse_since,
+        summarize_session,
+    )
+
+    console = Console()
+    try:
+        cutoff = parse_since(since) if since else None
+    except ValueError as exc:
+        print_error(str(exc), console)
+        sys.exit(2)
+    files = find_session_files(agent=agent, root=root, since=cutoff)
+    summaries: list[SessionSummary] = []
+    for name, path in files:
+        if len(summaries) >= limit:
+            break
+        summary = summarize_session(path, agent=name)
+        if summary.error is not None and name == "auto":
+            continue
+        if agent != "all" and summary.agent != agent:
+            continue
+        if project and project.lower() not in (summary.cwd or "").lower():
+            continue
+        if flagged_only and summary.flagged is not True:
+            continue
+        summaries.append(summary)
+
+    if not summaries:
+        where = str(root) if root else ", ".join(str(p) for p in default_roots().values())
+        console.print(
+            f"No sessions found in {escape(where)}" + (f" since {since}" if since else "")
+        )
+    else:
+        table = Table(title="Coding-agent sessions", header_style="bold magenta")
+        table.add_column("#", justify="right", style="dim")
+        table.add_column("Changed", style="dim", no_wrap=True)
+        table.add_column("Agent", no_wrap=True)
+        table.add_column("Project", min_width=8)
+        table.add_column("Calls", justify="right")
+        table.add_column("Failed", justify="right")
+        table.add_column("Findings", justify="right")
+        table.add_column("Verdict", no_wrap=True)
+        for number, summary in enumerate(summaries, start=1):
+            if summary.error is not None:
+                verdict = "[yellow]unreadable[/yellow]"
+            elif summary.flagged is True:
+                verdict = "[red]FLAGGED[/red]"
+            elif summary.flagged is False:
+                verdict = "[green]ok[/green]"
+            else:
+                verdict = "[yellow]unknown[/yellow]"
+            table.add_row(
+                str(number),
+                summary.modified.astimezone().strftime("%m-%d %H:%M"),
+                summary.agent,
+                escape(redact_secrets(Path(summary.cwd).name if summary.cwd else "?")),
+                str(summary.calls),
+                str(summary.failed),
+                str(sum(summary.findings.values())),
+                verdict,
+            )
+        console.print(table)
+        for number, summary in enumerate(summaries, start=1):
+            rules = ", ".join(
+                f"{rule} x{n}" if n > 1 else rule for rule, n in summary.findings.items()
+            )
+            console.print(
+                f"[dim]{number:>3}[/dim]  {escape(summary.error or rules or 'no findings')}"
+            )
+            console.print(f"     {escape(str(summary.path))}", soft_wrap=True, style="dim")
+        console.print(
+            "\nDetails: [bold]toolscore honesty SESSION.jsonl[/bold]\n"
+            "A redacted trace to share: "
+            "[bold]toolscore sessions export SESSION.jsonl -o trace.json[/bold]"
+        )
+
+    if json_path is not None:
+        json_path.parent.mkdir(parents=True, exist_ok=True)
+        json_path.write_text(
+            json.dumps([s.to_json() for s in summaries], indent=2), encoding="utf-8"
+        )
+        console.print(f"[dim]>[/dim] JSON: [cyan]{json_path}[/cyan]")
+
+
+@sessions.command("export")
+@click.argument("session", type=click.Path(exists=True, dir_okay=False, path_type=Path))  # type: ignore[type-var]
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    required=True,
+    help="The Toolscore trace file to write.",
+)
+@click.option(
+    "--max-result-chars",
+    type=int,
+    default=2000,
+    show_default=True,
+    help="Longest tool result kept per call.",
+)
+def sessions_export(session: Path, output: Path, max_result_chars: int) -> None:
+    """Write a session as a Toolscore trace, with credentials redacted.
+
+    The trace keeps each call's tool, arguments, result and error, and the
+    agent's final answer, so it can become a regression test or be shared. API
+    keys, tokens and private keys are replaced by redacted previews; other
+    content (code, file paths) is kept, so review the file before sharing it.
+    """
+    from toolscore.sessions import export_session
+
+    console = Console()
+    try:
+        trace = export_session(session, output, max_result_chars=max_result_chars)
+    except (OSError, ValueError) as exc:
+        print_error(f"Could not export {session}: {exc}", console)
+        sys.exit(2)
+    console.print(
+        f"Wrote [cyan]{output}[/cyan] ({len(trace['calls'])} calls, credentials redacted). "
+        "Review it before sharing."
+    )
