@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "notes": {
+      "command": "python",
+      "args": ["-m", "toolscore.mcp.sample_server"]
+    },
+    "tracker": {
+      "type": "sse",
+      "url": "https://tracker.example.com/sse"
+    }
+  }
+}
