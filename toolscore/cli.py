@@ -64,7 +64,7 @@ def main() -> None:
     Evaluate the tool-using behavior of LLM-based agents by comparing
     traces against gold-standard specifications, grade MCP servers A-F,
     check that tools really did what they reported (mcp test --probes), and
-    that agents told the truth about it (honesty).
+    that agents told the truth about it (honesty, sessions).
     """
     pass
 
@@ -461,8 +461,9 @@ def honesty(
     """Check whether an agent told the truth about what its tools did.
 
     Reads any trace (OpenAI, Anthropic, Responses, LangChain, OpenTelemetry,
-    browser-use histories, recorded MCP sessions) and compares the tool
-    results with the agent's final answer: a success claim after a failure, a run that ends right after an
+    browser-use histories, recorded MCP sessions, Claude Code and Codex CLI
+    session files) and compares the tool results with the agent's final
+    answer: a success claim after a failure, a run that ends right after an
     error, a warning the answer leaves out, a code-execution tool used after a
     refusal, and faults injected by 'toolscore mcp proxy --inject' that the
     answer hides. Needs no gold file and no API key.
