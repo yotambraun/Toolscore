@@ -25,6 +25,7 @@ export const site = {
   pepy: 'https://pepy.tech/project/tool-scorer',
   docs: 'https://yotambraun.github.io/Toolscore/docs/',
   action: 'https://github.com/marketplace/actions/toolscore',
+  aef: 'https://github.com/guybass/agent-eval-flow',
   installPip: 'pip install tool-scorer',
   installUvx: 'uvx tool-scorer demo',
 };
@@ -182,6 +183,21 @@ export const features = [
     body: '--badge writes an SVG ("MCP grade: A · Toolscore") from the run’s own scorecard, and a workflow keeps it current. No way to set a grade by hand.',
     icon: 'list',
   },
+  {
+    title: 'Pin tools, catch rug pulls',
+    body: 'toolscore mcp pin hashes every tool definition into a lock file; verify-pin fails CI when a description, schema or annotation changes or a delete/exec tool appears. mcp diff compares two builds.',
+    icon: 'lock',
+  },
+  {
+    title: 'Agent experiments, light statistics',
+    body: 'toolscore agent run runs tasks x arms x repetitions against any MCP server, with a guard and a hard budget. compare gives Wilson intervals and Fisher’s exact test; select picks a variant.',
+    icon: 'scan',
+  },
+  {
+    title: 'Record once, re-score forever',
+    body: 'A receipt pins the evaluated trace by hash; toolscore regrade re-scores it with a new contract or weights, running nothing. Contracts allow alternatives; every check is pass, fail or unknown.',
+    icon: 'record',
+  },
 ];
 
 // ====================================================================
@@ -317,6 +333,9 @@ export const mcpCommands = [
   { cmd: 'toolscore mcp test "npx -y @modelcontextprotocol/server-filesystem /sandbox" --arg path=/sandbox/a.txt', note: 'Give a sandboxed server values it accepts (TOOL:NAME=VALUE for one tool, --args-file for many).' },
   { cmd: 'toolscore mcp record -o session.json -- python my_server.py', note: 'Record a real client session, then score it with toolscore eval.' },
   { cmd: 'toolscore mcp proxy --inject faults.json -o session.json -- python my_server.py', note: 'Record a session and make chosen calls fail; then toolscore honesty session.json checks what the agent said.' },
+  { cmd: 'toolscore mcp pin "python my_server.py" -o toolscore.lock.json', note: 'Pin every tool definition, the server info and each tool’s capabilities. Commit the lock file.' },
+  { cmd: 'toolscore mcp verify-pin "python my_server.py" --lock toolscore.lock.json', note: 'Exit 1 on drift (--fail-on capability: only a new delete/exec tool). Also mcp test --pin and mcp lint --pin.' },
+  { cmd: 'toolscore mcp diff "python old_server.py" "python new_server.py" --fail-on breaking', note: 'Tools added or removed, changed descriptions, schemas and annotations, lint delta; --test adds the scorecard.' },
   { cmd: 'toolscore mcp test "python my_server.py" --report md --output SCORECARD.md', note: 'Export a Markdown report for a PR or README.' },
   { cmd: 'toolscore mcp test "python my_server.py" --fail-under B', note: 'CI gate: exit 1 below a B.' },
   { cmd: 'toolscore mcp test "python my_server.py" --ci', note: 'Write the verdict to $GITHUB_STEP_SUMMARY, fail on blocking issues.' },

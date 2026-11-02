@@ -75,11 +75,155 @@ const failureSnippet = `                     Expected vs Actual Tool Calls
 │     │                      │                      │ ≠ 'cancel_booking'   │
 └─────┴──────────────────────┴──────────────────────┴──────────────────────┘
 score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50`;
+const contractJson = `{
+  "contract_version": 2,
+  "description": "Book a flight to Lisbon. Checking the weather is fine; cancelling is not.",
+  "required": [
+    {"tool": "search_flights", "args": {"destination": "LIS", "date": {"$regex": "^2026-12-"}}},
+    {
+      "id": "book",
+      "alternatives": [
+        [{"tool": "book_flight", "args": {"flight_id": {"$regex": "^FL-\\\\d+$"}}}],
+        [{"tool": "reserve_seat", "args": {"flight_id": {"$regex": "^FL-\\\\d+$"}}}]
+      ]
+    }
+  ],
+  "optional": [{"tool": "get_weather"}],
+  "forbidden": [{"tool": "cancel_booking", "reason": "never cancel an existing booking"}],
+  "min_score": 0.9
+}`;
+
+const contractEval = `$ toolscore eval contract.json trace.json -o contract.out.json
+...
+╭────────────────────────╮
+│ Grade A   PASS (95.7%) │
+╰────────────────────────╯
+...
+Evidence: 7 pass, 0 fail, 0 unknown`;
+
+const receiptSnippet = `# score once against the old gold file, and keep a receipt
+toolscore eval gold.json trace.json -o gold.out.json --receipt run.receipt.json   # F (38.3%)
+
+# later: same trace, new contract; nothing runs again
+toolscore regrade run.receipt.json --gold contract.json`;
+
+const regradeOutput = `$ toolscore regrade run.receipt.json --gold contract.json
+                     Regrade
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┓
+┃ Source           ┃  Before ┃   After ┃ Change ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━┩
+│ run.receipt.json │ 38.3% F │ 95.7% A │ +57.4% │
+└──────────────────┴─────────┴─────────┴────────┘
+Nothing was re-run: same traces, new contract or weights.`;
+
+const harnessSpec = `name: notes-offline
+server:
+  command: "python -m toolscore.mcp.sample_server"
+verify:
+  server_name: notes-server
+  server_version: "/^1\\\\./"
+provider: scripted
+arms:
+  - id: careful
+  - id: sloppy
+repetitions: 3
+seed: 7
+limits: {max_turns: 6, max_calls: 8}
+guard:
+  deny:
+    - tool: delete_note
+      reason: "this study never deletes"
+tasks:
+  - id: save-a-note
+  ...`;
+
+const harnessOutput = `$ toolscore agent run offline.yaml -o runs.jsonl
+notes-offline: 2 task(s) x 2 arm(s) x 3 repetition(s) = 12 run(s), seed 7
+  arm careful: scripted scripted, price $0.0/0.0 per 1M (scripted (free))
+  arm sloppy: scripted scripted, price $0.0/0.0 per 1M (scripted (free))
+  worst case $0.0000 (max_turns 6, budget max_usd none)
+    1. clean-up::careful::2: pass (completed, 2 call(s), 1 denied, $0.0000)
+    2. clean-up::sloppy::3: fail (completed, 2 call(s), 1 denied, $0.0000)
+    3. save-a-note::sloppy::1: fail (completed, 1 call(s), $0.0000)
+    ...
+        Outcomes (this invocation)
+┏━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━┳━━━━━━━━━┓
+┃ Arm     ┃ pass ┃ fail ┃ error ┃ unknown ┃
+┡━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━╇━━━━━━━━━┩
+│ careful │    6 │    0 │     0 │       0 │
+│ sloppy  │    0 │    6 │     0 │       0 │
+└─────────┴──────┴──────┴───────┴─────────┘
+Wrote 12 run(s) to runs.jsonl (0 already done); spent $0.0000.`;
+
+const compareOutput = `$ toolscore compare --runs runs.jsonl --k 2 --min-n 6 --protocol protocol.yaml
+                                   Runs per variant
+┏━━━━━━━━━┳━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┓
+┃ Variant ┃ N ┃ pass/fail/err/unk ┃ Pass rate [95% CI] ┃ pass^2 ┃ Cost/run ┃ Latency ┃
+┡━━━━━━━━━╇━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━┩
+│ careful │ 6 │           6/0/0/0 │   100% [61%, 100%] │   100% │  $0.0000 │   0.00s │
+│ sloppy  │ 6 │           0/6/0/0 │       0% [0%, 39%] │     0% │  $0.0000 │   0.00s │
+└─────────┴───┴───────────────────┴────────────────────┴────────┴──────────┴─────────┘
+                                 Pass-rate differences
+┏━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ A       ┃ B      ┃ B - A ┃ Fisher p ┃ Verdict                                        ┃
+┡━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ careful │ sloppy │ -100% │    0.002 │ careful has the higher pass rate (p = 0.00216) │
+└─────────┴────────┴───────┴──────────┴────────────────────────────────────────────────┘
+Light statistics for quick checks; for a full study (design, pre-registration, grading, reports) use
+Agent Eval Flow.
+                        Protocol careful beats sloppy
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Rule             ┃ Status ┃ Detail                                         ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ higher-pass-rate │ pass   │ careful has the higher pass rate (p = 0.00216) │
+│ no-more-errors   │ pass   │ error_rate change +0 >= -0.0                   │
+│ cost-per-run     │ pass   │ cost 0 <= 0.01                                 │
+└──────────────────┴────────┴────────────────────────────────────────────────┘
+Decision (careful vs sloppy): adopt  protocol sha256 aa9c071bcf44...`;
+
+const selectOutput = `$ toolscore select --runs runs.jsonl --policy pareto --objective pass_rate:max --objective cost:min
+Policy pareto  (pass_rate:max, cost:min)
+Ranking: careful > sloppy
+Pareto front: careful
+Selected: careful (the only variant on the Pareto front)`;
+
+const doctorOutput = `$ toolscore doctor --spec memory-anthropic.yaml
+                                          toolscore doctor
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Check                 ┃ Status ┃ Detail                                                          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ toolscore             │ pass   │ 1.11.0 on Python 3.12.12 (linux)                                │
+│ spec                  │ pass   │ memory-create-twice: 1 task(s), 2 arm(s), 5 repetition(s), seed │
+│                       │        │ 2026                                                            │
+│ package anthropic     │ fail   │ missing: pip install "tool-scorer[anthropic]"                   │
+│ key ANTHROPIC_API_KEY │ fail   │ not set                                                         │
+│ price haiku           │ pass   │ claude-haiku-5-5: $0.1 in / $0.5 out per 1M (toolscore price    │
+│                       │        │ table (2026-11-01))                                             │
+│ price sonnet          │ pass   │ claude-sonnet-5-5: $2.0 in / $10.0 out per 1M (toolscore price  │
+│                       │        │ table (2026-11-01))                                             │
+│ budget                │ pass   │ 10 run(s); worst case $0.7363 (max_usd 2.0)                     │
+│ version command       │ pass   │ 'npm view @modelcontextprotocol/server-memory@2.0.1 version'    │
+│                       │        │ printed '2.0.1'                                                 │
+│ server                │ pass   │ memory-server 2.0.1 started; 9 tool(s); MCP 2026-07-28          │
+│                       │        │ (stateless)                                                     │
+│ build                 │ pass   │ server_name 'memory-server' matches; server_version '2.0.1'     │
+│                       │        │ matches                                                         │
+└───────────────────────┴────────┴─────────────────────────────────────────────────────────────────┘
+
+╭────────────────────────────────────────────────────────────────╮
+│ ERROR Preflight failed: fix the failing checks before running. │
+╰────────────────────────────────────────────────────────────────╯
+
+exit 1`;
+
+const exportOutput = `$ toolscore export --format aef runs.jsonl -o runs.aef.jsonl
+Wrote 12 run record(s) to runs.aef.jsonl (schema toolscore.run-record v1; 0 with unknown coverage)
+and runs.aef.jsonl.manifest.json.`;
 ---
 
 <BaseLayout
   title="Test your agent"
-  description="Snapshot your agent's tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. Record, approve, replay — and catch failed calls, leaked credentials and forbidden calls."
+  description="Snapshot your agent's tool calls and fail CI the instant a prompt or model change makes it call the wrong tool, with the wrong arguments, in the wrong order. Record, approve, replay — and catch failed calls, leaked credentials and forbidden calls. Run agents against MCP servers, compare the runs, and re-score them later."
 >
   <PageHeader
     eyebrow="For agent builders"
@@ -231,6 +375,60 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
     </div>
   </section>
 
+  <!-- Contracts v2 + tri-state evidence -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">More than one right answer</p>
+        <h2 class="h2">Contracts: required, optional, forbidden</h2>
+        <p class="lead mt-4">
+          A gold file lists the calls an agent must make. A contract (version 2) also says which calls
+          are <em>optional</em>, which are <em>forbidden</em>, and where more than one path is fine:
+          a step with <code class="font-mono text-sm text-brand">alternatives</code> passes on any of them. The highest-scoring
+          alternative wins; ties go to the one declared first.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          Here the agent reserved a seat instead of booking: the contract accepts that path, keeps the
+          optional weather check out of the score, and still reports the extra
+          <code class="font-mono text-brand">seat</code> argument. Against the old gold file the same trace grades F.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          <span class="text-ink">Tri-state evidence.</span> Every check is
+          <em>pass</em>, <em>fail</em> or <em>unknown</em>, and unknown is never counted as a pass. The
+          console prints the tally on every run.
+        </p>
+      </div>
+      <div class="space-y-4">
+        <CodeBlock title="examples/contracts/contract.json" lang="json" code={contractJson} />
+        <CodeBlock title="real output, narrowed" lang="text" code={contractEval} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Receipts and regrade -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">Record once, re-score forever</p>
+        <h2 class="h2">Receipts and <span class="font-mono">regrade</span></h2>
+        <p class="lead mt-4">
+          <code class="font-mono text-sm text-brand">--receipt</code> saves what was evaluated: SHA-256 hashes of the trace and
+          the gold file, the settings and weights, and the result. <code class="font-mono text-sm text-brand">toolscore regrade</code> checks the trace is unchanged and
+          scores it again with a new contract or weights. No agent call, no cost.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          The same works for harness runs:
+          <code class="font-mono text-brand">toolscore regrade runs.jsonl --spec offline.yaml</code>. Inspired by
+          <a class="text-brand hover:underline" href={site.aef} target="_blank" rel="noopener">Agent Eval Flow</a>.
+        </p>
+      </div>
+      <div class="space-y-4">
+        <CodeBlock title="examples/contracts" lang="bash" code={receiptSnippet} />
+        <CodeBlock title="real output — 38.3% F to 95.7% A, nothing re-run" lang="text" code={regradeOutput} />
+      </div>
+    </div>
+  </section>
+
   <!-- Fluent expect() API -->
   <section class="section">
     <div class="wrap grid items-start gap-10 lg:grid-cols-2">
@@ -304,6 +502,98 @@ score 0.47 < 0.90 required  ·  selection 0.50  ·  args 0.40  ·  sequence 0.50
         Plus pytest-native fixtures, <code class="font-mono text-brand">@toolscore.cases()</code>
         data-driven tests, async support, and a CI gate — all in one package.
       </p>
+    </div>
+  </section>
+
+  <!-- Agent harness -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">Agent harness</p>
+        <h2 class="h2">Run your agent against a real MCP server</h2>
+        <p class="lead mt-4">
+          <code class="font-mono text-sm text-brand">toolscore agent run spec.yaml</code> runs every task x arm x repetition: an
+          LLM agent (OpenAI Responses API, Anthropic Messages, or a scripted provider for offline
+          runs) against any MCP server, over stdio or HTTP. Each run is scored against the task's expected
+          calls and the honesty checks.
+        </p>
+        <ul class="mt-5 space-y-2 text-sm text-muted">
+          <li><span class="text-ink">Guard.</span> Each tool call is allowed or denied; a denied call goes back to the agent as a tool error and is logged.</li>
+          <li><span class="text-ink">Hard budget.</span> Checked before every model call. An unknown price is refused unless you allow it, and its cost then shows as unknown, never $0.</li>
+          <li><span class="text-ink">Limits and order.</span> Max turns and calls per run; cells run in a shuffled order fixed by the seed.</li>
+          <li><span class="text-ink">Resumable.</span> One JSONL row per run; run it again and completed cells are skipped.</li>
+          <li><span class="text-ink">Build check.</span> The server's <code class="font-mono text-brand">serverInfo</code> name and version must match the spec.</li>
+        </ul>
+        <p class="mt-4 text-sm text-muted">
+          In this offline spec the guard denies every delete. <code class="font-mono text-brand">careful</code> says so and
+          passes; <code class="font-mono text-brand">sloppy</code> answers "Done: deleted 'old' successfully." and fails the
+          honesty check.
+        </p>
+      </div>
+      <CodeBlock title="examples/agent_harness/offline.yaml (narrowed)" lang="yaml" code={harnessSpec} />
+    </div>
+    <div class="wrap mt-6">
+      <CodeBlock title="real output — scripted provider, $0" lang="text" code={harnessOutput} />
+    </div>
+  </section>
+
+  <!-- Comparing runs -->
+  <section class="section">
+    <div class="wrap">
+      <div class="max-w-3xl">
+        <p class="eyebrow mb-3">Comparing runs</p>
+        <h2 class="h2">Is the difference real?</h2>
+        <p class="lead mt-4">
+          <code class="font-mono text-sm text-brand">toolscore compare --runs runs.jsonl</code> reports N per variant with
+          pass, fail, error and unknown counts. Errored runs stay in the denominator. Pass rates get
+          Wilson 95% intervals, differences get Fisher's exact test, and
+          <code class="font-mono text-sm text-brand">pass^k</code> shows how often a task passes k times in a row. When the
+          intervals overlap or N is too small, the verdict is <em>not distinguishable</em>.
+          <code class="font-mono text-sm text-brand">--protocol</code> applies decision rules you declared before the runs and
+          prints the file's hash.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          <code class="font-mono text-brand">toolscore select</code> picks a variant by lexicographic, weighted or Pareto
+          objectives and prints the Pareto front (selection policies inspired by Agent Eval Flow).
+          These are light statistics for quick checks. For a full study (design, pre-registration,
+          grading, reports) use
+          <a class="text-brand hover:underline" href={site.aef} target="_blank" rel="noopener">Agent Eval Flow</a>:
+          Toolscore gives the tool-level truth, Agent Eval Flow the study-level truth.
+        </p>
+      </div>
+      <div class="mt-8 space-y-4">
+        <CodeBlock title="real output — 6 runs per arm" lang="text" code={compareOutput} />
+        <CodeBlock title="real output" lang="text" code={selectOutput} />
+      </div>
+    </div>
+  </section>
+
+  <!-- Doctor + export -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+      <div>
+        <p class="eyebrow mb-3">Before you pay</p>
+        <h2 class="h2">Preflight with <span class="font-mono">doctor</span></h2>
+        <p class="lead mt-4">
+          <code class="font-mono text-sm text-brand">toolscore doctor --spec spec.yaml</code> checks everything before the first
+          paid call: packages, API keys (by name only, never the value), prices, the worst-case cost
+          against the budget, and that the server starts with the expected build. It exits 1 if
+          anything fails. Inspired by Agent Eval Flow's preflight.
+        </p>
+      </div>
+      <div>
+        <p class="eyebrow mb-3">Hand the runs on</p>
+        <h2 class="h2">Neutral run records</h2>
+        <p class="lead mt-4">
+          <code class="font-mono text-sm text-brand">toolscore export --format aef</code> writes versioned run records: requested
+          and completed calls paired by call id (a denied call says so), explicit unknown coverage,
+          and SHA-256 hashes, plus a manifest. Ready for Agent Eval Flow or any other analysis.
+        </p>
+        <CodeBlock class="mt-6" title="real output" lang="text" code={exportOutput} />
+      </div>
+    </div>
+    <div class="wrap mt-8">
+      <CodeBlock title="real output — a paid spec, stopped before any model call" lang="text" code={doctorOutput} />
     </div>
   </section>
 
