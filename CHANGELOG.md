@@ -85,7 +85,7 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - **Grades can drop slightly.** The new annotation and output-schema warnings count toward the lint score like any warning (0.1 per warning, divided by the number of tools, in a term weighted 20%). A server whose write tools declare no annotations loses a few points; check `--fail-under` gates after upgrading. The bundled sample server went from 87% to 86%.
 - **Evaluations report more findings.** The honesty checks add Behavior and safety lines to traces that failed or warned: a trace that ends right after a failed call gets `done-after-error`, and a trace with failures but no final answer gets "disclosure unknown". They do not change the score. The examples' guardrails trace now shows both.
 - **Chat histories keep tool results.** OpenAI Chat Completions `role: "tool"` messages and Anthropic `tool_result` blocks are attached to their calls as `result` (they were dropped), and an Anthropic `tool_result` with `is_error: true` makes the call failed, so it now counts in `error_count`, `required_call_recall` and the findings. Side-effect validators that read `result` see it too.
-- Chat histories that start with a user or system message are detected as OpenAI or Anthropic traces (they were read as the custom format, with no calls).
+- Message lists (trace files or `evaluate_trace()`) that start with a user or system message are detected as OpenAI or Anthropic traces (they were read as the custom format, with no calls).
 - Python 3.14 is supported and tested.
 - The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
 
