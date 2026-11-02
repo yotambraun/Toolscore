@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 from toolscore.adapters import (
     AnthropicAdapter,
     BrowserUseAdapter,
+    ClaudeCodeSessionAdapter,
+    CodexSessionAdapter,
     CustomAdapter,
     GeminiAdapter,
     LangChainAdapter,
@@ -281,7 +283,8 @@ def _add_trace_checks(
 
 #: Every trace format name ``load_trace`` and the CLI ``--format`` options accept.
 TRACE_FORMATS = (
-    "auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "browser-use", "custom",
+    "auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "browser-use",
+    "claude-code", "codex", "custom",
 )  # fmt: skip
 
 
@@ -366,10 +369,42 @@ def load_trace(
     if not path.exists():
         raise FileNotFoundError(f"Trace file not found: {file_path}")
 
-    with path.open(encoding="utf-8") as f:
-        data = json.load(f)
-
+    data = read_trace_data(path)
     return adapter_for(data, format).parse(data)
+
+
+def read_trace_data(path: str | Path) -> Any:
+    """Read a trace file: one JSON document, or JSON Lines (one value per line).
+
+    Coding-agent sessions (Claude Code transcripts, Codex CLI rollouts) and
+    other logs are JSON Lines; they are returned as the list of their lines'
+    values. Blank lines and lines that are not JSON (a partly written last
+    line, for example) are skipped.
+
+    Args:
+        path: The trace file.
+
+    Returns:
+        The parsed data.
+
+    Raises:
+        ValueError: If the file is neither JSON nor JSON Lines.
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        lines: list[Any] = []
+        for line in text.splitlines():
+            if not line.strip():
+                continue
+            try:
+                lines.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        if not lines:
+            raise ValueError(f"{path} is neither JSON nor JSON Lines: {exc}") from exc
+        return lines
 
 
 def adapter_for(data: Any, format: str = "auto") -> BaseAdapter:
@@ -394,6 +429,8 @@ def adapter_for(data: Any, format: str = "auto") -> BaseAdapter:
         "custom": CustomAdapter,
         "otel": OTelAdapter,
         "browser-use": BrowserUseAdapter,
+        "claude-code": ClaudeCodeSessionAdapter,
+        "codex": CodexSessionAdapter,
     }
     if format == "auto":
         return _detect_format(data)
@@ -432,6 +469,14 @@ def _detect_format(data: Any) -> BaseAdapter:
         return MCPAdapter()
     if _is_jsonrpc_list(data):
         return MCPAdapter()
+
+    # Coding-agent sessions (JSON Lines): Claude Code transcripts, Codex CLI rollouts
+    from toolscore.adapters.sessions import looks_like_claude_code, looks_like_codex
+
+    if looks_like_codex(data):
+        return CodexSessionAdapter()
+    if looks_like_claude_code(data):
+        return ClaudeCodeSessionAdapter()
 
     # browser-use AgentHistoryList dumps ({"history": [steps]} or the step list)
     from toolscore.adapters.browser_use import looks_like_browser_use

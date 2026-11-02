@@ -18,6 +18,8 @@ Where the final answer comes from:
 * Claude Agent SDK / ``claude -p --output-format json`` results
   (``{"type": "result", "result": ...}``);
 * OpenTelemetry spans with ``gen_ai.output.messages``;
+* Claude Code and Codex CLI sessions (JSON Lines): the main agent's last
+  assistant message after its last tool call;
 * browser-use histories: the ``done`` action's text (the last result with
   ``is_done: true``), whose ``success`` flag is kept as
   :attr:`Transcript.success`;
@@ -211,9 +213,21 @@ def final_answer_of(
         trace holds no final answer.
     """
     from toolscore.adapters.browser_use import browser_use_final, looks_like_browser_use
+    from toolscore.adapters.sessions import (
+        claude_code_messages,
+        codex_items,
+        looks_like_claude_code,
+        looks_like_codex,
+    )
 
     found: tuple[str | None, str | None]
-    if looks_like_browser_use(data):
+    if looks_like_codex(data):
+        found = _from_responses(codex_items(data))
+        found = (found[0], "Codex session") if found[0] else found
+    elif looks_like_claude_code(data):
+        found = _from_messages(claude_code_messages(data))
+        found = (found[0], "Claude Code session") if found[0] else found
+    elif looks_like_browser_use(data):
         text = browser_use_final(data)[0]
         found = (text, "browser-use done result") if text else (None, None)
     elif isinstance(data, dict):
@@ -313,5 +327,7 @@ def load_transcript(
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"Trace file not found: {file_path}")
-    data = json.loads(path.read_text(encoding="utf-8"))
+    from toolscore.core import read_trace_data
+
+    data = read_trace_data(path)
     return transcript_from_data(data, format=format, final_answer=final_answer)

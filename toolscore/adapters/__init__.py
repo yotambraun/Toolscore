@@ -9,11 +9,14 @@ from toolscore.adapters.langchain import LangChainAdapter
 from toolscore.adapters.mcp import MCPAdapter
 from toolscore.adapters.openai import OpenAIAdapter
 from toolscore.adapters.otel import OTelAdapter
+from toolscore.adapters.sessions import ClaudeCodeSessionAdapter, CodexSessionAdapter
 
 __all__ = [
     "AnthropicAdapter",
     "BaseAdapter",
     "BrowserUseAdapter",
+    "ClaudeCodeSessionAdapter",
+    "CodexSessionAdapter",
     "CustomAdapter",
     "GeminiAdapter",
     "LangChainAdapter",
