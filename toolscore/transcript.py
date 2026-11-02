@@ -249,6 +249,10 @@ def final_answer_of(
                 found = _from_messages([data])
     elif isinstance(data, list):
         from toolscore.adapters.otel import looks_like_otel
+        from toolscore.integrations import _CLAUDE_SDK_MESSAGES, claude_agent_sdk_messages
+
+        if any(type(i).__name__ in {*_CLAUDE_SDK_MESSAGES, "ResultMessage"} for i in data):
+            data = claude_agent_sdk_messages(data)
 
         if looks_like_otel(data):
             found = _from_otel(data)

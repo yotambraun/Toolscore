@@ -501,46 +501,120 @@ def from_openai_agents(result: Any) -> list[dict[str, Any]]:
     return calls
 
 
+#: Claude Agent SDK block and message classes (dataclasses without a ``type`` field).
+_CLAUDE_SDK_BLOCK_KINDS = {
+    "ToolUseBlock": "tool_use",
+    "ToolResultBlock": "tool_result",
+    "TextBlock": "text",
+    "ThinkingBlock": "thinking",
+    "ServerToolUseBlock": "server_tool_use",
+    "ServerToolResultBlock": "server_tool_result",
+}
+_CLAUDE_SDK_MESSAGES = {"AssistantMessage": "assistant", "UserMessage": "user"}
+
+
+def _claude_sdk_block(block: Any) -> dict[str, Any] | None:
+    """A content block (dict or Claude Agent SDK dataclass) as an Anthropic-style dict."""
+    if isinstance(block, dict):
+        return block
+    kind = getattr(block, "type", None) or _CLAUDE_SDK_BLOCK_KINDS.get(type(block).__name__)
+    if not isinstance(kind, str):
+        return None
+    data = {k: v for k, v in vars(block).items() if not k.startswith("_")}
+    data["type"] = kind
+    return data
+
+
+def claude_agent_sdk_messages(result: Any) -> list[dict[str, Any]]:
+    """Claude Agent SDK messages (dataclasses or dicts) as Anthropic-style message dicts.
+
+    ``AssistantMessage`` and ``UserMessage`` become ``{"role", "content"}`` dicts
+    with typed blocks; a ``ResultMessage`` becomes ``{"type": "result",
+    "result", "is_error", "session_id"}``, where the final answer is. Other
+    messages (system, task progress, stream events) are dropped.
+
+    Args:
+        result: The messages ``query()`` or ``ClaudeSDKClient.receive_response()`` yielded.
+
+    Returns:
+        The message dicts, in order.
+    """
+    if not isinstance(result, list):
+        return []
+    messages: list[dict[str, Any]] = []
+    for msg in result:
+        if isinstance(msg, dict):
+            messages.append(msg)
+            continue
+        name = type(msg).__name__
+        if name == "ResultMessage":
+            messages.append(
+                {
+                    "type": "result",
+                    "result": getattr(msg, "result", None),
+                    "is_error": getattr(msg, "is_error", None),
+                    "session_id": getattr(msg, "session_id", None),
+                }
+            )
+            continue
+        role = getattr(msg, "role", None) or _CLAUDE_SDK_MESSAGES.get(name)
+        content = getattr(msg, "content", None)
+        if role is None or content is None:
+            continue
+        if isinstance(content, list):
+            blocks = [b for b in (_claude_sdk_block(x) for x in content) if b is not None]
+            messages.append({"role": role, "content": blocks})
+        else:
+            messages.append({"role": role, "content": content})
+    return messages
+
+
 def from_claude_agent_sdk(result: Any) -> list[dict[str, Any]]:
     """Extract tool calls from a Claude Agent SDK message list.
 
-    Accepts a list of messages (dicts or objects); for each, walks ``content``
-    blocks; blocks with ``type == "tool_use"`` give ``name`` + ``input`` dict.
+    Accepts the messages ``query()`` yields (``AssistantMessage``,
+    ``UserMessage``, ``ResultMessage`` dataclasses, whose blocks carry no
+    ``type`` field) or their dict form. Each ``tool_use`` block (``ToolUseBlock``)
+    is a call; the ``tool_result`` block (``ToolResultBlock``) with the same ID
+    gives its ``result``, and ``is_error: true`` makes it failed.
 
     Args:
-        result: A list of Claude Agent SDK messages (dicts or objects).
+        result: A list of Claude Agent SDK messages (dataclasses or dicts).
 
     Returns:
-        List of dicts with 'tool' and 'args' keys.
+        List of dicts with ``tool``, ``args`` and, when known, ``id``,
+        ``result`` and ``error``.
     """
+    from toolscore.adapters.anthropic import block_text
+
     calls: list[dict[str, Any]] = []
-
-    if not isinstance(result, list):
-        return calls
-
-    for msg in result:
-        if isinstance(msg, dict):
-            content = msg.get("content", [])
-        else:
-            content = getattr(msg, "content", []) or []
-
-        if isinstance(content, str):
-            # Plain text content — no tool calls
+    by_id: dict[Any, dict[str, Any]] = {}
+    for msg in claude_agent_sdk_messages(result):
+        content = msg.get("content")
+        if not isinstance(content, list):
             continue
-
         for block in content:
-            if isinstance(block, dict):
-                block_type = block.get("type", "")
-                name = block.get("name", "")
-                args = block.get("input", {})
-            else:
-                block_type = getattr(block, "type", "")
-                name = getattr(block, "name", "")
-                args = getattr(block, "input", {})
-
-            if block_type == "tool_use" and name:
-                calls.append({"tool": name, "args": args if args is not None else {}})
-
+            block = _claude_sdk_block(block)
+            if block is None:
+                continue
+            if block.get("type") == "tool_use" and block.get("name"):
+                args = block.get("input")
+                call: dict[str, Any] = {
+                    "tool": block["name"],
+                    "args": args if isinstance(args, dict) else {},
+                }
+                if block.get("id") is not None:
+                    call["id"] = block["id"]
+                    by_id[block["id"]] = call
+                calls.append(call)
+            elif block.get("type") == "tool_result" and block.get("tool_use_id") in by_id:
+                target = by_id[block["tool_use_id"]]
+                output = block.get("content")
+                if block.get("is_error") is True:
+                    text = block_text(output) if isinstance(output, list) else output
+                    target["error"] = str(text) if text else True
+                else:
+                    target["result"] = output
     return calls
 
 
@@ -754,6 +828,12 @@ def _is_claude_agent_sdk_list(actual: Any) -> bool:
     """Return True if *actual* looks like a list of Claude Agent SDK messages."""
     if not isinstance(actual, list) or not actual:
         return False
+    if any(
+        type(item).__name__ in _CLAUDE_SDK_MESSAGES
+        and any(type(b).__name__ == "ToolUseBlock" for b in (getattr(item, "content", None) or []))
+        for item in actual
+    ):
+        return True
     for item in actual:
         content = item.get("content") if isinstance(item, dict) else getattr(item, "content", None)
         if isinstance(content, list):
