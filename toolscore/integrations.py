@@ -559,7 +559,7 @@ def claude_agent_sdk_messages(result: Any) -> list[dict[str, Any]]:
             continue
         role = getattr(msg, "role", None) or _CLAUDE_SDK_MESSAGES.get(name)
         content = getattr(msg, "content", None)
-        if role is None or content is None:
+        if content is None:
             continue
         if isinstance(content, list):
             blocks = [b for b in (_claude_sdk_block(x) for x in content) if b is not None]
