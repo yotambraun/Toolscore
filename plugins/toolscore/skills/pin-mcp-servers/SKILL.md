@@ -62,7 +62,9 @@ toolscore mcp diff "npx -y @modelcontextprotocol/server-memory@2026.8.31" "npx -
 ```
 
 Or run `toolscore mcp verify-pin ... --ci` in any job: it writes the report to
-the GitHub Actions job summary. When a change is intended, review the diff with
+the GitHub Actions job summary. `--sarif drift.sarif` (for GitHub code scanning)
+and `--junit drift.xml` (for GitLab or Jenkins) write each drift finding,
+pointing at the lock file. When a change is intended, review the diff with
 the user, then re-run `toolscore mcp pin` and commit the new lock file in the
 same pull request.
 

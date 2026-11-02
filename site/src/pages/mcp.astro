@@ -575,6 +575,10 @@ exit 0`;
           <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--ci</code>
           writes the verdict straight to your GitHub Actions job summary and fails on blocking
           issues — so the scorecard shows up right in the run.
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--sarif</code>
+          sends the findings to GitHub code scanning and
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">--junit</code>
+          to GitLab or Jenkins test reports.
         </p>
         <CodeBlock class="mt-6" title=".github/workflows/scorecard.yml" lang="yaml" code={ciYaml} />
       </div>

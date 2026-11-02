@@ -1014,6 +1014,29 @@ For file-based evaluation or MCP scorecards, use the official action:
 
 The action installs the Toolscore version that matches its ref (`@v1` follows the latest 1.x release). It outputs `score`, `grade`, `required-call-recall` and `violations`, and in MCP mode `mcp-grade` and `mcp-score`, for later steps. [`examples/github_actions/mcp-badge.yml`](examples/github_actions/mcp-badge.yml) commits the badge when the grade changes.
 
+### Findings in code scanning, GitLab and Jenkins
+
+`--sarif PATH` writes the findings as SARIF 2.1.0 and `--junit PATH` every check as JUnit XML, on `mcp test`, `mcp lint`, `mcp verify-pin`, `mcp diff`, `lint-config`, `honesty` and `eval`. A failed check is a SARIF error and a JUnit `<failure>`; an unknown one is a SARIF `kind: open` result and a JUnit `<skipped>`, never a pass. On GitHub, give the action `sarif-file` and upload it:
+
+```yaml
+permissions:
+  contents: read
+  security-events: write
+steps:
+  - uses: actions/checkout@v7
+  - uses: yotambraun/toolscore@v1
+    with:
+      mcp-command: 'python server.py'
+      sarif-file: toolscore.sarif
+  - uses: github/codeql-action/upload-sarif@v4
+    if: always()
+    with:
+      sarif_file: toolscore.sarif
+      category: toolscore-mcp
+```
+
+On GitLab, `toolscore mcp test "python server.py" --ci --junit toolscore-junit.xml` with `artifacts: {when: always, reports: {junit: toolscore-junit.xml}}`; on Jenkins, `junit 'toolscore-junit.xml'` in `post { always { ... } }`. Code scanning displays a result only when it points at a repository file: server results point at the server script in the command, the `--config` file, or `--report-location FILE`.
+
 ### Best Practices
 
 1. **Commit your snapshots and baselines** - keep `.toolscore/snapshots/` and `baseline.json` in version control

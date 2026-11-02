@@ -47,6 +47,7 @@ from toolscore.reports import (
     print_progress,
     print_validation_result,
 )
+from toolscore.reports.ci import ci_report_options
 
 if TYPE_CHECKING:
     from toolscore.mcp import MCPClient, MCPServerSpec
@@ -229,6 +230,7 @@ def main() -> None:
         "result hash); `toolscore regrade RECEIPT` re-scores it later without re-running."
     ),
 )
+@ci_report_options()
 def eval(
     gold_file: Path,
     trace_file: Path,
@@ -253,6 +255,8 @@ def eval(
     injected: Path | None,
     fail_on_honesty: bool,
     receipt: Path | None,
+    sarif_path: Path | None,
+    junit_path: Path | None,
 ) -> None:
     """Evaluate an agent trace against gold standard.
 
@@ -366,6 +370,21 @@ def eval(
             console.print(f"[dim]>[/dim] Markdown report: [cyan]{markdown}[/cyan]")
         if receipt_path:
             console.print(f"[dim]>[/dim] Receipt: [cyan]{receipt_path}[/cyan]")
+        if sarif_path is not None or junit_path is not None:
+            from toolscore.reports.ci import (
+                outcomes_from_evaluation,
+                outcomes_from_honesty,
+                write_ci_reports,
+            )
+
+            outcomes = outcomes_from_evaluation(result, str(trace_file))
+            honesty_report = result.metrics.get("honesty_metrics") or {}
+            outcomes += [
+                o
+                for o in outcomes_from_honesty(honesty_report, str(trace_file))
+                if o.status != "pass"
+            ]
+            _note_written(write_ci_reports(outcomes, "eval", sarif_path, junit_path), console)
         console.print()
 
         violations = len(result.policy_violations) + (
@@ -446,6 +465,7 @@ def eval(
     default=False,
     help="Exit with status 1 on an error-severity finding (for CI).",
 )
+@ci_report_options()
 @click.option("--label", default=None, hidden=True, help="Name shown for the trace.")
 def honesty(
     trace_file: Path,
@@ -456,6 +476,8 @@ def honesty(
     config_path: Path | None,
     json_path: Path | None,
     fail_on_findings: bool,
+    sarif_path: Path | None = None,
+    junit_path: Path | None = None,
     label: str | None = None,
 ) -> None:
     """Check whether an agent told the truth about what its tools did.
@@ -562,6 +584,12 @@ def honesty(
         json_path.parent.mkdir(parents=True, exist_ok=True)
         json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         console.print(f"[dim]>[/dim] JSON: [cyan]{json_path}[/cyan]")
+
+    if sarif_path is not None or junit_path is not None:
+        from toolscore.reports.ci import outcomes_from_honesty, write_ci_reports
+
+        outcomes = outcomes_from_honesty(report, str(trace_file))
+        _note_written(write_ci_reports(outcomes, "honesty", sarif_path, junit_path), console)
 
     if fail_on_findings and _honesty_errors(report):
         sys.exit(1)
@@ -1328,6 +1356,12 @@ def _resolve_mcp_target(
     return spec
 
 
+def _note_written(written: list[tuple[str, Path]], console: Console) -> None:
+    """Say where the SARIF and JUnit files went."""
+    for kind, path in written:
+        console.print(f"[dim]>[/dim] {kind}: [cyan]{path}[/cyan]")
+
+
 def _mcp_connection_options(func: Any) -> Any:
     """Add the options shared by commands that connect to an MCP server."""
     options = [
@@ -1641,6 +1675,7 @@ def _pin_options(func: Any) -> Any:
 @click.argument("command", nargs=-1)
 @_mcp_connection_options
 @_pin_options
+@ci_report_options(location=True)
 def mcp_lint(
     command: tuple[str, ...],
     config: Path | None,
@@ -1651,6 +1686,9 @@ def mcp_lint(
     timeout: float,
     pin: Path | None,
     pin_fail_on: str,
+    sarif_path: Path | None,
+    junit_path: Path | None,
+    report_location: Path | None,
 ) -> None:
     """Statically lint an MCP server's tool definitions.
 
@@ -1678,14 +1716,30 @@ def mcp_lint(
     tools, instructions = snapshot.tools, snapshot.instructions
 
     pin_ok = True
+    pin_report = None
     if pin is not None:
         from toolscore.commands.mcp_pin import check_pin
 
-        pin_ok = check_pin(pin, snapshot, pin_fail_on, console).ok
+        pin_report = check_pin(pin, snapshot, pin_fail_on, console)
+        pin_ok = pin_report.ok
 
     issues = lint_tools(tools, instructions=instructions)
     errors = sum(1 for i in issues if i.severity == "error")
     warnings = sum(1 for i in issues if i.severity == "warning")
+
+    if sarif_path is not None or junit_path is not None:
+        from toolscore.reports.ci import (
+            default_location,
+            outcomes_from_lint,
+            outcomes_from_pin,
+            write_ci_reports,
+        )
+
+        where = default_location(report_location, config, command, pin)
+        outcomes = outcomes_from_lint(issues, [t.name for t in tools], where)
+        if pin_report is not None:
+            outcomes += outcomes_from_pin(pin_report, str(pin))
+        _note_written(write_ci_reports(outcomes, "mcp lint", sarif_path, junit_path), console)
 
     if not issues:
         console.print(f"\n[green]OK[/green] No lint issues across {len(tools)} tools.\n")
@@ -1809,6 +1863,7 @@ def mcp_lint(
     ),
 )
 @_pin_options
+@ci_report_options(location=True)
 def mcp_test(
     command: tuple[str, ...],
     config: Path | None,
@@ -1833,6 +1888,9 @@ def mcp_test(
     no_probe_grade_cap: bool,
     pin: Path | None,
     pin_fail_on: str,
+    sarif_path: Path | None,
+    junit_path: Path | None,
+    report_location: Path | None,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
@@ -1948,9 +2006,27 @@ def mcp_test(
             era=card.era,
             instructions=card.instructions,
         )
-        if not check_pin(pin, snapshot, pin_fail_on, console, ci=ci).ok:
-            console.print(f"[red]The server drifted from {pin}.[/red]")
-            sys.exit(1)
+        pin_report = check_pin(pin, snapshot, pin_fail_on, console, ci=ci)
+    else:
+        pin_report = None
+
+    if sarif_path is not None or junit_path is not None:
+        from toolscore.reports.ci import (
+            default_location,
+            outcomes_from_pin,
+            outcomes_from_scorecard,
+            write_ci_reports,
+        )
+
+        where = default_location(report_location, config, command, pin)
+        outcomes = outcomes_from_scorecard(card, where)
+        if pin_report is not None:
+            outcomes += outcomes_from_pin(pin_report, str(pin))
+        _note_written(write_ci_reports(outcomes, "mcp test", sarif_path, junit_path), console)
+
+    if pin_report is not None and not pin_report.ok:
+        console.print(f"[red]The server drifted from {pin}.[/red]")
+        sys.exit(1)
 
     if fail_under is not None and not grade_meets(card.grade, fail_under):
         console.print(f"[red]Grade {card.grade} is below the required {fail_under.upper()}.[/red]")
@@ -2697,6 +2773,7 @@ def _snapshot_options(values: tuple[str, ...]) -> list[tuple[str | None, Path]]:
     show_default=True,
     help="Exit 1 on an issue of this severity or worse.",
 )
+@ci_report_options()
 def lint_config_command(
     paths: tuple[Path, ...],
     snapshots: tuple[str, ...],
@@ -2705,6 +2782,8 @@ def lint_config_command(
     user_scope: bool,
     json_path: Path | None,
     fail_on: str,
+    sarif_path: Path | None,
+    junit_path: Path | None,
 ) -> None:
     """Lint agent instructions against the MCP tools that really exist.
 
@@ -2762,6 +2841,12 @@ def lint_config_command(
         json_path.parent.mkdir(parents=True, exist_ok=True)
         json_path.write_text(json.dumps(report.to_json(), indent=2), encoding="utf-8")
         console.print(f"[dim]>[/dim] JSON: [cyan]{json_path}[/cyan]")
+
+    if sarif_path is not None or junit_path is not None:
+        from toolscore.reports.ci import outcomes_from_config_lint, write_ci_reports
+
+        outcomes = outcomes_from_config_lint(report)
+        _note_written(write_ci_reports(outcomes, "lint-config", sarif_path, junit_path), console)
 
     if (fail_on == "error" and report.errors) or (
         fail_on == "warning" and (report.errors or report.warnings)

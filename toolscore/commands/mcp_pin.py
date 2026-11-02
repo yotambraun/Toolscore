@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.table import Table
 
 from toolscore.reports import print_error
+from toolscore.reports.ci import ci_report_options
 
 if TYPE_CHECKING:
     from toolscore.mcp.pin import PinReport
@@ -220,6 +221,7 @@ def mcp_pin(
     default=False,
     help="Also write the report to $GITHUB_STEP_SUMMARY.",
 )
+@ci_report_options()
 def mcp_verify_pin(
     command: tuple[str, ...],
     config: Path | None,
@@ -232,6 +234,8 @@ def mcp_verify_pin(
     fail_on: str,
     json_out: Path | None,
     ci: bool,
+    sarif_path: Path | None,
+    junit_path: Path | None,
 ) -> None:
     """Check a server against its lock file; exit 1 when it drifted.
 
@@ -248,6 +252,12 @@ def mcp_verify_pin(
     if json_out is not None:
         json_out.parent.mkdir(parents=True, exist_ok=True)
         json_out.write_text(json.dumps(report.to_dict(), indent=2) + "\n", encoding="utf-8")
+    if sarif_path is not None or junit_path is not None:
+        from toolscore.cli import _note_written
+        from toolscore.reports.ci import outcomes_from_pin, write_ci_reports
+
+        outcomes = outcomes_from_pin(report, str(lock_path))
+        _note_written(write_ci_reports(outcomes, "mcp verify-pin", sarif_path, junit_path), console)
     if not report.ok:
         sys.exit(1)
 
@@ -299,6 +309,7 @@ def _target(text: str) -> tuple[str, ...]:
     help="MCP protocol era for live servers.",
 )
 @click.option("--timeout", type=float, default=30.0, help="Per-call timeout in seconds.")
+@ci_report_options(location=True)
 def mcp_diff(
     a: str,
     b: str,
@@ -309,6 +320,9 @@ def mcp_diff(
     json_out: Path | None,
     protocol: str,
     timeout: float,
+    sarif_path: Path | None,
+    junit_path: Path | None,
+    report_location: Path | None,
 ) -> None:
     """Compare two MCP servers, builds or configs.
 
@@ -363,5 +377,14 @@ def mcp_diff(
     if json_out is not None:
         json_out.parent.mkdir(parents=True, exist_ok=True)
         json_out.write_text(json.dumps(diff.to_dict(), indent=2) + "\n", encoding="utf-8")
+    if sarif_path is not None or junit_path is not None:
+        from toolscore.cli import _note_written
+        from toolscore.reports.ci import default_location, outcomes_from_diff, write_ci_reports
+
+        where = default_location(report_location, None, _target(b))
+        if where is None and Path(a).is_file():
+            where = a
+        outcomes = outcomes_from_diff(diff, fail_on, where)
+        _note_written(write_ci_reports(outcomes, "mcp diff", sarif_path, junit_path), console)
     if diff.fails(fail_on):
         sys.exit(1)

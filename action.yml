@@ -113,6 +113,18 @@ inputs:
     description: 'tool-scorer version to install from PyPI (e.g. "1.11.0"). Empty (the default) installs the version of this action itself, so a pinned action tag runs the matching Toolscore.'
     required: false
     default: ''
+  sarif-file:
+    description: 'Also write the findings as SARIF 2.1.0 to this path (e.g. toolscore.sarif), for `github/codeql-action/upload-sarif`. Applies to the scorecard (mcp-command) or the evaluation (gold-file/trace-file).'
+    required: false
+    default: ''
+  junit-file:
+    description: 'Also write every check as JUnit XML to this path (e.g. toolscore-junit.xml), for test-report viewers.'
+    required: false
+    default: ''
+  report-location:
+    description: 'File the SARIF and JUnit results point to (default: a file in mcp-command such as server.py, or mcp-pin-file; for the evaluation, the trace file). Code scanning displays only results with a file in the repository.'
+    required: false
+    default: ''
 
 outputs:
   selection-accuracy:
@@ -194,6 +206,9 @@ runs:
         INPUT_MCP_PROBE_GRADE_CAP: ${{ inputs.mcp-probe-grade-cap }}
         INPUT_MCP_PIN_FILE: ${{ inputs.mcp-pin-file }}
         INPUT_MCP_PIN_FAIL_ON: ${{ inputs.mcp-pin-fail-on }}
+        INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
+        INPUT_JUNIT_FILE: ${{ inputs.junit-file }}
+        INPUT_REPORT_LOCATION: ${{ inputs.report-location }}
       run: |
         echo "Running Toolscore MCP scorecard for: $INPUT_MCP_COMMAND"
         FLAGS=(--fail-under "$INPUT_MCP_FAIL_UNDER" --ci --report json -o toolscore-mcp.json)
@@ -206,6 +221,9 @@ runs:
         if [ -n "$INPUT_MCP_ARGS_FILE" ]; then FLAGS+=(--args-file "$INPUT_MCP_ARGS_FILE"); fi
         if [ "$INPUT_MCP_PROBE_GRADE_CAP" = "false" ]; then FLAGS+=(--no-probe-grade-cap); fi
         if [ -n "$INPUT_MCP_PIN_FILE" ]; then FLAGS+=(--pin "$INPUT_MCP_PIN_FILE" --pin-fail-on "$INPUT_MCP_PIN_FAIL_ON"); fi
+        if [ -n "$INPUT_SARIF_FILE" ]; then FLAGS+=(--sarif "$INPUT_SARIF_FILE"); fi
+        if [ -n "$INPUT_JUNIT_FILE" ]; then FLAGS+=(--junit "$INPUT_JUNIT_FILE"); fi
+        if [ -n "$INPUT_REPORT_LOCATION" ]; then FLAGS+=(--report-location "$INPUT_REPORT_LOCATION"); fi
         STATUS=0
         toolscore mcp test "$INPUT_MCP_COMMAND" "${FLAGS[@]}" || STATUS=$?
         if [ -f toolscore-mcp.json ]; then
@@ -256,6 +274,8 @@ runs:
         INPUT_FORBIDDEN_FILE: ${{ inputs.forbidden-file }}
         INPUT_FAIL_ON_VIOLATIONS: ${{ inputs.fail-on-violations }}
         INPUT_FAIL_ON_HONESTY: ${{ inputs.fail-on-honesty }}
+        INPUT_SARIF_FILE: ${{ inputs.sarif-file }}
+        INPUT_JUNIT_FILE: ${{ inputs.junit-file }}
       run: |
         # Run evaluation
         echo "Running Toolscore evaluation..."
@@ -269,6 +289,8 @@ runs:
         if [ -n "$INPUT_FORBIDDEN_FILE" ]; then
           POLICY_FLAGS=(--forbidden "$INPUT_FORBIDDEN_FILE")
         fi
+        if [ -n "$INPUT_SARIF_FILE" ]; then POLICY_FLAGS+=(--sarif "$INPUT_SARIF_FILE"); fi
+        if [ -n "$INPUT_JUNIT_FILE" ]; then POLICY_FLAGS+=(--junit "$INPUT_JUNIT_FILE"); fi
 
         toolscore eval "$INPUT_GOLD_FILE" "$INPUT_TRACE_FILE" \
           --format "$INPUT_FORMAT" \

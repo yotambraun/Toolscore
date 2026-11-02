@@ -125,9 +125,13 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - `examples/mcp_memory_probes/` and `examples/mcp_filesystem_probes/`: the probes on the official memory and filesystem servers, with the commands and the console output.
 - `examples/probes/` (a probe config for the sample server), `examples/honesty/` (traces for the honesty checks) and `examples/fault_injection/` (a scripted agent behind the proxy, offline).
 
+#### SARIF and JUnit (`toolscore.reports.ci`)
+- `--sarif PATH` (SARIF 2.1.0, for GitHub code scanning) and `--junit PATH` (JUnit XML, for GitLab, Jenkins and other test-report viewers) on `mcp test`, `mcp lint`, `mcp verify-pin`, `mcp diff`, `lint-config`, `honesty` and `eval`, from one shared reporter (`Outcome`, `to_sarif()`, `to_junit()`, `write_ci_reports()`). Every check is pass, fail or unknown: in SARIF an unknown check is `kind: "open"` with `level: "none"`, never a pass; in JUnit it is `<skipped>`. Rules carry descriptions, help and documentation links. Results point at the file they are about (config-lint file and line, the lock file, the trace), or for a server at `--report-location`, the `--config` file or the server script in the command. The output validates against the official SARIF 2.1.0 schema (tested).
+
 #### GitHub Action
 - New inputs `mcp-probes`, `mcp-allow-writes`, `mcp-probe-config`, `mcp-args-file` and `fail-on-honesty`, and the `honesty-errors` output.
 - New inputs `mcp-pin-file` and `mcp-pin-fail-on` (pin check with the scorecard), `mcp-diff-against` and `mcp-diff-fail-on` (a server diff in the job summary, output `mcp-diff-breaking`), and `mcp-probe-grade-cap`.
+- New inputs `sarif-file`, `junit-file` and `report-location`: the scorecard or the evaluation also writes SARIF (upload it with `github/codeql-action/upload-sarif`) and JUnit XML.
 - New inputs `mcp-auth-env`, `mcp-badge`, `mcp-badge-json` and `toolscore-version`; `mcp-command` accepts a URL. New outputs `mcp-grade` and `mcp-score`. MCP mode writes the scorecard to the job summary.
 - The action installs Toolscore from its own checkout, so the installed version matches the action ref (it installed the latest PyPI release before). `toolscore-version` installs a given PyPI release instead.
 - `examples/github_actions/mcp-badge.yml` commits an updated badge when the grade changes.

@@ -96,7 +96,9 @@ For each finding, in order of impact:
 
 Then suggest the next steps that fit: a grade badge
 (`--badge .github/badges/mcp-grade.svg`), a CI gate
-(`uses: yotambraun/toolscore@v1` with `mcp-command` and `mcp-fail-under`), and
+(`uses: yotambraun/toolscore@v1` with `mcp-command` and `mcp-fail-under`; add
+`sarif-file` and `github/codeql-action/upload-sarif` to see the findings in
+GitHub code scanning, or `--junit` for a GitLab or Jenkins test report), and
 pinning the tool definitions with the `pin-mcp-servers` skill.
 
 Guides: https://yotambraun.github.io/Toolscore/docs/mcp_testing.html and

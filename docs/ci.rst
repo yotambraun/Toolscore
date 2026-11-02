@@ -33,6 +33,110 @@ Add ``fail-on-honesty: 'true'`` to an eval step to fail when the agent claims su
 
 The action installs the Toolscore version that matches the action ref (``@v1`` follows the latest 1.x release; pin ``@v1.11.0`` for a fixed version). It outputs ``score``, ``grade``, ``required-call-recall``, ``violations`` and ``honesty-errors``, and in MCP mode ``mcp-grade``, ``mcp-score`` and ``mcp-diff-breaking``, for later steps.
 
+Findings in code scanning and test reports
+------------------------------------------
+
+The commands that produce findings can also write them as **SARIF 2.1.0**
+(``--sarif PATH``) and **JUnit XML** (``--junit PATH``): ``mcp test``,
+``mcp lint``, ``mcp verify-pin``, ``mcp diff``, ``lint-config``, ``honesty`` and
+``eval``. Both come from one model, in which every check is pass, fail or
+unknown:
+
+==============================  =================================  =============================
+Check                           SARIF                              JUnit
+==============================  =================================  =============================
+failed, error severity          result, ``kind: fail``,            ``<failure>``
+                                ``level: error``
+warning / note                  result, ``level: warning`` /       passing test case,
+                                ``note``                           ``<system-out>warning: ...``
+unknown (no final answer, an    result, ``kind: open``,            ``<skipped message="unknown:
+inconclusive probe, a call      ``level: none`` (SARIF's "not      ..."/>``
+that needed client input)       enough information")
+passed                          not written                        passing test case
+==============================  =================================  =============================
+
+JUnit has no warning state, so warnings never fail a JUnit report; the
+command's exit code (``--fail-on``, ``--fail-under``, ``--ci``) still decides
+whether the job fails. Every SARIF rule has a description, help text and a link
+to its documentation.
+
+**Locations.** Code scanning shows a result only when it points at a file in
+the repository. Results of ``lint-config`` carry the file and line;
+``verify-pin`` points at the lock file; ``honesty`` and ``eval`` at the trace.
+Server results (``mcp test``, ``mcp lint``, ``mcp diff``) point at
+``--report-location FILE``, else the ``--config`` file, else a file of the
+repository named in the server command (``python server.py`` gives
+``server.py``), else the ``--pin`` lock file. A remote server tested by URL
+alone has no file: pass ``--report-location``.
+
+GitHub code scanning
+~~~~~~~~~~~~~~~~~~~~
+
+Give the action ``sarif-file`` (and ``report-location`` if needed), then upload
+the file with GitHub's own action. ``if: always()`` uploads it when the
+Toolscore step failed too:
+
+.. code-block:: yaml
+
+   permissions:
+     contents: read
+     security-events: write   # needed by upload-sarif
+
+   steps:
+     - uses: actions/checkout@v7
+     - uses: yotambraun/toolscore@v1
+       with:
+         mcp-command: 'python server.py'
+         mcp-probes: 'true'
+         sarif-file: toolscore.sarif
+     - uses: github/codeql-action/upload-sarif@v4
+       if: always()
+       with:
+         sarif_file: toolscore.sarif
+         category: toolscore-mcp
+
+Or run the CLI yourself (``toolscore mcp test "python server.py" --sarif
+toolscore.sarif``). Each command writes its own SARIF category
+(``toolscore/mcp-test``, ``toolscore/honesty``...); give each upload its own
+``category`` when you upload several files. Code scanning is available on
+public repositories and on private ones with GitHub Advanced Security.
+
+GitLab and Jenkins (JUnit)
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+GitLab reads JUnit reports from ``artifacts:reports:junit``; ``when: always``
+keeps the report of a failing job:
+
+.. code-block:: yaml
+
+   toolscore:
+     image: python:3.12
+     script:
+       - pip install tool-scorer
+       - toolscore mcp test "python server.py" --ci --junit toolscore-junit.xml
+       - toolscore honesty traces/run.json --junit toolscore-honesty.xml --fail-on-findings
+     artifacts:
+       when: always
+       reports:
+         junit:
+           - toolscore-junit.xml
+           - toolscore-honesty.xml
+
+Jenkins, with the JUnit plugin:
+
+.. code-block:: groovy
+
+   stage('Toolscore') {
+     steps {
+       sh 'toolscore mcp lint "python server.py" --junit toolscore-lint.xml'
+     }
+     post {
+       always { junit 'toolscore-lint.xml' }
+     }
+   }
+
+The action has a ``junit-file`` input for the same file on GitHub.
+
 Baseline regression checks catch slow degradation:
 
 .. code-block:: bash

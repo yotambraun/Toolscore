@@ -181,7 +181,7 @@ export const features = [
   },
   {
     title: 'CI gate built in',
-    body: '--fail-under B exits non-zero below the bar; --ci writes the verdict straight to your GitHub Actions job summary and fails on blocking issues.',
+    body: '--fail-under B exits non-zero below the bar; --ci writes the verdict straight to your GitHub Actions job summary and fails on blocking issues. --sarif feeds GitHub code scanning, --junit GitLab and Jenkins test reports.',
     icon: 'shield',
   },
   {
