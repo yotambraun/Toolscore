@@ -7,7 +7,7 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [Unreleased]
 
-## [1.11.0] - Unreleased
+## [1.11.0] - 2026-11-03
 
 Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote servers, so any MCP server, local or hosted, can be graded in CI and show its grade in its README. And correct tool calls are not enough: 1.11 checks that the tool really did it, and that the agent told the truth about it. It also adds the rigor to trust the answers: an agent harness, pinned servers, contracts, receipts, tri-state evidence and repeated-run statistics.
 
@@ -166,7 +166,7 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - Python 3.14 is supported and tested.
 - The README is a short landing page; its detail moved to the documentation: *What Toolscore catches*, *CI/CD*, and recipes for server authors, agent builders, security teams and researchers.
 - The comparison (docs and the site's Compare page) is rewritten around the tools people compare Toolscore with today: MCP Inspector, the official MCP conformance suite (which Toolscore does not replace), Snyk Agent Scan and Cisco MCP Scanner, DeepEval's MCP metrics and Promptfoo. Each statement about another tool links its own documentation (checked 2026-11-02) and says where that tool is the better choice; the old DeepEval/RAGAS/LangSmith matrix is gone.
-- The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
+- The release workflow moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves, and is ready for PyPI Trusted Publishing (one line to delete once the publisher is added on PyPI).
 
 ### Fixed
 
