@@ -77,7 +77,9 @@ def test_real_sdk_mcp_call_keeps_output_and_error() -> None:
         "name": "delete_doc",
         "server_label": "docs",
         "arguments": "{}",
-        "error": {"type": "mcp_protocol_error", "code": -32602, "message": "doc not found"},
+        # The SDK types ``McpCall.error`` as a string (openai 2.41); the typed error
+        # object some payloads carry is covered with plain dicts below.
+        "error": "doc not found",
     }
     response = responses.Response.model_validate(_response_dict([mcp_ok, mcp_failed]))
     calls = from_openai_responses(response)
@@ -161,3 +163,17 @@ def test_a_perfect_run_scores_exactly_one() -> None:
     assert result.grade == "A"
     custom = evaluate(expected=calls, actual=calls, weights={"required_call_recall": 0.3})
     assert custom.score == 1.0
+
+
+def test_mcp_call_error_object_is_read_as_its_message() -> None:
+    items = [
+        {
+            "type": "mcp_call",
+            "id": "mcp_2",
+            "name": "delete_doc",
+            "server_label": "docs",
+            "arguments": "{}",
+            "error": {"type": "mcp_protocol_error", "code": -32602, "message": "doc not found"},
+        }
+    ]
+    assert from_openai_responses(items)[0]["error"] == "doc not found"
