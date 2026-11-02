@@ -9,6 +9,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 from toolscore.capture import TraceCapture, capture_trace
+from toolscore.contract import Contract, evaluate_contract, load_contract
 from toolscore.core import (
     ToolScoreAssertionError,
     assert_tools,
@@ -34,6 +35,7 @@ from toolscore.integrations import (
 from toolscore.matchers import ANY, Approx, Contains, IsType, Matcher, OneOf, Regex
 from toolscore.metrics.honesty import HonestyConfig, check_honesty
 from toolscore.metrics.llm_judge import JudgeConfig
+from toolscore.receipts import build_receipt, regrade
 from toolscore.snapshots import Snapshot, SnapshotStore, snapshot_check
 from toolscore.transcript import Transcript, load_transcript
 from toolscore.verdict import FixSuggestion, letter_grade
@@ -83,6 +85,7 @@ __all__ = [
     "ANY",
     "Approx",
     "Contains",
+    "Contract",
     "Expectation",
     "FixSuggestion",
     "HonestyConfig",
@@ -99,10 +102,12 @@ __all__ = [
     "__version__",
     "assert_tools",
     "auto_extract",
+    "build_receipt",
     "capture_trace",
     "cases",
     "check_honesty",
     "evaluate",
+    "evaluate_contract",
     "evaluate_trace",
     "expect",
     "from_anthropic",
@@ -116,7 +121,9 @@ __all__ = [
     "from_otel",
     "from_pydantic_ai",
     "letter_grade",
+    "load_contract",
     "load_transcript",
+    "regrade",
     "snapshot_check",
     "test_agent",
     "test_agent_async",

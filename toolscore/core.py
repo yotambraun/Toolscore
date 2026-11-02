@@ -522,7 +522,9 @@ def evaluate_trace(
     """Evaluate an agent's trace against gold standard.
 
     Args:
-        gold_file: Path to gold standard specification.
+        gold_file: Path to gold standard specification, or a contract file
+            (required / optional / forbidden calls and alternatives, see
+            :mod:`toolscore.contract`).
         trace_file: Path to agent trace.
         format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel', 'custom').
         validate_side_effects: Whether to validate side effects.
@@ -551,7 +553,24 @@ def evaluate_trace(
         FileNotFoundError: If files don't exist.
         ValueError: If file formats are invalid.
     """
+    from toolscore.contract import contract_file_data, evaluate_contract, is_contract
     from toolscore.transcript import load_transcript
+
+    gold_data = contract_file_data(gold_file) if Path(gold_file).exists() else None
+    if is_contract(gold_data):
+        transcript = load_transcript(trace_file, format=format, final_answer=final_answer)
+        if injections:
+            apply_injections(transcript.calls, injections)
+        contract = dict(gold_data)
+        if forbidden is not None:
+            contract["forbidden"] = list(contract.get("forbidden") or []) + list(forbidden)
+        return evaluate_contract(
+            contract,
+            [_tool_call_dict(c) for c in transcript.calls],
+            weights=weights,
+            final_answer=transcript.final_answer,
+            honesty=honesty,
+        )
 
     merged_weights = _normalize_weights(weights)
 
@@ -638,6 +657,19 @@ def evaluate_trace(
             }
 
     return result
+
+
+def _tool_call_dict(call: ToolCall) -> dict[str, Any]:
+    """A :class:`ToolCall` as a trace dict that :func:`_dicts_to_tool_calls` reads back unchanged."""
+    return {
+        "tool": call.tool,
+        "args": call.args,
+        "result": call.result,
+        "timestamp": call.timestamp,
+        "duration": call.duration,
+        "cost": call.cost,
+        "metadata": dict(call.metadata),
+    }
 
 
 def _call_metadata(item: dict[str, Any]) -> dict[str, Any]:

@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yotambraun/toolscore/schemas/contract-v2.schema.json",
+  "title": "Toolscore contract (version 2)",
+  "description": "Required, optional and forbidden tool calls, with alternative paths. Read by toolscore eval, evaluate_trace, evaluate_contract and toolscore regrade.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contract_version": {
+      "const": 2
+    },
+    "description": {
+      "type": "string"
+    },
+    "required": {
+      "type": "array",
+      "description": "Calls the agent must make, in order; an element may be an alternatives group.",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/call"
+          },
+          {
+            "$ref": "#/$defs/alternatives"
+          }
+        ]
+      }
+    },
+    "alternatives": {
+      "type": "array",
+      "description": "Alternatives groups appended after required.",
+      "items": {
+        "$ref": "#/$defs/alternatives"
+      }
+    },
+    "optional": {
+      "type": "array",
+      "description": "Calls that may be made without penalty; not counted as extra.",
+      "items": {
+        "$ref": "#/$defs/call"
+      }
+    },
+    "forbidden": {
+      "type": "array",
+      "description": "Calls the agent must never make (reported, not scored).",
+      "items": {
+        "$ref": "#/$defs/forbidden"
+      }
+    },
+    "weights": {
+      "type": "object",
+      "description": "Score weights, merged with the defaults and renormalized.",
+      "additionalProperties": false,
+      "properties": {
+        "selection_accuracy": {
+          "type": "number",
+          "minimum": 0
+        },
+        "argument_f1": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sequence_accuracy": {
+          "type": "number",
+          "minimum": 0
+        },
+        "redundant_rate": {
+          "type": "number",
+          "minimum": 0
+        },
+        "required_call_recall": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "min_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "$defs": {
+    "args": {
+      "type": "object",
+      "description": "A plain value (compared exactly, with numeric and whitespace leniency unless strict), or a matcher: {\"$regex\": pattern} (found anywhere), {\"$contains\": x}, {\"$one_of\": [...]}, {\"$any\": true}, {\"$type\": name or [names]}, {\"$approx\": n or {value, rel, abs}}.",
+      "additionalProperties": true
+    },
+    "call": {
+      "type": "object",
+      "required": [
+        "tool"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "$ref": "#/$defs/args"
+        },
+        "description": {
+          "type": "string"
+        },
+        "side_effects": {
+          "type": "object"
+        }
+      }
+    },
+    "alternatives": {
+      "type": "object",
+      "required": [
+        "alternatives"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "alternatives": {
+          "type": "array",
+          "minItems": 2,
+          "description": "Options; each is a list of calls (or one call). The highest composite score wins; ties go to the first declared.",
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/call"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/call"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "forbidden": {
+      "type": "object",
+      "required": [
+        "tool"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "$ref": "#/$defs/args"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
