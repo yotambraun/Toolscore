@@ -104,6 +104,21 @@ def generate_markdown_report(
             lines.append(f"- {icon} **{severity}**: {message}")
         lines.append("")
 
+    # Tri-state evidence: unknown is never a pass
+    from toolscore.evidence import summary_line
+
+    evidence = result.evidence
+    lines.append("## 🔎 Evidence")
+    lines.append("")
+    lines.append(f"**{summary_line(evidence['counts'])}**")
+    lines.append("")
+    lines.append("| Check | Status | Detail |")
+    lines.append("|-------|--------|--------|")
+    for check in evidence["checks"]:
+        detail = check["detail"].replace("|", "\\|")
+        lines.append(f"| `{check['check']}` | {check['status']} | {detail} |")
+    lines.append("")
+
     # Efficiency Metrics
     if "efficiency_metrics" in metrics:
         lines.append("## ⚡ Efficiency Metrics")

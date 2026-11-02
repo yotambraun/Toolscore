@@ -66,8 +66,10 @@ def generate_json_report(
                 "status", "unknown"
             ),
             "cost_status": (result.metrics.get("cost_metrics") or {}).get("status", "unknown"),
+            "evidence": result.evidence["counts"],
         },
         "metrics": result.metrics,
+        "evidence": result.evidence,
         "gold_calls": [_serialize_tool_call(call) for call in result.gold_calls],
         "trace_calls": [_serialize_tool_call(call) for call in result.trace_calls],
     }

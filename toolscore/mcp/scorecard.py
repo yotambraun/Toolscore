@@ -193,6 +193,28 @@ class MCPScorecard:
         return "n/a" if rate is None else f"{rate:.0%}"
 
     @property
+    def probe_evidence(self) -> dict[str, int] | None:
+        """Probe outcomes as tri-state evidence, or ``None`` when probes did not run.
+
+        ``pass`` and ``fail`` (any confidence); ``unknown`` counts inconclusive
+        probes (they could not run, so they are not a pass); ``skipped`` counts
+        probes that were not run (writes not allowed).
+        """
+        if self.probes is None:
+            return None
+        from toolscore.evidence import tally
+
+        counts = tally(
+            [
+                "unknown" if p.status == "inconclusive" else p.status
+                for p in self.probes
+                if p.status != "skipped"
+            ]
+        )
+        counts["skipped"] = sum(1 for p in self.probes if p.status == "skipped")
+        return counts
+
+    @property
     def probe_failed_tools(self) -> set[str]:
         """Tools with a high-confidence probe failure."""
         return {p.tool for p in self.probes or [] if p.severity == "error"}
@@ -626,6 +648,15 @@ def _print_probes(probes: list[ProbeResult], console: Console) -> None:
                 detail,
             )
         console.print(table)
+    counts = {
+        "pass": sum(1 for p in probes if p.status == "pass"),
+        "fail": sum(1 for p in probes if p.status == "fail"),
+        "unknown": sum(1 for p in probes if p.status == "inconclusive"),
+    }
+    console.print(
+        f"[dim]Probe evidence: {counts['pass']} pass, {counts['fail']} fail, "
+        f"{counts['unknown']} unknown (inconclusive is never a pass).[/dim]"
+    )
     if skipped:
         names = ", ".join(sorted({p.tool for p in skipped}))
         console.print(
@@ -693,6 +724,12 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         lines.append(
             f"- Effect probes: {card.effect_label} of high-confidence checks passed "
             f"({card.probe_error_count} failures, {card.probe_warning_count} warnings)"
+        )
+    if card.probe_evidence is not None:
+        ev = card.probe_evidence
+        lines.append(
+            f"- Probe evidence: {ev['pass']} pass, {ev['fail']} fail, {ev['unknown']} unknown "
+            f"(inconclusive), {ev['skipped']} skipped"
         )
     if protocol_label(card):
         lines.append(f"- Protocol: {protocol_label(card)}")
@@ -777,6 +814,7 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
             "effect_rate": card.effect_rate,
         },
         "probes": None if card.probes is None else [_probe_json(p) for p in card.probes],
+        "probe_evidence": card.probe_evidence,
         "tools": _tool_summaries(card),
         "results": [
             {

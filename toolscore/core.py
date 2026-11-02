@@ -150,6 +150,17 @@ class EvaluationResult:
         return counts if isinstance(counts, dict) else None
 
     @property
+    def evidence(self) -> dict[str, Any]:
+        """Tri-state checks (pass / fail / unknown) and evidence coverage.
+
+        A check that lacks the data it needs (no results captured, no final
+        answer) is ``unknown``, never a pass. See :mod:`toolscore.evidence`.
+        """
+        from toolscore.evidence import evaluation_evidence
+
+        return evaluation_evidence(self)
+
+    @property
     def policy_violations(self) -> list[dict[str, Any]]:
         """Calls that matched a ``forbidden`` rule (empty when no rules were given)."""
         policy = self.metrics.get("policy_metrics") or {}
@@ -170,6 +181,9 @@ class EvaluationResult:
           grade and the normalized weights that produced it.
         - ``required_call_recall``: see :attr:`required_call_recall`.
         - ``metrics``: every computed metric.
+        - ``evidence``: the tri-state checks (``pass`` / ``fail`` /
+          ``unknown``), their counts and the evidence coverage
+          (:attr:`evidence`).
         - ``calls``: ``expected`` and ``actual`` calls with their arguments and,
           for actual calls, ``id``, ``result``, ``is_error``, ``error``,
           ``duration``, ``cost`` and ``timestamp`` (``null`` when the trace does
@@ -188,6 +202,7 @@ class EvaluationResult:
                 "weights": dict(self._weights),
                 "required_call_recall": self.required_call_recall,
                 "metrics": self.metrics,
+                "evidence": self.evidence,
                 "calls": {
                     "expected": [{"tool": c.tool, "args": c.args} for c in self.gold_calls],
                     "actual": [_call_record(c) for c in self.trace_calls],

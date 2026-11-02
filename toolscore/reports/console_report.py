@@ -175,6 +175,24 @@ def _print_completion(result: EvaluationResult, console: Console) -> None:
     console.print()
 
 
+def _print_evidence(result: EvaluationResult, console: Console) -> None:
+    """Print the tri-state evidence counts, and the unknown checks with their reasons."""
+    from rich.markup import escape
+
+    from toolscore.evidence import summary_line
+
+    evidence = result.evidence
+    counts = evidence["counts"]
+    style = "red" if counts["fail"] else ("yellow" if counts["unknown"] else "green")
+    console.print(f"[bold]Evidence:[/bold] [{style}]{summary_line(counts)}[/{style}]")
+    for check in evidence["checks"]:
+        if check["status"] == "unknown":
+            console.print(
+                f"  [yellow]unknown[/yellow]  {check['check']}: {escape(check['detail'])}"
+            )
+    console.print()
+
+
 def _print_behavior_findings(result: EvaluationResult, console: Console) -> None:
     """Print failed calls, blind retries, credentials and forbidden calls, if any.
 
@@ -271,6 +289,7 @@ def print_evaluation_summary(
         # Top issues to fix — the actionable verdict (mirrors the MCP scorecard).
         _print_top_issues(result, console)
         _print_behavior_findings(result, console)
+        _print_evidence(result, console)
 
         console.print("[dim]Use --verbose for detailed metrics and failure analysis.[/dim]")
         console.print()
@@ -376,6 +395,7 @@ def print_evaluation_summary(
     _print_completion(result, console)
     _print_top_issues(result, console)
     _print_behavior_findings(result, console)
+    _print_evidence(result, console)
 
     # Metric-level tips (complementary to the per-call issues above).
     if show_explanations and explanations:

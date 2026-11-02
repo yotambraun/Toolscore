@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Template
 
+from toolscore.evidence import summary_line
 from toolscore.metrics.cost import format_measure
 from toolscore.metrics.security import redact_secrets
 from toolscore.reports.findings import behavior_findings
@@ -201,6 +202,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
 
+        <div class="metric-section">
+            <h2>Evidence</h2>
+            <p><strong>{{ evidence_line }}</strong> (a check without the data it needs is unknown, never a pass)</p>
+            <ul class="findings">
+                {% for check in evidence_checks %}
+                <li class="finding {{ 'error' if check.status == 'fail' else ('warning' if check.status == 'unknown' else 'ok') }}"><strong>{{ check.status|upper }}</strong> {{ check.check }}: {{ check.detail|e }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
         {% if findings %}
         <div class="metric-section">
             <h2>Behavior and Safety</h2>
@@ -322,6 +333,8 @@ def generate_html_report(
         "grade": result.grade,
         "required_call_recall": result.required_call_recall,
         "findings": behavior_findings(result),
+        "evidence_line": summary_line(result.evidence["counts"]),
+        "evidence_checks": result.evidence["checks"],
     }
 
     # Render template
