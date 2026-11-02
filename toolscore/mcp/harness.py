@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from toolscore.generators.synthetic import (
@@ -108,12 +108,16 @@ class Scenario:
             ``"edge"`` (intentionally malformed/boundary input where an error
             response from the server is acceptable).
         description: Human-readable summary of what the scenario exercises.
+        violations: For an edge case, how its arguments break the tool's own
+            ``inputSchema`` (from :func:`~toolscore.mcp.output_schema.validate_instance`);
+            empty when the schema accepts them (an empty string can be valid).
     """
 
     tool: str
     arguments: dict[str, Any]
     kind: str
     description: str
+    violations: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -133,6 +137,11 @@ class ScenarioResult:
         structured_content: The result's ``structuredContent`` (``None`` when
             absent or when the call failed).
         has_structured_content: Whether the result carried ``structuredContent``.
+        input_required: The server answered ``resultType: "input_required"``
+            (it needs client input Toolscore does not provide). The scenario is
+            **not evaluated**: neither a pass nor a fail, and left out of the
+            rates. ``ok`` is ``False``; use :attr:`status`.
+        input_requests: The methods the server asked for (``elicitation/create``...).
     """
 
     scenario: Scenario
@@ -142,6 +151,38 @@ class ScenarioResult:
     detail: str
     structured_content: Any = None
     has_structured_content: bool = False
+    input_required: bool = False
+    input_requests: list[str] = field(default_factory=list)
+
+    @property
+    def status(self) -> str:
+        """``"pass"``, ``"fail"`` or ``"input_required"`` (not evaluated)."""
+        if self.input_required:
+            return "input_required"
+        return "pass" if self.ok else "fail"
+
+    @property
+    def evaluated(self) -> bool:
+        """Whether the scenario has a verdict (it did not stop at ``input_required``)."""
+        return not self.input_required
+
+    @property
+    def accepted_invalid_input(self) -> bool:
+        """An edge case whose arguments break the input schema, answered as a success.
+
+        The server returned a result without ``isError`` for arguments its own
+        ``inputSchema`` rejects (a missing required argument, a wrong type...).
+        Either it accepted invalid input, or it reported the rejection without
+        ``isError``, so a client cannot tell. It still counts as resilient (the
+        server answered); it is reported as a finding, not scored.
+        """
+        return (
+            self.scenario.kind == "edge"
+            and bool(self.scenario.violations)
+            and self.evaluated
+            and self.ok
+            and not self.is_error
+        )
 
 
 @dataclass
@@ -378,6 +419,7 @@ def generate_scenarios(
                         arguments=arguments,
                         kind="edge",
                         description=f"edge case: {description}",
+                        violations=validate_instance(arguments, schema),
                     )
                 )
 
@@ -438,7 +480,11 @@ def run_scenarios(client: MCPClient, scenarios: list[Scenario]) -> list[Scenario
       error result.
     * ``"edge"`` scenarios are ``ok`` whenever the server *responded at all*
       (an error payload is an acceptable, expected reaction to bad input); they
-      fail only on a timeout or transport crash.
+      fail only on a timeout or transport crash. An edge case that breaks the
+      schema and gets a success is flagged
+      (:attr:`ScenarioResult.accepted_invalid_input`), not failed.
+    * A call the server answers with ``resultType: "input_required"`` is not
+      evaluated (:attr:`ScenarioResult.status` ``"input_required"``).
 
     Args:
         client: A started MCP client (stdio or HTTP) connected to the server under test.
@@ -471,6 +517,21 @@ def run_scenarios(client: MCPClient, scenarios: list[Scenario]) -> list[Scenario
                     is_error=True,
                     duration=0.0,
                     detail=_excerpt(f"transport error: {exc}"),
+                )
+            )
+            continue
+
+        if result.input_required:
+            # The server needs client input to finish: no verdict either way.
+            results.append(
+                ScenarioResult(
+                    scenario=scenario,
+                    ok=False,
+                    is_error=False,
+                    duration=result.duration,
+                    detail=_content_excerpt(result.content),
+                    input_required=True,
+                    input_requests=result.input_requests,
                 )
             )
             continue

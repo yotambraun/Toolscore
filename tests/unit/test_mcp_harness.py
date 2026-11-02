@@ -549,3 +549,84 @@ def test_scorecard_without_instructions_has_zero_instruction_cost() -> None:
 
     assert card.instructions is None
     assert card.instructions_tokens == 0
+
+
+# -- input_required and invalid input accepted ------------------------------
+
+
+class _CannedClient:
+    """Answers every call with a fixed JSON-RPC result per tool (no server)."""
+
+    timeout = 1.0
+
+    def __init__(self, results: dict[str, dict[str, object]]) -> None:
+        self.results = results
+
+    def call_tool(self, name: str, arguments: dict[str, object]) -> object:
+        from toolscore.mcp.client import MCPClient
+
+        result = self.results[name]
+
+        class _One(MCPClient):
+            def _roundtrip(self, method, params, request_id=None, timeout=None):  # type: ignore[no-untyped-def]
+                return {"jsonrpc": "2.0", "id": 1, "result": result}
+
+        return _One().call_tool(name, arguments)
+
+
+def test_input_required_is_not_evaluated_and_not_scored() -> None:
+    ask = MCPToolDef(
+        name="ask",
+        description="Ask the user for a login.",
+        input_schema={"type": "object", "properties": {"repo": {"type": "string"}}},
+    )
+    elicit = {
+        "resultType": "input_required",
+        "inputRequests": {"login": {"method": "elicitation/create", "params": {}}},
+    }
+    client = _CannedClient({"add": {"content": [{"type": "text", "text": "3"}]}, "ask": elicit})
+    scenarios = generate_scenarios([ADD_TOOL, ask], cases_per_tool=1)
+    results = run_scenarios(client, scenarios)  # type: ignore[arg-type]
+    asked = [r for r in results if r.scenario.tool == "ask"]
+    assert {r.status for r in asked} == {"input_required"}
+    assert all(not r.is_error and r.input_requests == ["elicitation/create"] for r in asked)
+
+    card = MCPScorecard(server_info={}, tools=[ADD_TOOL, ask], results=results, lint=[])
+    assert len(card.not_evaluated) == len(asked)
+    assert card.happy_pass_rate == 1.0  # only add's evaluated happy path counts
+    data = scorecard_to_json(card)
+    assert data["scores"]["not_evaluated"] == len(asked)
+    assert {r["status"] for r in data["results"] if r["tool"] == "ask"} == {"input_required"}
+    rules = {f["rule"] for f in data["findings"] if f["tool"] == "ask"}
+    assert rules == {"input-required-undeclared"}
+    summary = next(t for t in data["tools"] if t["name"] == "ask")
+    assert (summary["total"], summary["not_evaluated"]) == (0, len(asked))
+    assert "not evaluated" in scorecard_to_markdown(card)
+    assert not any("fails on valid input" in s.problem for s in build_fix_list(card))
+
+
+def test_invalid_input_answered_as_success_is_a_finding_not_a_score_change() -> None:
+    client = _CannedClient({"add": {"content": [{"type": "text", "text": "0"}]}})
+    results = run_scenarios(client, generate_scenarios([ADD_TOOL], cases_per_tool=1))  # type: ignore[arg-type]
+    card = MCPScorecard(server_info={}, tools=[ADD_TOOL], results=results, lint=[])
+    assert card.edge_resilience_rate == 1.0  # the grade formula is unchanged
+    accepted = card.accepted_invalid_input
+    described = {r.scenario.description for r in accepted}
+    assert "edge case: missing required argument 'a'" in described
+    assert "edge case: wrong-type value for 'a'" in described
+    findings = scorecard_to_json(card)["findings"]
+    assert {f["rule"] for f in findings} == {"edge-accepted-invalid-input"}
+    assert any("missing required property 'a'" in f["message"] for f in findings)
+    # Empty strings and zeros are valid for this schema: not a finding.
+    assert not any("empty" in f["scenario"] for f in findings)
+    assert any("edge-accepted-invalid-input" in s.problem for s in build_fix_list(card))
+
+
+def test_invalid_input_rejected_with_is_error_is_not_a_finding() -> None:
+    client = _CannedClient(
+        {"add": {"content": [{"type": "text", "text": "bad input"}], "isError": True}}
+    )
+    results = run_scenarios(client, generate_scenarios([ADD_TOOL], cases_per_tool=0))  # type: ignore[arg-type]
+    card = MCPScorecard(server_info={}, tools=[ADD_TOOL], results=results, lint=[])
+    assert card.accepted_invalid_input == []
+    assert scorecard_to_json(card)["findings"] == []

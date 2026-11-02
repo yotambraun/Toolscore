@@ -1963,7 +1963,7 @@ def mcp_test(
         has_blocking = (
             card.lint_error_count > 0
             or card.probe_error_count > 0
-            or any(not r.ok for r in card.results)
+            or any(r.status == "fail" for r in card.results)
         )
         if has_blocking:
             console.print("[red]Blocking issues found (see 'Top issues to fix' above).[/red]")

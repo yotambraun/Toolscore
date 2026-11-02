@@ -320,6 +320,38 @@ The scorecard blends three signals into a single score in ``[0, 1]``:
   (missing required arguments, wrong types, empty/zero values) that the server
   handled **without crashing or timing out**. A returned error is fine and
   expected here -- crashing the process is not.
+
+Two outcomes are reported without changing the score:
+
+* **Invalid input answered as a success** (``edge-accepted-invalid-input``,
+  warning). An edge case whose arguments break the tool's own ``inputSchema``
+  (a missing required argument, a wrong type; checked with the same validator
+  as output schemas) got a result without ``isError``. Either the tool accepted
+  input it says it rejects, or it reported the rejection as a normal result, so
+  a model cannot tell the call did not work. The edge term still counts the
+  server as resilient (it answered); the finding is in "Top issues to fix" and
+  in the JSON report's ``findings``. Empty strings and zeros are only flagged
+  when the schema forbids them (``minLength``, ``minimum``...).
+* **Input required** (not evaluated). An MCP 2026-07-28 server may answer a call
+  with ``resultType: "input_required"`` (a multi round-trip request): it needs
+  an elicitation, a sampling result or roots from the client before it can
+  finish. Toolscore provides no client input, so the call did not run: the
+  scenario's ``status`` is ``input_required``, it is left out of both rates, and
+  the scorecard says how many scenarios were not evaluated. An answer with only
+  a ``requestState`` is retried with that state (up to three times), as the
+  specification allows. An answer with ``inputRequests`` is also the finding
+  ``input-required-undeclared``: Toolscore declares no client capabilities, and
+  the specification says servers MUST NOT send input requests the client has
+  not declared support for
+  (`multi round-trip requests <https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr>`__).
+
+Requests the server sends to the client in the middle of a call (MCP 2025-11-25
+and earlier) are answered: ``ping`` with an empty result, as the specification
+requires, and anything else (``roots/list``, ``sampling/createMessage``,
+``elicitation/create``) with the JSON-RPC error ``-32601`` (method not found),
+since Toolscore declares none of those capabilities. The client keeps the last
+200 server messages (``client.server_messages``) and counts the rest
+(``client.server_messages_dropped``).
 * **lint_score** -- schema cleanliness, computed as
   ``max(0, 1 - (errors * 0.25 + warnings * 0.1) / num_tools)``.
 

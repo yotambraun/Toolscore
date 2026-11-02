@@ -22,6 +22,13 @@ where
 * ``edge_resilience_rate`` is the fraction of *edge* scenarios where the server
   responded without crashing or timing out. With no edge scenarios this term is
   ``1.0``.
+
+A scenario the server answers with ``resultType: "input_required"`` (it needs
+client input Toolscore does not provide) is **not evaluated**: it is left out of
+both rates and reported, never counted as a pass or a fail. An edge case whose
+arguments break the tool's own ``inputSchema`` and that gets a success counts as
+resilient, and is reported as the finding ``edge-accepted-invalid-input``; it
+does not change the score.
 * ``lint_score`` rewards clean schemas::
 
       lint_score = max(0, 1 - (errors * 0.25 + warnings * 0.1) / max(num_tools, 1))
@@ -137,9 +144,19 @@ class MCPScorecard:
     # -- component rates ---------------------------------------------------
 
     @property
+    def not_evaluated(self) -> list[ScenarioResult]:
+        """Scenarios with no verdict: the server answered ``input_required``."""
+        return [r for r in self.results if not r.evaluated]
+
+    @property
+    def accepted_invalid_input(self) -> list[ScenarioResult]:
+        """Edge cases that break the input schema and got a success (see the harness)."""
+        return [r for r in self.results if r.accepted_invalid_input]
+
+    @property
     def happy_pass_rate(self) -> float:
-        """Fraction of happy-path scenarios that passed (``1.0`` if none)."""
-        happy = [r for r in self.results if r.scenario.kind == "happy"]
+        """Fraction of evaluated happy-path scenarios that passed (``1.0`` if none)."""
+        happy = [r for r in self.results if r.scenario.kind == "happy" and r.evaluated]
         if not happy:
             return 1.0
         return sum(1 for r in happy if r.ok) / len(happy)
@@ -147,7 +164,7 @@ class MCPScorecard:
     @property
     def edge_resilience_rate(self) -> float:
         """Fraction of edge scenarios the server survived (``1.0`` if none)."""
-        edge = [r for r in self.results if r.scenario.kind == "edge"]
+        edge = [r for r in self.results if r.scenario.kind == "edge" and r.evaluated]
         if not edge:
             return 1.0
         return sum(1 for r in edge if r.ok) / len(edge)
@@ -383,7 +400,8 @@ def _tool_summaries(card: MCPScorecard) -> list[dict[str, Any]]:
     """
     summaries: list[dict[str, Any]] = []
     for tool in card.tools:
-        results = [r for r in card.results if r.scenario.tool == tool.name]
+        every = [r for r in card.results if r.scenario.tool == tool.name]
+        results = [r for r in every if r.evaluated]
         total = len(results)
         passed = sum(1 for r in results if r.ok)
         durations = [r.duration for r in results]
@@ -395,9 +413,99 @@ def _tool_summaries(card: MCPScorecard) -> list[dict[str, Any]]:
                 "total": total,
                 "avg_latency_ms": round(avg_latency * 1000.0, 1),
                 "tokens": tool_definition_tokens(tool),
+                "not_evaluated": len(every) - total,
             }
         )
     return summaries
+
+
+#: Scenario finding rule IDs with a one-line meaning.
+SCENARIO_RULES: dict[str, str] = {
+    "edge-accepted-invalid-input": (
+        "an edge case that breaks the tool's inputSchema was answered as a success"
+    ),
+    "input-required": "the server asked for client input; the scenario was not evaluated",
+    "input-required-undeclared": (
+        "the server asked for a kind of client input the client did not declare"
+    ),
+}
+
+
+def scenario_findings(card: MCPScorecard) -> list[dict[str, Any]]:
+    """Findings from the scenario run that the score does not count.
+
+    * ``edge-accepted-invalid-input`` (warning): an edge case whose arguments
+      break the tool's own ``inputSchema`` (a missing required argument, a
+      wrong type) got a result without ``isError``. Either the tool accepted
+      invalid input, or it reported the rejection without ``isError``, so a
+      model cannot tell that the call did not work. The edge score still
+      counts it as resilient (the server answered).
+    * ``input-required-undeclared`` (warning): the server answered
+      ``input_required`` with ``inputRequests`` although Toolscore declares no
+      client capabilities; MCP 2026-07-28 says servers MUST NOT send input
+      requests the client has not declared support for.
+    * ``input-required`` (note): the server answered ``input_required`` with
+      only a ``requestState`` and kept doing so after Toolscore echoed it back;
+      the scenario was not evaluated.
+
+    Returns:
+        Dicts with ``rule``, ``severity``, ``tool``, ``scenario``, ``message``
+        and ``fix``, one per affected scenario.
+    """
+    findings: list[dict[str, Any]] = []
+    for result in card.results:
+        scenario = result.scenario
+        if result.accepted_invalid_input:
+            reason = scenario.violations[0].replace("$.", "", 1).replace("$: ", "")
+            findings.append(
+                {
+                    "rule": "edge-accepted-invalid-input",
+                    "severity": "warning",
+                    "tool": scenario.tool,
+                    "scenario": scenario.description,
+                    "message": (
+                        f"accepted invalid input: {scenario.description} ({reason}) got a "
+                        "result without isError"
+                    ),
+                    "fix": (
+                        "Validate arguments against the inputSchema and return isError: true "
+                        "(or a JSON-RPC -32602 error) when they do not match, so the model "
+                        "knows the call did not work."
+                    ),
+                }
+            )
+        elif result.input_required and result.input_requests:
+            asked = ", ".join(result.input_requests)
+            findings.append(
+                {
+                    "rule": "input-required-undeclared",
+                    "severity": "warning",
+                    "tool": scenario.tool,
+                    "scenario": scenario.description,
+                    "message": (
+                        f"asked for client input ({asked}) that the client did not declare "
+                        "support for; not evaluated"
+                    ),
+                    "fix": (
+                        "Check the client's capabilities before sending inputRequests "
+                        "(MCP 2026-07-28 multi round-trip requests), and fall back to an "
+                        "isError result that says what input is needed."
+                    ),
+                }
+            )
+        elif result.input_required:
+            findings.append(
+                {
+                    "rule": "input-required",
+                    "severity": "note",
+                    "tool": scenario.tool,
+                    "scenario": scenario.description,
+                    "message": "kept answering input_required after its requestState was "
+                    "echoed back; not evaluated",
+                    "fix": "Finish the call once the client retries with the requestState.",
+                }
+            )
+    return findings
 
 
 def grade_meets(grade: str, threshold: str) -> bool:
@@ -460,7 +568,7 @@ def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSugg
     edge_seen: set[str] = set()
 
     for result in card.results:
-        if result.ok:
+        if result.ok or not result.evaluated:
             continue
         tool = result.scenario.tool
         detail = result.detail or "no detail"
@@ -490,6 +598,21 @@ def build_fix_list(card: MCPScorecard, limit: int | None = None) -> list[FixSugg
                     priority=_PRIORITY_EDGE_CRASH,
                 )
             )
+
+    flagged: set[tuple[str, str]] = set()
+    for finding in scenario_findings(card):
+        key = (finding["tool"], finding["rule"])
+        if key in flagged:
+            continue
+        flagged.add(key)
+        suggestions.append(
+            FixSuggestion(
+                tool=finding["tool"],
+                problem=f"{finding['message']} ({finding['rule']})",
+                fix=finding["fix"],
+                priority=_PRIORITY_LINT_WARNING,
+            )
+        )
 
     for probe in card.probes or []:
         if probe.status != "fail":
@@ -558,6 +681,8 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     )
     if protocol_label(card):
         header.append(f"\n{protocol_label(card)}", style="dim")
+    if card.not_evaluated:
+        header.append(f"\n{_not_evaluated_note(card)}", style="yellow")
     console.print(Panel(header, border_style=color, expand=False))
 
     table = Table(title="Tools", header_style="bold magenta", title_style="bold")
@@ -569,9 +694,12 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
         passed = summary["passed"]
         total = summary["total"]
         status_color = "green" if total and passed == total else "yellow" if passed else "red"
+        unevaluated = (
+            f" +{summary['not_evaluated']} not evaluated" if summary["not_evaluated"] else ""
+        )
         table.add_row(
             summary["name"],
-            Text(f"{passed}/{total}", style=status_color),
+            Text(f"{passed}/{total}{unevaluated}", style=status_color),
             f"{summary['avg_latency_ms']:.1f} ms",
             str(summary["tokens"]),
         )
@@ -607,6 +735,14 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     remaining = len(fixes) - min(len(fixes), _MAX_FIXES_SHOWN)
     if remaining > 0:
         console.print(f"  [dim]... and {remaining} more issue(s).[/dim]")
+
+
+def _not_evaluated_note(card: MCPScorecard) -> str:
+    count = len(card.not_evaluated)
+    return (
+        f"{count} scenario(s) not evaluated: the server asked for client input "
+        "(input_required); they count as neither pass nor fail"
+    )
 
 
 _PROBE_STATUS_STYLE = {
@@ -733,6 +869,8 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         )
     if protocol_label(card):
         lines.append(f"- Protocol: {protocol_label(card)}")
+    if card.not_evaluated:
+        lines.append(f"- {_not_evaluated_note(card)}")
     lines.append("")
 
     lines.append("## Tools")
@@ -740,8 +878,11 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
     lines.append("| Tool | Scenarios | Avg latency | Def. tokens |")
     lines.append("| --- | --- | --- | --- |")
     for summary in _tool_summaries(card):
+        unevaluated = (
+            f" (+{summary['not_evaluated']} not evaluated)" if summary["not_evaluated"] else ""
+        )
         lines.append(
-            f"| `{summary['name']}` | {summary['passed']}/{summary['total']} | "
+            f"| `{summary['name']}` | {summary['passed']}/{summary['total']}{unevaluated} | "
             f"{summary['avg_latency_ms']:.1f} ms | {summary['tokens']} |"
         )
     lines.append("")
@@ -812,6 +953,7 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
             "edge_resilience_rate": card.edge_resilience_rate,
             "lint_score": card.lint_score,
             "effect_rate": card.effect_rate,
+            "not_evaluated": len(card.not_evaluated),
         },
         "probes": None if card.probes is None else [_probe_json(p) for p in card.probes],
         "probe_evidence": card.probe_evidence,
@@ -823,12 +965,16 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
                 "description": r.scenario.description,
                 "arguments": r.scenario.arguments,
                 "ok": r.ok,
+                "status": r.status,
                 "is_error": r.is_error,
                 "duration": r.duration,
                 "detail": r.detail,
+                "schema_violations": r.scenario.violations,
+                "input_requests": r.input_requests,
             }
             for r in card.results
         ],
+        "findings": scenario_findings(card),
         "lint": [
             {
                 "tool": i.tool,

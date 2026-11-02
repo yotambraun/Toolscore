@@ -66,10 +66,12 @@ from toolscore.mcp.probes import (
 from toolscore.mcp.recorder import MCPRecorder
 from toolscore.mcp.scorecard import (
     PROBE_GRADE_CAP,
+    SCENARIO_RULES,
     MCPScorecard,
     build_fix_list,
     grade_meets,
     print_scorecard,
+    scenario_findings,
     scorecard_to_json,
     scorecard_to_markdown,
 )
@@ -84,6 +86,7 @@ __all__ = [
     "PIN_RULES",
     "PROBE_GRADE_CAP",
     "PROBE_RULES",
+    "SCENARIO_RULES",
     "Agreement",
     "ArgumentFixtures",
     "BoundRelation",
@@ -133,6 +136,7 @@ __all__ = [
     "print_scorecard",
     "run_probes",
     "run_scenarios",
+    "scenario_findings",
     "scorecard_to_json",
     "scorecard_to_markdown",
     "tool_definition_tokens",

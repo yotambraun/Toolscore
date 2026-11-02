@@ -53,7 +53,11 @@ toolscore mcp test "python server.py" --report md -o SCORECARD.md
 This calls each tool with generated happy-path and edge-case arguments. Before
 running it on a server connected to real data or real accounts, tell the user
 that it calls every tool, including write and delete tools, and ask. Report the
-grade, the score, and the "Top issues to fix" list.
+grade, the score, and the "Top issues to fix" list. Two outcomes do not change
+the score but belong in your summary: `edge-accepted-invalid-input` (a tool
+answered arguments that break its own input schema as a success) and scenarios
+that are "not evaluated" because the server asked for client input
+(`input_required`); say they were not tested, not that they passed.
 
 ## 4. Effect probes
 

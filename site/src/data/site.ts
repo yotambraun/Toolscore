@@ -339,7 +339,7 @@ export const mcpDimensions = [
     label: 'Edge-case resilience',
     weight: '20%',
     grade: 'B',
-    body: 'Adversarial inputs — missing required fields, wrong types, empty values, boundaries — probe whether the server fails gracefully instead of crashing or returning garbage.',
+    body: 'Adversarial inputs — missing required fields, wrong types, empty values, boundaries — probe whether the server fails gracefully instead of crashing. Invalid input answered as a success is flagged as a finding; a call that needs client input (input_required) is not evaluated, never a fail.',
   },
   {
     label: 'Lint',
