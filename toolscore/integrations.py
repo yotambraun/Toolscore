@@ -378,72 +378,93 @@ def from_langgraph(result: Any) -> list[dict[str, Any]]:
     return calls
 
 
+#: Pydantic AI tool-return outcomes that mean the call did not succeed (v2).
+_PYDANTIC_AI_FAILED_OUTCOMES = frozenset({"failed", "denied", "interrupted", "retried"})
+
+
+def _pydantic_ai_messages(result: Any) -> list[Any]:
+    if isinstance(result, list):
+        return result
+    if callable(getattr(result, "all_messages", None)):
+        return list(result.all_messages())
+    return []
+
+
 def from_pydantic_ai(result: Any) -> list[dict[str, Any]]:
     """Extract tool calls from a Pydantic AI agent result.
 
     Accepts an ``AgentRunResult`` (duck: has callable ``all_messages``) or a
-    list of messages.  Walks each message's ``parts``; takes parts with
-    ``part_kind == "tool-call"`` (attribute or key; also accepts class name
-    ``ToolCallPart``).  Tool name from ``tool_name``; args from
-    ``args_as_dict()`` if present, else ``args`` (JSON-string → json.loads,
-    dict → as-is).
+    list of messages (objects or their dict dumps). Each ``ToolCallPart``
+    (``part_kind == "tool-call"``) is a call: ``tool_name``, arguments from
+    ``args_as_dict()`` or ``args`` (a JSON string is parsed) and
+    ``tool_call_id``. The ``ToolReturnPart`` with the same ID gives its
+    ``result``; in Pydantic AI 2, a return whose ``outcome`` is ``failed``,
+    ``denied``, ``interrupted`` or ``retried`` (a tool raised ``ModelRetry``)
+    makes the call failed, and so does a ``RetryPromptPart`` for it.
 
     Args:
         result: A Pydantic AI AgentRunResult or a list of messages.
 
     Returns:
-        List of dicts with 'tool' and 'args' keys.
+        List of dicts with ``tool``, ``args`` and, when known, ``id``,
+        ``result`` and ``error``.
     """
     calls: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
 
-    # Resolve messages list
-    if isinstance(result, list):
-        messages = result
-    elif callable(getattr(result, "all_messages", None)):
-        messages = result.all_messages()
-    else:
-        messages = []
-
-    for msg in messages:
-        # Support both attribute and dict access for parts
+    for msg in _pydantic_ai_messages(result):
         parts = msg.get("parts", []) if isinstance(msg, dict) else getattr(msg, "parts", []) or []
-
         for part in parts:
-            # Detect tool-call parts
-            if isinstance(part, dict):
-                part_kind = part.get("part_kind", "")
-                is_tool_call = part_kind == "tool-call"
-                tool_name = part.get("tool_name", "")
-                raw_args = part.get("args", {})
-            else:
-                part_kind = getattr(part, "part_kind", "")
-                class_name = type(part).__name__
-                is_tool_call = part_kind == "tool-call" or class_name == "ToolCallPart"
-                tool_name = getattr(part, "tool_name", "")
-                # Prefer args_as_dict() if available
-                if callable(getattr(part, "args_as_dict", None)):
-                    raw_args = part.args_as_dict()
+            kind = _field(part, "part_kind") or ""
+            class_name = type(part).__name__
+            if kind == "tool-call" or class_name == "ToolCallPart":
+                tool_name = _field(part, "tool_name") or ""
+                if not isinstance(part, dict) and callable(getattr(part, "args_as_dict", None)):
+                    raw_args: Any = part.args_as_dict()
                 else:
-                    raw_args = getattr(part, "args", {})
-
-            if not is_tool_call:
-                continue
-
-            # Normalise args
-            if isinstance(raw_args, str):
-                try:
-                    args: dict[str, Any] = json.loads(raw_args)
-                except (json.JSONDecodeError, TypeError):
-                    args = {}
-            elif isinstance(raw_args, dict):
-                args = raw_args
-            else:
-                args = {}
-
-            if tool_name:
-                calls.append({"tool": tool_name, "args": args})
+                    raw_args = _field(part, "args")
+                if isinstance(raw_args, str):
+                    try:
+                        raw_args = json.loads(raw_args) if raw_args.strip() else {}
+                    except (json.JSONDecodeError, TypeError):
+                        raw_args = {}
+                if not tool_name:
+                    continue
+                call: dict[str, Any] = {
+                    "tool": tool_name,
+                    "args": raw_args if isinstance(raw_args, dict) else {},
+                }
+                call_id = _field(part, "tool_call_id")
+                if call_id:
+                    call["id"] = str(call_id)
+                    by_id[str(call_id)] = call
+                calls.append(call)
+            elif kind in ("tool-return", "retry-prompt") or class_name in (
+                "ToolReturnPart",
+                "RetryPromptPart",
+            ):
+                target = by_id.get(str(_field(part, "tool_call_id")))
+                if target is None:
+                    continue
+                content = _field(part, "content")
+                outcome = _field(part, "outcome")
+                if kind == "retry-prompt" or class_name == "RetryPromptPart":
+                    target["error"] = (
+                        content if isinstance(content, str) else json.dumps(content, default=str)
+                    )
+                elif outcome in _PYDANTIC_AI_FAILED_OUTCOMES:
+                    target["error"] = f"{outcome}: {content}" if content else str(outcome)
+                else:
+                    target.pop("error", None)
+                    target["result"] = content
 
     return calls
+
+
+def pydantic_ai_final_answer(result: Any) -> str | None:
+    """The text output of a Pydantic AI ``AgentRunResult`` (``None`` for structured output)."""
+    output = getattr(result, "output", None)
+    return output.strip() if isinstance(output, str) and output.strip() else None
 
 
 def from_openai_agents(result: Any) -> list[dict[str, Any]]:

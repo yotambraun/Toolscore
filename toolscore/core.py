@@ -881,6 +881,11 @@ def evaluate(
     final_source: str | None = "provided" if final_answer else None
     if not final_answer and isinstance(actual, (dict, list)):
         final_answer, final_source = final_answer_of(actual)
+    elif not final_answer and callable(getattr(actual, "all_messages", None)):
+        from toolscore.integrations import pydantic_ai_final_answer
+
+        final_answer = pydantic_ai_final_answer(actual)
+        final_source = "Pydantic AI output" if final_answer else None
     actual = auto_extract(actual)
 
     merged_weights = _normalize_weights(weights)
