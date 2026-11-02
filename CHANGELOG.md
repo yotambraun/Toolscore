@@ -157,6 +157,7 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - Message lists (trace files or `evaluate_trace()`) that start with a user or system message are detected as OpenAI or Anthropic traces (they were read as the custom format, with no calls).
 - Python 3.14 is supported and tested.
 - The README is a short landing page; its detail moved to the documentation: *What Toolscore catches*, *CI/CD*, and recipes for server authors, agent builders, security teams and researchers.
+- The comparison (docs and the site's Compare page) is rewritten around the tools people compare Toolscore with today: MCP Inspector, the official MCP conformance suite (which Toolscore does not replace), Snyk Agent Scan and Cisco MCP Scanner, DeepEval's MCP metrics and Promptfoo. Each statement about another tool links its own documentation (checked 2026-11-02) and says where that tool is the better choice; the old DeepEval/RAGAS/LangSmith matrix is gone.
 - The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
 
 ### Fixed

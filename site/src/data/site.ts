@@ -432,48 +432,86 @@ export const frameworks = [
 ];
 
 // ====================================================================
-// COMPARE page — confident positioning matrix
+// COMPARE page — which tool for which job (verified 2026-11-02, see docs/comparison.rst)
 // ====================================================================
 
-export const compareTools = ['Toolscore', 'DeepEval', 'LangChain agentevals', 'EvalView', 'mcp-eval'];
+export const compareCheckedOn = '2026-11-02';
 
-// value: true (yes) | false (no) | 'partial'
-export const compareRows: { label: string; values: (boolean | 'partial')[] }[] = [
-  { label: 'Deterministic — no LLM judge required', values: [true, 'partial', true, 'partial', 'partial'] },
-  { label: 'Runs fully offline ($0 per run)', values: [true, false, true, false, false] },
-  { label: 'Snapshot record / approve / replay', values: [true, false, false, false, false] },
-  { label: 'MCP-server scorecard (A–F + lint + token cost)', values: [true, false, false, false, 'partial'] },
-  { label: 'Ranked "Top issues to fix" verdict', values: [true, false, false, 'partial', false] },
-  { label: 'pytest-native (drop-in fixture + assertions)', values: [true, 'partial', false, false, false] },
-  { label: 'Framework auto-detect (8 SDKs)', values: [true, 'partial', 'partial', false, false] },
-  { label: 'CI gate built in (--fail-under / --ci)', values: [true, 'partial', false, false, 'partial'] },
-];
-
-export const compareBestAt = [
+export const compareJobs: { job: string; reach: string; toolscore: string; self?: boolean }[] = [
   {
-    name: 'Toolscore',
-    best: 'The deterministic, in-CI health-check for tool-calling. It verifies your agent calls the right tools, with the right arguments, in the right order, flags failed calls, leaked credentials and forbidden calls, and grades whether an MCP server can be used at all — for free, in your test suite.',
+    job: 'Explore a server by hand, debug OAuth, review an MCP App',
+    reach: 'MCP Inspector (web UI, TUI, CLI)',
+    toolscore: 'Nothing comparable: no UI. toolscore mcp list prints the tools.',
+  },
+  {
+    job: 'Script a smoke test in CI: connect, list, call, assert',
+    reach: 'MCP Inspector CLI (JSON output, exit codes, assertions you write with jq)',
+    toolscore: 'mcp test generates the calls from the tool schemas and grades the server, with no assertions to write.',
+  },
+  {
+    job: 'Check that a server or client conforms to the MCP specification',
+    reach: 'The official MCP conformance suite',
+    toolscore: 'Does not replace it. Toolscore tests what the tools do, not every rule of the protocol.',
+  },
+  {
+    job: 'Scan installed agents, MCP servers and skills for prompt injection, tool poisoning, toxic flows or malware',
+    reach: 'Snyk Agent Scan or Cisco MCP Scanner',
+    toolscore: 'A lighter, offline check: lint rules for hidden instructions, and mcp pin / verify-pin to fail CI when a tool definition changes.',
+  },
+  {
+    job: 'Judge with a model whether an agent used its MCP tools well',
+    reach: 'DeepEval (MCP Use, Multi-Turn MCP Use, MCP Task Completion)',
+    toolscore: 'Deterministic checks instead: required and forbidden calls, arguments, contracts. An LLM judge is optional.',
+  },
+  {
+    job: 'Red-team an agent or an MCP server with generated attacks',
+    reach: 'Promptfoo (MCP provider, MCP red-team plugin)',
+    toolscore: 'Fault injection with fixed, reproducible faults (mcp proxy --inject), not attack generation.',
+  },
+  {
+    job: 'Check that a write really happened (write, then read back)',
+    reach: 'Toolscore effect probes',
+    toolscore: 'probe-silent-noop, probe-data-lost, bounds and agreement checks.',
     self: true,
   },
   {
+    job: 'Check that the agent’s final answer matches what its tools returned',
+    reach: 'Toolscore honesty checks',
+    toolscore: 'claimed-success, undisclosed-warning, escape-hatch-after-refusal, injected faults the answer hides.',
+    self: true,
+  },
+];
+
+export const compareTools = [
+  {
+    name: 'MCP Inspector',
+    href: 'https://github.com/modelcontextprotocol/inspector',
+    best: 'The MCP project’s developer tool: a web UI, a TUI and a CLI for automation and CI. Best for looking at a server, trying calls by hand, debugging OAuth and writing precise assertions about specific calls.',
+  },
+  {
+    name: 'MCP conformance suite',
+    href: 'https://github.com/modelcontextprotocol/conformance',
+    best: 'Tests MCP clients and servers against the specification, validates every message on the wire against the spec’s JSON schema, and runs what one revision requires. Toolscore does not replace it.',
+  },
+  {
+    name: 'Snyk Agent Scan',
+    href: 'https://github.com/snyk/agent-scan',
+    best: 'Formerly mcp-scan. Discovers the agents, MCP servers and skills on a machine and scans them for prompt injection, tool poisoning, tool shadowing and toxic flows, through the Agent Scan API.',
+  },
+  {
+    name: 'Cisco MCP Scanner',
+    href: 'https://github.com/cisco-ai-defense/mcp-scanner',
+    best: 'Scans tools, prompts, resources and instructions with YARA rules (no key needed), an LLM analyzer, the Cisco AI Defense API and behavioral analysis of the server’s source code.',
+  },
+  {
     name: 'DeepEval',
-    best: 'A broad LLM-eval framework — best for scoring production outputs across many quality dimensions (hallucination, toxicity, RAG faithfulness), often with an LLM judge.',
-    self: false,
+    href: 'https://deepeval.com/docs/metrics-mcp-use',
+    best: 'LLM-as-a-judge metrics for how an application uses MCP servers, plus a deterministic Tool Correctness metric and broad answer-quality and RAG metrics.',
   },
   {
-    name: 'LangChain agentevals',
-    best: 'Trajectory and tool-call evaluators living inside the LangChain ecosystem — a natural fit when your stack is already LangChain / LangGraph end to end.',
-    self: false,
-  },
-  {
-    name: 'EvalView',
-    best: 'Visual review and dashboards for agent runs — best when the goal is human inspection and reporting of traces rather than a hard CI gate.',
-    self: false,
-  },
-  {
-    name: 'mcp-eval',
-    best: 'Task-driven MCP evaluation that exercises servers through an LLM — best for end-to-end, model-in-the-loop checks of MCP behavior.',
-    self: false,
+    name: 'Promptfoo',
+    href: 'https://www.promptfoo.dev/docs/providers/mcp/',
+    best: 'Calls MCP tools directly to test or red-team a server, generates MCP attacks, and compares prompts and models with deterministic and model-assisted assertions.',
   },
 ];
 

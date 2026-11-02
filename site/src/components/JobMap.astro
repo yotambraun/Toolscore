@@ -1,0 +1,26 @@
+---
+import { compareJobs } from '../data/site';
+---
+
+<div class="card divide-y divide-line/60">
+  {
+    compareJobs.map((row) => (
+      <div
+        class:list={[
+          'grid gap-3 px-5 py-5 sm:px-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)] md:gap-6',
+          row.self && 'bg-brand/[0.04]',
+        ]}
+      >
+        <p class="text-pretty font-medium text-ink">{row.job}</p>
+        <p class="text-pretty text-sm">
+          <span class="mb-1 block font-mono text-[11px] uppercase tracking-wide text-faint">Reach for</span>
+          <span class:list={[row.self ? 'font-semibold text-brand' : 'text-ink']}>{row.reach}</span>
+        </p>
+        <p class="text-pretty text-sm text-muted">
+          <span class="mb-1 block font-mono text-[11px] uppercase tracking-wide text-faint">Toolscore</span>
+          {row.toolscore}
+        </p>
+      </div>
+    ))
+  }
+</div>

@@ -176,7 +176,7 @@ In Claude Code, the plugin adds skills that run these steps with you (audit an M
 
 ## Toolscore and Agent Eval Flow
 
-Toolscore is tool-level truth: did each call happen, succeed, do what it reported, and get reported honestly. [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) is study-level evaluation (design, pre-registration, grading, reports) and builds on Toolscore: `pip install "agent-eval-flow[toolscore]"`. `toolscore export --format aef` writes Toolscore's runs as neutral, versioned records for such frameworks. For production tracing and broad quality metrics, see the [comparison](https://yotambraun.github.io/Toolscore/docs/comparison.html).
+Toolscore is tool-level truth: did each call happen, succeed, do what it reported, and get reported honestly. [Agent Eval Flow](https://github.com/guybass/agent-eval-flow) is study-level evaluation (design, pre-registration, grading, reports) and builds on Toolscore: `pip install "agent-eval-flow[toolscore]"`. `toolscore export --format aef` writes Toolscore's runs as neutral, versioned records for such frameworks. For which tool to use next to Toolscore (MCP Inspector, the MCP conformance suite, security scanners such as Snyk Agent Scan and Cisco MCP Scanner, DeepEval, Promptfoo), see the [comparison](https://yotambraun.github.io/Toolscore/docs/comparison.html).
 
 ## Learn more
 
