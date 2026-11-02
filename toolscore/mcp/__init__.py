@@ -9,7 +9,8 @@ On top of that it builds the "MCP Scorecard" harness: scenario generation,
 scenario execution, tool linting, output-schema checks, effect probes (did the
 tool really do what it reported), A--F scoring, badges, and console/Markdown/JSON
 reports. ``MCPRecorder`` records stdio sessions and, with a fault spec, injects
-failures into chosen calls.
+failures into chosen calls. Snapshots, locks and diffs (:mod:`toolscore.mcp.pin`,
+:mod:`toolscore.mcp.server_diff`) pin a server's tools and catch drift.
 """
 
 from __future__ import annotations
@@ -40,6 +41,17 @@ from toolscore.mcp.harness import (
     run_scenarios,
     tool_definition_tokens,
 )
+from toolscore.mcp.pin import (
+    CAPABILITIES,
+    PIN_RULES,
+    PinFinding,
+    PinReport,
+    build_lock,
+    infer_capabilities,
+    load_lock,
+    verify_pin,
+    write_lock,
+)
 from toolscore.mcp.probes import (
     PROBE_RULES,
     Agreement,
@@ -53,6 +65,7 @@ from toolscore.mcp.probes import (
 )
 from toolscore.mcp.recorder import MCPRecorder
 from toolscore.mcp.scorecard import (
+    PROBE_GRADE_CAP,
     MCPScorecard,
     build_fix_list,
     grade_meets,
@@ -60,11 +73,16 @@ from toolscore.mcp.scorecard import (
     scorecard_to_json,
     scorecard_to_markdown,
 )
+from toolscore.mcp.server_diff import ServerDiff, ToolChange, diff_snapshots
+from toolscore.mcp.snapshot import ServerSnapshot, load_snapshot, write_snapshot
 from toolscore.verdict import FixSuggestion
 
 __all__ = [
+    "CAPABILITIES",
     "LEGACY_PROTOCOL_VERSION",
     "MODERN_PROTOCOL_VERSION",
+    "PIN_RULES",
+    "PROBE_GRADE_CAP",
     "PROBE_RULES",
     "Agreement",
     "ArgumentFixtures",
@@ -86,21 +104,31 @@ __all__ = [
     "MCPTimeoutError",
     "MCPToolDef",
     "MCPToolResult",
+    "PinFinding",
+    "PinReport",
     "ProbeConfig",
     "ProbeResult",
     "RoundTripPair",
     "Scenario",
     "ScenarioResult",
+    "ServerDiff",
+    "ServerSnapshot",
+    "ToolChange",
     "build_fix_list",
+    "build_lock",
     "content_to_text",
+    "diff_snapshots",
     "estimate_tokens",
     "generate_scenarios",
     "grade_meets",
+    "infer_capabilities",
     "lint_tools",
     "load_fault_spec",
     "load_fixtures",
+    "load_lock",
     "load_mcp_config",
     "load_probe_config",
+    "load_snapshot",
     "open_client",
     "print_scorecard",
     "run_probes",
@@ -108,4 +136,7 @@ __all__ = [
     "scorecard_to_json",
     "scorecard_to_markdown",
     "tool_definition_tokens",
+    "verify_pin",
+    "write_lock",
+    "write_snapshot",
 ]

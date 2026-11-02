@@ -13,8 +13,12 @@ if TYPE_CHECKING:
     import click
 
 
-def register(main: click.Group, mcp: click.Group) -> None:  # noqa: ARG001
+def register(main: click.Group, mcp: click.Group) -> None:
     """Add the commands of this package to the ``toolscore`` and ``toolscore mcp`` groups."""
+    from toolscore.commands.mcp_pin import mcp_diff, mcp_pin, mcp_verify_pin
     from toolscore.commands.regrade import regrade
 
     main.add_command(regrade)
+    mcp.add_command(mcp_pin)
+    mcp.add_command(mcp_verify_pin)
+    mcp.add_command(mcp_diff)

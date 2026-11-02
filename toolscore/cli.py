@@ -1326,6 +1326,16 @@ def mcp() -> None:
 @mcp.command("list")
 @click.argument("command", nargs=-1)
 @_mcp_connection_options
+@click.option(
+    "--json",
+    "json_out",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "Also save a snapshot (server, protocol, instructions and full tool definitions) "
+        "for `toolscore mcp diff` and `mcp verify-pin`."
+    ),
+)
 def mcp_list(
     command: tuple[str, ...],
     config: Path | None,
@@ -1334,6 +1344,7 @@ def mcp_list(
     auth_env: str | None,
     protocol: str,
     timeout: float,
+    json_out: Path | None,
 ) -> None:
     """List the tools advertised by an MCP server.
 
@@ -1341,17 +1352,19 @@ def mcp_list(
     "python server.py", or a URL such as https://example.com/mcp
     (omit when using --config).
     """
+    from toolscore.mcp.snapshot import ServerSnapshot, write_snapshot
+
     console = Console()
     client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
     try:
         with client:
-            info = client.server_info
-            tools = client.list_tools()
-            protocol_version, era = client.protocol_version, client.era
+            snapshot = ServerSnapshot.from_client(client, source=" ".join(command))
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to query MCP server: {exc}", console)
         sys.exit(1)
+    info, tools = snapshot.server_info, snapshot.tools
+    protocol_version, era = snapshot.protocol_version, snapshot.era
 
     name = str(info.get("name", "unknown server"))
     version = str(info.get("version", ""))
@@ -1373,6 +1386,9 @@ def mcp_list(
         table.add_row(tool.name, str(len(params)), description)
     console.print(table)
     console.print()
+    if json_out is not None:
+        write_snapshot(json_out, snapshot)
+        console.print(f"[dim]Snapshot written to {json_out}.[/dim]")
 
 
 @mcp.command("record")
@@ -1511,9 +1527,27 @@ def mcp_proxy(
     sys.exit(exit_code if exit_code >= 0 else 128 - exit_code)
 
 
+def _pin_options(func: Any) -> Any:
+    """Add ``--pin LOCK`` and ``--pin-fail-on`` (verify the tools against a lock file)."""
+    func = click.option(
+        "--pin-fail-on",
+        type=click.Choice(["drift", "capability", "never"]),
+        default="drift",
+        show_default=True,
+        help="With --pin: what fails (any drift, only a new delete/exec capability, or never).",
+    )(func)
+    return click.option(
+        "--pin",
+        type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+        default=None,
+        help="Also check the tools against this lock file (toolscore mcp pin); exit 1 on drift.",
+    )(func)
+
+
 @mcp.command("lint")
 @click.argument("command", nargs=-1)
 @_mcp_connection_options
+@_pin_options
 def mcp_lint(
     command: tuple[str, ...],
     config: Path | None,
@@ -1522,6 +1556,8 @@ def mcp_lint(
     auth_env: str | None,
     protocol: str,
     timeout: float,
+    pin: Path | None,
+    pin_fail_on: str,
 ) -> None:
     """Statically lint an MCP server's tool definitions.
 
@@ -1538,13 +1574,21 @@ def mcp_lint(
     console = Console()
     client = _connect(command, config, server, headers, auth_env, protocol, timeout, console)
 
+    from toolscore.mcp.snapshot import ServerSnapshot
+
     try:
         with client:
-            tools = client.list_tools()
-            instructions = client.server_instructions
+            snapshot = ServerSnapshot.from_client(client, source=" ".join(command))
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to query MCP server: {exc}", console)
         sys.exit(1)
+    tools, instructions = snapshot.tools, snapshot.instructions
+
+    pin_ok = True
+    if pin is not None:
+        from toolscore.commands.mcp_pin import check_pin
+
+        pin_ok = check_pin(pin, snapshot, pin_fail_on, console).ok
 
     issues = lint_tools(tools, instructions=instructions)
     errors = sum(1 for i in issues if i.severity == "error")
@@ -1552,6 +1596,8 @@ def mcp_lint(
 
     if not issues:
         console.print(f"\n[green]OK[/green] No lint issues across {len(tools)} tools.\n")
+        if not pin_ok:
+            sys.exit(1)
         return
 
     console.print(f"\n[bold]Lint:[/bold] {errors} errors, {warnings} warnings\n")
@@ -1566,7 +1612,7 @@ def mcp_lint(
     console.print(table)
     console.print()
 
-    if errors:
+    if errors or not pin_ok:
         sys.exit(1)
 
 
@@ -1669,6 +1715,7 @@ def mcp_lint(
         "either way)."
     ),
 )
+@_pin_options
 def mcp_test(
     command: tuple[str, ...],
     config: Path | None,
@@ -1691,6 +1738,8 @@ def mcp_test(
     allow_writes: bool,
     probe_config: Path | None,
     no_probe_grade_cap: bool,
+    pin: Path | None,
+    pin_fail_on: str,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
@@ -1794,6 +1843,21 @@ def mcp_test(
             with Path(summary_path).open("a", encoding="utf-8") as handle:
                 handle.write(scorecard_to_markdown(card) + "\n")
             console.print("[dim]Wrote the scorecard to the GitHub Actions job summary.[/dim]")
+
+    if pin is not None:
+        from toolscore.commands.mcp_pin import check_pin
+        from toolscore.mcp.snapshot import ServerSnapshot
+
+        snapshot = ServerSnapshot(
+            tools=card.tools,
+            server_info=card.server_info,
+            protocol_version=card.protocol_version,
+            era=card.era,
+            instructions=card.instructions,
+        )
+        if not check_pin(pin, snapshot, pin_fail_on, console, ci=ci).ok:
+            console.print(f"[red]The server drifted from {pin}.[/red]")
+            sys.exit(1)
 
     if fail_under is not None and not grade_meets(card.grade, fail_under):
         console.print(f"[red]Grade {card.grade} is below the required {fail_under.upper()}.[/red]")
