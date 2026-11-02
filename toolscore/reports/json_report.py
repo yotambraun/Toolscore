@@ -74,7 +74,11 @@ def generate_json_report(
         "trace_calls": [_serialize_tool_call(call) for call in result.trace_calls],
     }
 
+    from toolscore.core import _json_safe
+
+    # Expected arguments may hold matchers (Regex, ANY, contract $-operators):
+    # they are written as their repr, like EvaluationResult.to_dict() does.
     with path.open("w", encoding="utf-8") as f:
-        json.dump(report, f, indent=2)
+        json.dump(_json_safe(report), f, indent=2)
 
     return path

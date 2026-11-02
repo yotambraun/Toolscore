@@ -357,8 +357,11 @@ def evaluate_contract(
     assert best is not None
     _, result, picked, dropped = best
 
-    # Every call, optional ones included, for the records and the trace checks.
+    # Every call, optional ones included, for the records and the trace checks;
+    # the optional ones are marked so diffs and fix lists leave them out.
     result.trace_calls = _dicts_to_tool_calls(calls)
+    for index in dropped:
+        result.trace_calls[index].metadata["contract_optional"] = True
     if final_answer is None and result.trace_calls:
         final_answer, final_source = final_answer_of(None, result.trace_calls)
     _add_trace_checks(

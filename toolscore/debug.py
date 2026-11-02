@@ -51,7 +51,7 @@ def _find_mismatches(result: EvaluationResult) -> list[dict[str, Any]]:
 
     # Check for argument mismatches
     gold_calls = result.gold_calls
-    trace_calls = result.trace_calls
+    trace_calls = result.scored_calls
 
     for i, gold_call in enumerate(gold_calls):
         if i >= len(trace_calls):

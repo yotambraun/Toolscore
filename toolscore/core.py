@@ -150,6 +150,15 @@ class EvaluationResult:
         return counts if isinstance(counts, dict) else None
 
     @property
+    def scored_calls(self) -> list[ToolCall]:
+        """The calls the score compares with the expected ones.
+
+        Every trace call, except those a contract's ``optional`` entries left
+        out of the score (marked ``metadata["contract_optional"]``).
+        """
+        return [c for c in self.trace_calls if not c.metadata.get("contract_optional")]
+
+    @property
     def evidence(self) -> dict[str, Any]:
         """Tri-state checks (pass / fail / unknown) and evidence coverage.
 

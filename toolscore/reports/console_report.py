@@ -134,7 +134,7 @@ def _print_top_issues(result: EvaluationResult, console: Console, limit: int = 8
         console: The console to print to.
         limit: Maximum number of issues to show before truncating.
     """
-    fixes = build_eval_fix_list(result.gold_calls, result.trace_calls)
+    fixes = build_eval_fix_list(result.gold_calls, result.scored_calls)
     if not fixes:
         console.print(
             "[green]No tool-calling issues - the actual calls match the expected spec.[/green]"

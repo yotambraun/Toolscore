@@ -167,3 +167,18 @@ def test_the_schema_file_describes_the_keys() -> None:
         "contract_version", "description", "required", "alternatives", "optional", "forbidden",
         "weights", "min_score",
     }  # fmt: skip
+
+
+def test_optional_calls_stay_out_of_fix_lists_and_json_reports(tmp_path: Path) -> None:
+    from toolscore.diff import build_eval_fix_list
+    from toolscore.reports import generate_json_report
+
+    contract = {
+        "required": [{"tool": "search", "args": {"q": {"$regex": "cat"}}}],
+        "optional": [{"tool": "list"}],
+    }
+    result = evaluate_contract(contract, [SEARCH, {"tool": "list"}])
+    assert [c.tool for c in result.scored_calls] == ["search"]
+    assert build_eval_fix_list(result.gold_calls, result.scored_calls) == []
+    report = json.loads(generate_json_report(result, tmp_path / "r.json").read_text("utf-8"))
+    assert "$regex" in report["gold_calls"][0]["args"]["q"]  # a matcher, written as its repr

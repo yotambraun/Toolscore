@@ -439,7 +439,7 @@ def generate_explanations(result: EvaluationResult) -> dict[str, MetricExplanati
     # Selection Accuracy
     sel_acc = metrics.get("selection_accuracy", 0.0)
     explanations["selection_accuracy"] = explain_selection_accuracy(
-        result.gold_calls, result.trace_calls, sel_acc
+        result.gold_calls, result.scored_calls, sel_acc
     )
 
     # Tool Correctness
@@ -451,14 +451,14 @@ def generate_explanations(result: EvaluationResult) -> dict[str, MetricExplanati
     argument_metrics = metrics.get("argument_metrics", {})
     if argument_metrics:
         explanations["argument_metrics"] = explain_argument_metrics(
-            result.gold_calls, result.trace_calls, argument_metrics
+            result.gold_calls, result.scored_calls, argument_metrics
         )
 
     # Sequence Metrics
     sequence_metrics = metrics.get("sequence_metrics", {})
     if sequence_metrics:
         explanations["sequence_metrics"] = explain_sequence_metrics(
-            result.gold_calls, result.trace_calls, sequence_metrics
+            result.gold_calls, result.scored_calls, sequence_metrics
         )
 
     # Efficiency Metrics

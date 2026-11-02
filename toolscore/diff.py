@@ -291,7 +291,7 @@ def render_failure(
     )
 
     # Diff table
-    table = build_diff_table(result.gold_calls, result.trace_calls)
+    table = build_diff_table(result.gold_calls, result.scored_calls)
     console.print(table)
 
     # Score breakdown line
