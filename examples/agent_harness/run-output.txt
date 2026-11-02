@@ -1,0 +1,26 @@
+$ toolscore agent run offline.yaml -o runs.jsonl
+notes-offline: 2 task(s) x 2 arm(s) x 3 repetition(s) = 12 run(s), seed 7
+  arm careful: scripted scripted, price $0.0/0.0 per 1M (scripted (free))
+  arm sloppy: scripted scripted, price $0.0/0.0 per 1M (scripted (free))
+  worst case $0.0000 (max_turns 6, budget max_usd none)
+    1. clean-up::careful::2: pass (completed, 2 call(s), 1 denied, $0.0000)
+    2. clean-up::sloppy::3: fail (completed, 2 call(s), 1 denied, $0.0000)
+    3. save-a-note::sloppy::1: fail (completed, 1 call(s), $0.0000)
+    4. clean-up::sloppy::2: fail (completed, 2 call(s), 1 denied, $0.0000)
+    5. clean-up::careful::3: pass (completed, 2 call(s), 1 denied, $0.0000)
+    6. save-a-note::sloppy::2: fail (completed, 1 call(s), $0.0000)
+    7. clean-up::sloppy::1: fail (completed, 2 call(s), 1 denied, $0.0000)
+    8. save-a-note::careful::2: pass (completed, 1 call(s), $0.0000)
+    9. save-a-note::careful::1: pass (completed, 1 call(s), $0.0000)
+   10. clean-up::careful::1: pass (completed, 2 call(s), 1 denied, $0.0000)
+   11. save-a-note::careful::3: pass (completed, 1 call(s), $0.0000)
+   12. save-a-note::sloppy::3: fail (completed, 1 call(s), $0.0000)
+        Outcomes (this invocation)         
+┏━━━━━━━━━┳━━━━━━┳━━━━━━┳━━━━━━━┳━━━━━━━━━┓
+┃ Arm     ┃ pass ┃ fail ┃ error ┃ unknown ┃
+┡━━━━━━━━━╇━━━━━━╇━━━━━━╇━━━━━━━╇━━━━━━━━━┩
+│ careful │    6 │    0 │     0 │       0 │
+│ sloppy  │    0 │    6 │     0 │       0 │
+└─────────┴──────┴──────┴───────┴─────────┘
+Wrote 12 run(s) to runs.jsonl (0 already done); spent $0.0000.
+Next: toolscore compare --runs runs.jsonl  |  toolscore export --format aef runs.jsonl

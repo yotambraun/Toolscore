@@ -1,0 +1,28 @@
+$ toolscore doctor --spec memory-anthropic.yaml
+                                          toolscore doctor                                          
+┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Check                 ┃ Status ┃ Detail                                                          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ toolscore             │ pass   │ 1.11.0 on Python 3.12.12 (linux)                                │
+│ spec                  │ pass   │ memory-create-twice: 1 task(s), 2 arm(s), 5 repetition(s), seed │
+│                       │        │ 2026                                                            │
+│ package anthropic     │ fail   │ missing: pip install "tool-scorer[anthropic]"                   │
+│ key ANTHROPIC_API_KEY │ fail   │ not set                                                         │
+│ price haiku           │ pass   │ claude-haiku-5-5: $0.1 in / $0.5 out per 1M (toolscore price    │
+│                       │        │ table (2026-11-01))                                             │
+│ price sonnet          │ pass   │ claude-sonnet-5-5: $2.0 in / $10.0 out per 1M (toolscore price  │
+│                       │        │ table (2026-11-01))                                             │
+│ budget                │ pass   │ 10 run(s); worst case $0.7363 (max_usd 2.0)                     │
+│ version command       │ pass   │ 'npm view @modelcontextprotocol/server-memory@2.0.1 version'    │
+│                       │        │ printed '2.0.1'                                                 │
+│ server                │ pass   │ memory-server 2.0.1 started; 9 tool(s); MCP 2026-07-28          │
+│                       │        │ (stateless)                                                     │
+│ build                 │ pass   │ server_name 'memory-server' matches; server_version '2.0.1'     │
+│                       │        │ matches                                                         │
+└───────────────────────┴────────┴─────────────────────────────────────────────────────────────────┘
+
+╭────────────────────────────────────────────────────────────────╮
+│ ERROR Preflight failed: fix the failing checks before running. │
+╰────────────────────────────────────────────────────────────────╯
+
+exit 1

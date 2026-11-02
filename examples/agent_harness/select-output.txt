@@ -1,0 +1,5 @@
+$ toolscore select --runs runs.jsonl --policy pareto --objective pass_rate:max --objective cost:min
+Policy pareto  (pass_rate:max, cost:min)
+Ranking: careful > sloppy
+Pareto front: careful
+Selected: careful (the only variant on the Pareto front)

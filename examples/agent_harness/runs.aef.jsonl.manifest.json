@@ -1,0 +1,21 @@
+{
+  "schema": "toolscore.run-record",
+  "schema_version": "1",
+  "producer": {
+    "name": "toolscore",
+    "version": "1.11.0"
+  },
+  "created_at": "2026-11-02T01:39:52+00:00",
+  "records": 12,
+  "output": {
+    "path": "runs.aef.jsonl",
+    "sha256": "1063cbd8307f91bcba277d142bcbb1c7ebf119632d0a9239be704aeab2496985"
+  },
+  "sources": [
+    {
+      "path": "runs.jsonl",
+      "sha256": "943e3f78955e8586dac888e66b75126d31252d521165a6acaae58d0ee9992f08",
+      "bytes": 39416
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+$ toolscore compare --runs runs.jsonl --k 2 --min-n 6 --protocol protocol.yaml
+                                   Runs per variant                                   
+┏━━━━━━━━━┳━━━┳━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━┓
+┃ Variant ┃ N ┃ pass/fail/err/unk ┃ Pass rate [95% CI] ┃ pass^2 ┃ Cost/run ┃ Latency ┃
+┡━━━━━━━━━╇━━━╇━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━┩
+│ careful │ 6 │           6/0/0/0 │   100% [61%, 100%] │   100% │  $0.0000 │   0.00s │
+│ sloppy  │ 6 │           0/6/0/0 │       0% [0%, 39%] │     0% │  $0.0000 │   0.00s │
+└─────────┴───┴───────────────────┴────────────────────┴────────┴──────────┴─────────┘
+                                 Pass-rate differences                                  
+┏━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ A       ┃ B      ┃ B - A ┃ Fisher p ┃ Verdict                                        ┃
+┡━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ careful │ sloppy │ -100% │    0.002 │ careful has the higher pass rate (p = 0.00216) │
+└─────────┴────────┴───────┴──────────┴────────────────────────────────────────────────┘
+Light statistics for quick checks; for a full study (design, pre-registration, grading, reports) use
+Agent Eval Flow.
+                        Protocol careful beats sloppy                         
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Rule             ┃ Status ┃ Detail                                         ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ higher-pass-rate │ pass   │ careful has the higher pass rate (p = 0.00216) │
+│ no-more-errors   │ pass   │ error_rate change +0 >= -0.0                   │
+│ cost-per-run     │ pass   │ cost 0 <= 0.01                                 │
+└──────────────────┴────────┴────────────────────────────────────────────────┘
+Decision (careful vs sloppy): adopt  protocol sha256 aa9c071bcf44...
+exit 0

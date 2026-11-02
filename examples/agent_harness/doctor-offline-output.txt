@@ -1,0 +1,14 @@
+$ toolscore doctor --spec offline.yaml
+                                       toolscore doctor                                        
+┏━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Check         ┃ Status ┃ Detail                                                             ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ toolscore     │ pass   │ 1.11.0 on Python 3.12.12 (linux)                                   │
+│ spec          │ pass   │ notes-offline: 2 task(s), 2 arm(s), 3 repetition(s), seed 7        │
+│ price careful │ pass   │ scripted: free                                                     │
+│ price sloppy  │ pass   │ scripted: free                                                     │
+│ budget        │ pass   │ 12 run(s); worst case $0.0000 (no max_usd set)                     │
+│ server        │ pass   │ notes-server 1.1.0 started; 5 tool(s); MCP 2026-07-28 (stateless)  │
+│ build         │ pass   │ server_name 'notes-server' matches; server_version '1.1.0' matches │
+└───────────────┴────────┴────────────────────────────────────────────────────────────────────┘
+Preflight passed (worst status: pass).

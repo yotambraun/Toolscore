@@ -1,0 +1,19 @@
+# Decision rules declared before the runs (light pre-registration).
+# Record this file's hash before you run: toolscore compare prints it.
+# For a full study design, pre-registration, grading and reports, use Agent Eval Flow.
+protocol_version: 1
+title: careful beats sloppy
+baseline: sloppy
+candidate: careful
+alpha: 0.05
+min_runs: 6
+rules:
+  - id: higher-pass-rate
+    metric: pass_rate
+    expect: candidate_better
+  - id: no-more-errors
+    metric: error_rate
+    expect: not_worse
+  - id: cost-per-run
+    metric: cost
+    max: 0.01

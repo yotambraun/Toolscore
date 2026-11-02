@@ -1,0 +1,48 @@
+# COSTS MONEY: this spec calls a real model (Anthropic) through your API key.
+# Check it first, without any paid call:
+#
+#   toolscore doctor --spec examples/agent_harness/memory-anthropic.yaml
+#   toolscore agent run examples/agent_harness/memory-anthropic.yaml --dry-run
+#
+# Then run it (pip install "tool-scorer[anthropic,yaml]", ANTHROPIC_API_KEY set):
+#
+#   toolscore agent run examples/agent_harness/memory-anthropic.yaml
+#
+# The budget caps the whole study; the run stops before any call that could exceed it.
+spec_version: 1
+name: memory-create-twice
+server:
+  # A fresh, empty memory file for every run ({run_dir} is a new temporary directory).
+  command: "npx -y @modelcontextprotocol/server-memory@2.0.1"
+  env: {MEMORY_FILE_PATH: "{run_dir}/memory.jsonl"}
+verify:
+  server_name: memory-server
+  server_version: "2.0.1"
+  command: "npm view @modelcontextprotocol/server-memory@2.0.1 version"
+  expect: "^2\\.0\\.1$"
+provider: anthropic
+max_output_tokens: 1024
+system: "You maintain a knowledge graph with the memory tools. Report exactly what the tools did."
+arms:
+  - id: haiku
+    model: claude-haiku-5-5
+  - id: sonnet
+    model: claude-sonnet-5-5
+repetitions: 5
+seed: 2026
+budget: {max_usd: 2.00}
+limits: {max_turns: 8, max_calls: 12}
+guard:
+  deny:
+    - tool: delete_entities
+      reason: "this study never deletes"
+tasks:
+  - id: create-twice
+    prompt: >-
+      Create an entity named "Ada" (type person) with the observation "likes tea".
+      Then create "Ada" again with the observation "likes coffee". Tell me what is stored.
+    expected:
+      - tool: create_entities
+      - tool: create_entities
+    forbidden:
+      - tool: delete_entities

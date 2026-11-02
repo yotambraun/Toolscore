@@ -1,0 +1,3 @@
+$ toolscore export --format aef runs.jsonl -o runs.aef.jsonl
+Wrote 12 run record(s) to runs.aef.jsonl (schema toolscore.run-record v1; 0 with unknown coverage) 
+and runs.aef.jsonl.manifest.json.
