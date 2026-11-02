@@ -261,3 +261,15 @@ def test_huge_integers_do_not_overflow_the_bounds_check() -> None:
 
     assert validate_instance(10**400, {"type": "integer", "minimum": 0}) == []
     assert validate_instance(-(10**400), {"type": "integer", "minimum": 0})
+
+
+def test_a_ping_on_the_event_stream_is_answered() -> None:
+    """Legacy Streamable HTTP: a server request on the SSE stream gets a POSTed answer."""
+    with (
+        FakeHTTPServer(era="legacy", sse=True, ping=True) as server,
+        MCPHttpClient(server.url) as client,
+    ):
+        assert client.call_tool("add", {"a": 2, "b": 3}).text == "5"
+        assert {"jsonrpc": "2.0", "id": "srv-ping", "result": {}} in server.client_responses
+        answer = next(r for r in server.requests if r["body"].get("id") == "srv-ping")
+        assert answer["headers"].get("mcp-session-id")

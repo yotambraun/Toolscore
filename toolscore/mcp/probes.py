@@ -480,10 +480,13 @@ class _Caller:
                 "tool": tool,
                 "arguments": arguments,
                 "is_error": result.is_error,
+                "input_required": result.input_required,
                 "excerpt": _excerpt(result.text),
             }
         )
-        return not result.is_error, result, text
+        # A call that stopped at input_required did not run: not ok, so the
+        # probe is inconclusive rather than failed or passed.
+        return not result.is_error and not result.input_required, result, text
 
     def take(self) -> list[dict[str, Any]]:
         evidence, self.evidence = self.evidence, []

@@ -339,3 +339,35 @@ def test_result_text_for_error_and_plain_results(client: MCPStdioClient) -> None
     assert client.call_tool("add", {"a": 2, "b": 3}).text == "5"
     assert client.call_tool("flaky", {}).text == "flaky tool failed"
     assert client.call_tool("no_such_tool", {}).text == "Unknown tool: 'no_such_tool'"
+
+
+# -- requests the server initiates ---------------------------------------------
+
+
+def test_server_ping_is_answered_and_other_requests_get_method_not_found() -> None:
+    """A ping gets an empty result (MCP 2025-11-25); roots/list gets -32601."""
+    with MCPStdioClient(_server_command("--server-requests"), timeout=10.0) as client:
+        result = client.call_tool("add", {"a": 1, "b": 2})
+        ping, roots = json.loads(result.text)
+        assert ping == {"jsonrpc": "2.0", "id": "srv-ping", "result": {}}
+        assert roots["id"] == "srv-roots" and roots["error"]["code"] == -32601
+        assert "roots/list" in roots["error"]["message"]
+        assert [m.get("method") for m in client.server_messages][-2:] == ["ping", "roots/list"]
+
+
+def test_server_messages_are_bounded() -> None:
+    from toolscore.mcp.client import MAX_SERVER_MESSAGES
+
+    flood = MAX_SERVER_MESSAGES + 50
+    with MCPStdioClient(_server_command("--flood", str(flood)), timeout=10.0) as client:
+        assert client.call_tool("add", {"a": 1, "b": 2}).text == "3"
+        assert len(client.server_messages) == MAX_SERVER_MESSAGES
+        assert client.server_messages_dropped >= 50
+        assert client.server_messages[-1]["params"] == {"n": flood - 1}
+
+
+def test_input_required_from_a_live_server_is_not_an_error() -> None:
+    with MCPStdioClient(_server_command("--input-required"), timeout=10.0) as client:
+        result = client.call_tool("ask_user", {"repo": "x"})
+        assert result.input_required and not result.is_error
+        assert result.input_requests == ["elicitation/create"]

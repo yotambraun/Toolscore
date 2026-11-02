@@ -12,7 +12,9 @@ random port and serves one MCP endpoint at ``/mcp``. It can behave as:
   JSON-RPC error (the shape the TypeScript SDK returns).
 
 ``sse=True`` answers requests as a server-sent-event stream (a progress
-notification, then the response). ``token`` requires ``Authorization: Bearer
+notification, then the response); with ``ping=True`` the stream also carries
+a ``ping`` request, and the client's answer lands in
+:attr:`FakeHTTPServer.client_responses`. ``token`` requires ``Authorization: Bearer
 <token>`` and answers ``401`` otherwise. Every request's headers are kept in
 :attr:`FakeHTTPServer.requests` for assertions.
 """
@@ -46,9 +48,13 @@ ECHO_TOOL: dict[str, Any] = {
 class FakeHTTPServer:
     """A threaded fake MCP server; use as a context manager."""
 
-    def __init__(self, era: str = "modern", sse: bool = False, token: str | None = None) -> None:
+    def __init__(
+        self, era: str = "modern", sse: bool = False, token: str | None = None, ping: bool = False
+    ) -> None:
         self.era = era
         self.sse = sse
+        self.ping = ping
+        self.client_responses: list[dict[str, Any]] = []
         self.token = token
         self.requests: list[dict[str, Any]] = []
         self.sessions: set[str] = set()
@@ -93,6 +99,9 @@ class FakeHTTPServer:
             return status, {"jsonrpc": "2.0", "id": request_id, "error": error}, {}
 
         if request_id is None:
+            return 202, None, {}
+        if method is None and ("result" in message or "error" in message):
+            self.client_responses.append(message)
             return 202, None, {}
 
         if self.era == "modern":
@@ -204,9 +213,11 @@ class FakeHTTPServer:
                         "method": "notifications/progress",
                         "params": {"progress": 1},
                     }
+                    ping = {"jsonrpc": "2.0", "id": "srv-ping", "method": "ping"}
                     payload = (
                         ": keep-alive\n\n"
-                        f"event: message\ndata: {json.dumps(progress)}\n\n"
+                        + (f"event: message\ndata: {json.dumps(ping)}\n\n" if fake.ping else "")
+                        + f"event: message\ndata: {json.dumps(progress)}\n\n"
                         f"event: message\ndata: {json.dumps(body)}\n\n"
                     ).encode()
                     self._write(status, payload, "text/event-stream", extra)

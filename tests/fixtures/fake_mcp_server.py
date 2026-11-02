@@ -30,6 +30,12 @@ Flags:
     like legacy servers that drop them; drives the probe-timeout fallback.
     ``--modern-versions v1,v2``  Versions a modern server supports (default
     ``2026-07-28``); anything else gets ``UnsupportedProtocolVersionError``.
+    ``--server-requests``  Before answering ``add``, send the client a ``ping``
+    and a ``roots/list`` request, wait for both answers, and return them as
+    the result text (JSON), to test that the client answers server requests.
+    ``--flood N``  Before answering ``add``, send N log notifications.
+    ``--input-required``  Also advertise ``ask_user``, which always answers
+    ``resultType: "input_required"`` with an elicitation request.
 
 Run directly::
 
@@ -118,7 +124,34 @@ def _error(request_id: Any, code: int, message: str) -> None:
     _send({"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}})
 
 
-def _handle_call(request_id: Any, params: dict[str, Any], sleep: float) -> None:
+def _server_requests() -> list[dict[str, Any]]:
+    """Send a ping and a roots/list request; read stdin until both are answered."""
+    _send({"jsonrpc": "2.0", "id": "srv-ping", "method": "ping"})
+    _send({"jsonrpc": "2.0", "id": "srv-roots", "method": "roots/list", "params": {}})
+    answers: dict[str, dict[str, Any]] = {}
+    for line in sys.stdin:
+        message = json.loads(line) if line.strip() else {}
+        if message.get("id") in ("srv-ping", "srv-roots"):
+            answers[message["id"]] = message
+        if len(answers) == 2:
+            break
+    return [answers.get("srv-ping", {}), answers.get("srv-roots", {})]
+
+
+ASK_USER_TOOL: dict[str, Any] = {
+    "name": "ask_user",
+    "description": "Ask the user for their GitHub login before acting.",
+    "inputSchema": {"type": "object", "properties": {"repo": {"type": "string"}}},
+}
+
+
+def _handle_call(
+    request_id: Any,
+    params: dict[str, Any],
+    sleep: float,
+    server_requests: bool = False,
+    flood: int = 0,
+) -> None:
     """Handle a ``tools/call`` request.
 
     Args:
@@ -133,8 +166,28 @@ def _handle_call(request_id: Any, params: dict[str, Any], sleep: float) -> None:
     arguments = params.get("arguments", {}) or {}
 
     if name == "add":
+        for index in range(flood):
+            _send({"jsonrpc": "2.0", "method": "notifications/message", "params": {"n": index}})
+        if server_requests:
+            answers = _server_requests()
+            _result(request_id, {"content": [{"type": "text", "text": json.dumps(answers)}]})
+            return
         total = arguments.get("a", 0) + arguments.get("b", 0)
         _result(request_id, {"content": [{"type": "text", "text": str(total)}]})
+    elif name == "ask_user":
+        _result(
+            request_id,
+            {
+                "resultType": "input_required",
+                "inputRequests": {
+                    "login": {
+                        "method": "elicitation/create",
+                        "params": {"mode": "form", "message": "Your GitHub login?"},
+                    }
+                },
+                "requestState": "opaque",
+            },
+        )
     elif name == "flaky":
         _result(
             request_id,
@@ -225,7 +278,11 @@ def main(argv: list[str]) -> int:
     elif "--paginate" in argv:
         list_mode = "paginate"
 
-    tools = [*TOOLS, READ_NOTE_TOOL] if "--resources" in argv else TOOLS
+    tools = [*TOOLS, READ_NOTE_TOOL] if "--resources" in argv else list(TOOLS)
+    if "--input-required" in argv:
+        tools.append(ASK_USER_TOOL)
+    server_requests = "--server-requests" in argv
+    flood = int(argv[argv.index("--flood") + 1]) if "--flood" in argv else 0
     instructions: str | None = None
     if "--instructions" in argv:
         idx = argv.index("--instructions")
@@ -325,7 +382,7 @@ def main(argv: list[str]) -> int:
         elif method == "tools/list":
             _handle_list_tools(request_id, params, list_mode, tools)
         elif method == "tools/call":
-            _handle_call(request_id, params, sleep)
+            _handle_call(request_id, params, sleep, server_requests, flood)
         elif request_id is not None:
             _error(request_id, -32601, f"Method not found: {method!r}")
         else:

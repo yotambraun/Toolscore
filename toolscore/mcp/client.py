@@ -91,6 +91,17 @@ UNSUPPORTED_PROTOCOL_VERSION_CODE = -32022
 #: as legacy (some legacy servers never answer requests sent before ``initialize``).
 DEFAULT_PROBE_TIMEOUT = 5.0
 
+#: The most server-sent messages (notifications, requests, late responses) a
+#: client keeps in ``server_messages``; older ones are dropped and counted.
+MAX_SERVER_MESSAGES = 200
+
+#: How often ``call_tool`` retries an ``input_required`` answer that carries only
+#: a ``requestState`` (no ``inputRequests``), as MCP 2026-07-28 allows.
+MAX_INPUT_REQUIRED_RETRIES = 3
+
+#: The JSON-RPC error code for a method the receiver does not implement.
+JSONRPC_METHOD_NOT_FOUND = -32601
+
 #: Reserved ``_meta`` keys of the per-request protocol fields.
 META_PROTOCOL_VERSION = "io.modelcontextprotocol/protocolVersion"
 META_CLIENT_INFO = "io.modelcontextprotocol/clientInfo"
@@ -154,17 +165,39 @@ class MCPToolResult:
     Attributes:
         content: The parsed ``content`` list from the call result (or the raw
             error payload when the call failed at the JSON-RPC level).
-        is_error: ``True`` if the result reported ``isError``, the response was
-            a JSON-RPC error, or the server asked for client input this client
-            cannot provide.
+        is_error: ``True`` if the result reported ``isError`` or the response
+            was a JSON-RPC error.
         raw: The full JSON-RPC response object.
         duration: Wall-clock seconds measured client-side for the round trip.
+        input_required: ``True`` when the server answered with
+            ``resultType: "input_required"`` (MCP 2026-07-28 multi round-trip
+            requests): it needs input from the client (an elicitation, a
+            sampling request, roots) before the call can finish. Toolscore
+            provides none, so the call did not run to completion. That is
+            neither a success nor a tool error: callers treat it as not
+            evaluated. ``content`` then says what the server asked for.
     """
 
     content: Any
     is_error: bool
     raw: dict[str, Any]
     duration: float
+    input_required: bool = False
+
+    @property
+    def input_requests(self) -> list[str]:
+        """The methods the server asked for (``elicitation/create``...), when input is required."""
+        result = self.raw.get("result")
+        requests = result.get("inputRequests") if isinstance(result, dict) else None
+        if not isinstance(requests, dict):
+            return []
+        return sorted(
+            {
+                str(r.get("method"))
+                for r in requests.values()
+                if isinstance(r, dict) and r.get("method")
+            }
+        )
 
     @property
     def text(self) -> str:
@@ -287,9 +320,13 @@ class MCPClient:
         self._started = False
         self._tool_schemas: dict[str, dict[str, Any]] = {}
 
-        #: Notifications/requests initiated by the server that we do not handle,
-        #: and responses that arrived after their request gave up waiting.
+        #: Messages the server sent that were not the awaited response:
+        #: notifications, requests it initiated (answered, see
+        #: :meth:`_answer_server_request`) and late responses. Only the most
+        #: recent :data:`MAX_SERVER_MESSAGES` are kept.
         self.server_messages: list[dict[str, Any]] = []
+        #: How many server messages were dropped to keep the list bounded.
+        self.server_messages_dropped = 0
         #: Protocol version in use: the version sent in ``_meta`` (modern) or
         #: the one ``initialize`` negotiated (legacy).
         self.protocol_version: str = DEFAULT_PROTOCOL_VERSION
@@ -381,6 +418,47 @@ class MCPClient:
     def _notify(self, method: str, params: dict[str, Any]) -> None:
         """Send a JSON-RPC notification."""
         raise NotImplementedError
+
+    def _reply(self, message: dict[str, Any]) -> None:
+        """Send a JSON-RPC response to a request the server initiated."""
+        raise NotImplementedError
+
+    def _server_message(self, message: dict[str, Any]) -> None:
+        """Handle a message that is not the awaited response.
+
+        A request the server initiated is answered at once: ``ping`` with an
+        empty result (MCP 2025-11-25 requires the receiver to answer it
+        promptly), anything else with the JSON-RPC error ``-32601`` (method
+        not found): toolscore declares no client capabilities, so it serves no
+        ``roots/list``, ``sampling/createMessage`` or ``elicitation/create``.
+        MCP 2026-07-28 removed server-initiated requests (and ``ping``);
+        answering one anyway keeps a non-conforming server from waiting.
+        Every message is kept in :attr:`server_messages`, bounded.
+        """
+        method = message.get("method")
+        if (
+            isinstance(method, str)
+            and "id" in message
+            and message.get("id") is not None
+            and "result" not in message
+            and "error" not in message
+        ):
+            reply: dict[str, Any] = {"jsonrpc": "2.0", "id": message["id"]}
+            if method == "ping":
+                reply["result"] = {}
+            else:
+                reply["error"] = {
+                    "code": JSONRPC_METHOD_NOT_FOUND,
+                    "message": f"Method not found: toolscore does not handle {method!r}",
+                }
+            # A failed reply must not fail the request the client is waiting on.
+            with contextlib.suppress(MCPError):
+                self._reply(reply)
+        self.server_messages.append(message)
+        overflow = len(self.server_messages) - MAX_SERVER_MESSAGES
+        if overflow > 0:
+            del self.server_messages[:overflow]
+            self.server_messages_dropped += overflow
 
     def _reset_session(self) -> None:
         """Forget transport-level session state before a fresh ``initialize``."""
@@ -642,17 +720,33 @@ class MCPClient:
 
         Returns:
             The :class:`MCPToolResult`. ``is_error`` is ``True`` when the server
-            reports ``isError``, when the call yields a JSON-RPC error, and when
-            the server asks for client input (``resultType: input_required``).
+            reports ``isError`` or the call yields a JSON-RPC error.
+            ``input_required`` is ``True`` (and ``is_error`` ``False``) when the
+            server asks for client input (``resultType: input_required``): the
+            client provides none, so the call is left unfinished. An answer
+            with only a ``requestState`` (no ``inputRequests``) is retried with
+            that state, up to :data:`MAX_INPUT_REQUIRED_RETRIES` times, as the
+            multi round-trip pattern allows.
 
         Raises:
             MCPTimeoutError: If the server does not respond in time.
             MCPError: On a transport failure (e.g. the process dies).
         """
         started = time.perf_counter()
-        response = self._roundtrip(
-            "tools/call", self._params({"name": name, "arguments": arguments})
-        )
+        params: dict[str, Any] = {"name": name, "arguments": arguments}
+        response = self._roundtrip("tools/call", self._params(params))
+        for _retry in range(MAX_INPUT_REQUIRED_RETRIES):
+            interim = response.get("result")
+            if not (
+                isinstance(interim, dict)
+                and interim.get("resultType") == "input_required"
+                and not interim.get("inputRequests")
+                and isinstance(interim.get("requestState"), str)
+            ):
+                break
+            # Nothing to provide: echo the state back unchanged, with a new id.
+            params = {"name": name, "arguments": arguments, "requestState": interim["requestState"]}
+            response = self._roundtrip("tools/call", self._params(params))
         duration = time.perf_counter() - started
 
         if "error" in response:
@@ -667,15 +761,28 @@ class MCPClient:
         if not isinstance(result, dict):
             result = {}
         result_type = result.get("resultType", "complete")
+        if result_type == "input_required":
+            unfinished = MCPToolResult(
+                content=[], is_error=False, raw=response, duration=duration, input_required=True
+            )
+            asked = ", ".join(unfinished.input_requests) or "a retry with its requestState"
+            unfinished.content = [
+                {
+                    "type": "text",
+                    "text": (
+                        f"input required: the server asked for {asked} before it can finish "
+                        "the call; toolscore provides no client input, so the call was not "
+                        "completed (not evaluated)"
+                    ),
+                }
+            ]
+            return unfinished
         if result_type != "complete":
             return MCPToolResult(
                 content=[
                     {
                         "type": "text",
-                        "text": (
-                            f"the server answered with resultType {result_type!r} (it asks "
-                            "the client for input, which toolscore does not provide)"
-                        ),
+                        "text": (f"the server answered with an unknown resultType {result_type!r}"),
                     }
                 ],
                 is_error=True,
@@ -828,9 +935,9 @@ class MCPStdioClient(MCPClient):
     ) -> dict[str, Any]:
         """Send a request and wait for the response with the matching id.
 
-        Server-initiated notifications and requests received while waiting, and
-        late responses to earlier requests, are stored in
-        :attr:`server_messages` and ignored.
+        Server-initiated requests received while waiting are answered (see
+        :meth:`MCPClient._server_message`); they, notifications and late
+        responses to earlier requests are kept in :attr:`server_messages`.
 
         Raises:
             MCPError: If the client is not started or the process died.
@@ -864,12 +971,16 @@ class MCPStdioClient(MCPClient):
             if message.get("id") == request_id and ("result" in message or "error" in message):
                 return message
 
-            # Notification, server-initiated message or a late response: stash & ignore.
-            self.server_messages.append(message)
+            # A notification, a server-initiated request or a late response.
+            self._server_message(message)
 
     def _notify(self, method: str, params: dict[str, Any]) -> None:
         """Send a JSON-RPC notification (a request without an id)."""
         self._send({"jsonrpc": "2.0", "method": method, "params": params})
+
+    def _reply(self, message: dict[str, Any]) -> None:
+        """Write a response to a server-initiated request to the server's stdin."""
+        self._send(message)
 
     def _send(self, message: dict[str, Any]) -> None:
         """Serialize and write a single JSON-RPC message to the server's stdin.
@@ -1272,7 +1383,7 @@ class MCPHttpClient(MCPClient):
             if message is not None:
                 if message.get("id") == request_id and ("result" in message or "error" in message):
                     return message
-                self.server_messages.append(message)
+                self._server_message(message)
             if time.monotonic() > deadline:
                 break
         if time.monotonic() > deadline:
@@ -1285,6 +1396,13 @@ class MCPHttpClient(MCPClient):
     def _notify(self, method: str, params: dict[str, Any]) -> None:
         """POST a notification; the server answers ``202 Accepted``."""
         response = self._post({"jsonrpc": "2.0", "method": method, "params": params}, method, 10.0)
+        with contextlib.suppress(Exception):
+            response.read()
+        response.close()
+
+    def _reply(self, message: dict[str, Any]) -> None:
+        """POST a response to a server-initiated request; the server answers ``202 Accepted``."""
+        response = self._post(message, "response", 10.0)
         with contextlib.suppress(Exception):
             response.read()
         response.close()

@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -143,14 +144,63 @@ def test_meta_fields_are_added_only_in_the_modern_era() -> None:
     assert meta["progressToken"] == 1
 
 
-def test_input_required_results_are_reported_as_errors() -> None:
+def test_input_required_is_its_own_state_not_an_error() -> None:
+    """MCP 2026-07-28: an InputRequiredResult is an interim result, not a tool error."""
+
     class Canned(MCPClient):
         def _roundtrip(self, method, params, request_id=None, timeout=None):  # type: ignore[no-untyped-def]
-            return {"jsonrpc": "2.0", "id": 1, "result": {"resultType": "input_required"}}
+            return {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "resultType": "input_required",
+                    "inputRequests": {
+                        "login": {"method": "elicitation/create", "params": {}},
+                        "pick": {"method": "sampling/createMessage", "params": {}},
+                    },
+                    "requestState": "opaque",
+                },
+            }
 
     result = Canned().call_tool("ask", {})
-    assert result.is_error
-    assert "input_required" in result.text
+    assert result.input_required and not result.is_error
+    assert result.input_requests == ["elicitation/create", "sampling/createMessage"]
+    assert "input required" in result.text and "not evaluated" in result.text
+
+
+def test_input_required_with_only_request_state_is_retried_with_it() -> None:
+    sent: list[dict[str, Any]] = []
+
+    class Stateful(MCPClient):
+        def _roundtrip(self, method, params, request_id=None, timeout=None):  # type: ignore[no-untyped-def]
+            sent.append(params)
+            if params.get("requestState") == "step-2":
+                return {
+                    "jsonrpc": "2.0",
+                    "id": 9,
+                    "result": {"content": [{"type": "text", "text": "done"}]},
+                }
+            state = "step-2" if params.get("requestState") == "step-1" else "step-1"
+            return {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"resultType": "input_required", "requestState": state},
+            }
+
+    result = Stateful().call_tool("slow", {"x": 1})
+    assert result.text == "done" and not result.input_required
+    assert [p.get("requestState") for p in sent] == [None, "step-1", "step-2"]
+    assert all(p["arguments"] == {"x": 1} for p in sent)
+
+
+def test_an_unknown_result_type_is_an_error() -> None:
+    class Canned(MCPClient):
+        def _roundtrip(self, method, params, request_id=None, timeout=None):  # type: ignore[no-untyped-def]
+            return {"jsonrpc": "2.0", "id": 1, "result": {"resultType": "streaming"}}
+
+    result = Canned().call_tool("ask", {})
+    assert result.is_error and not result.input_required
+    assert "streaming" in result.text
 
 
 @pytest.mark.parametrize("protocol", ["auto", "legacy"])

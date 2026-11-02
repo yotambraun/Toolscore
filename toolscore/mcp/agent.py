@@ -813,9 +813,11 @@ def run_agent(
                         result = client.call_tool(mcp_name, request.arguments)
                         record.result = _result_text(result)
                         record.structured = result.structured_content
-                        record.is_error = result.is_error
+                        # input_required: the call did not finish, and the model
+                        # is told so; for the run it is not a completed call.
+                        record.is_error = result.is_error or result.input_required
                         record.duration = round(result.duration, 6)
-                        if result.is_error:
+                        if record.is_error:
                             record.error = record.result or "tool error"
                 text = record.result if record.result is not None else (record.error or "")
                 results.append((request, text, record.is_error))
