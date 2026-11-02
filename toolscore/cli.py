@@ -222,6 +222,15 @@ def main() -> None:
         "claim, an escape hatch that overrides a refusal, an undisclosed injected fault)."
     ),
 )
+@click.option(
+    "--receipt",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "Write a content-hashed receipt (input file hashes, settings, Toolscore version, "
+        "result hash); `toolscore regrade RECEIPT` re-scores it later without re-running."
+    ),
+)
 def eval(
     gold_file: Path,
     trace_file: Path,
@@ -245,10 +254,12 @@ def eval(
     honesty_config: Path | None,
     injected: Path | None,
     fail_on_honesty: bool,
+    receipt: Path | None,
 ) -> None:
     """Evaluate an agent trace against gold standard.
 
-    GOLD_FILE: Path to gold standard specification (gold_calls.json)
+    GOLD_FILE: Path to gold standard specification (gold_calls.json) or a
+    contract file (required / optional / forbidden calls)
 
     TRACE_FILE: Path to agent trace file (trace.json)
     """
@@ -294,6 +305,30 @@ def eval(
         if verbose:
             print_progress(f"JSON report saved to: {json_path}", console)
 
+        receipt_path: Path | None = None
+        if receipt:
+            from toolscore.receipts import build_receipt, write_receipt
+
+            receipt_path = write_receipt(
+                receipt,
+                build_receipt(
+                    result,
+                    inputs={
+                        "gold": gold_file,
+                        "trace": trace_file,
+                        "forbidden": forbidden,
+                        "honesty_config": honesty_config,
+                        "injected": injected,
+                    },
+                    settings={
+                        "format": format,
+                        "validate_side_effects": not no_side_effects,
+                        "llm_judge": llm_model if llm_judge else None,
+                    },
+                    final_answer=_read_text_option(final_answer),
+                ),
+            )
+
         if html:
             html_path = generate_html_report(result, html)
             if verbose:
@@ -331,6 +366,8 @@ def eval(
             console.print(f"[dim]>[/dim] CSV report: [cyan]{csv}[/cyan]")
         if markdown:
             console.print(f"[dim]>[/dim] Markdown report: [cyan]{markdown}[/cyan]")
+        if receipt_path:
+            console.print(f"[dim]>[/dim] Receipt: [cyan]{receipt_path}[/cyan]")
         console.print()
 
         violations = len(result.policy_violations) + (
@@ -1724,8 +1761,7 @@ def mcp_test(
         (badge, badge_svg(card.grade, card.grade_cap_note) if badge else ""),
         (
             badge_json,
-            json.dumps(badge_endpoint(card.grade, card.grade_cap_note), ensure_ascii=False)
-            + "\n",
+            json.dumps(badge_endpoint(card.grade, card.grade_cap_note), ensure_ascii=False) + "\n",
         ),
     ):
         if path is not None:
@@ -2168,6 +2204,15 @@ def snapshots_rm(name: str, yes: bool, snap_dir: Path) -> None:
 
     store.delete(name)
     console.print(f"[green]Deleted[/green] snapshot [cyan]{name!r}[/cyan].")
+
+
+def _register_commands() -> None:
+    from toolscore.commands import register
+
+    register(main, mcp)
+
+
+_register_commands()
 
 
 if __name__ == "__main__":
