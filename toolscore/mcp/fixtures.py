@@ -112,14 +112,14 @@ def _schema_properties(tool: MCPToolDef) -> dict[str, Any]:
     return properties if isinstance(properties, dict) else {}
 
 
-def _fit(value: Any, prop_schema: Any) -> Any:
-    """Turn a scalar into a string when the parameter is declared a string (``--arg q=123``)."""
+def _fit(value: Any, prop_schema: Any, raw: str | None) -> Any:
+    """Send the text as typed when the parameter is declared a string (``--arg version=1.10``)."""
     if (
         isinstance(prop_schema, dict)
         and prop_schema.get("type") == "string"
         and isinstance(value, (int, float, bool))
     ):
-        return json.dumps(value)
+        return raw if raw is not None else json.dumps(value)
     return value
 
 
@@ -135,6 +135,8 @@ class ArgumentFixtures:
 
     shared: dict[str, Any] = field(default_factory=dict)
     per_tool: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: The text of ``--arg`` values as typed, by scope (``"*"`` or a tool) and name.
+    raw: dict[str, dict[str, str]] = field(default_factory=dict, compare=False, repr=False)
 
     def __bool__(self) -> bool:
         """Whether any value is set."""
@@ -177,6 +179,7 @@ class ArgumentFixtures:
                 fixtures.shared[name] = value
             else:
                 fixtures.per_tool.setdefault(tool, {})[name] = value
+            fixtures.raw.setdefault(tool or SHARED_KEY, {})[name] = option.partition("=")[2]
         return fixtures
 
     def merged(self, other: ArgumentFixtures) -> ArgumentFixtures:
@@ -184,7 +187,15 @@ class ArgumentFixtures:
         per_tool = {tool: dict(values) for tool, values in self.per_tool.items()}
         for tool, values in other.per_tool.items():
             per_tool.setdefault(tool, {}).update(values)
-        return ArgumentFixtures(shared={**self.shared, **other.shared}, per_tool=per_tool)
+        raw = {scope: dict(values) for scope, values in self.raw.items()}
+        for scope, values in other.raw.items():
+            raw.setdefault(scope, {}).update(values)
+        # A value from a file replaces typed text for the same name.
+        for scope, values in (("*", other.shared), *other.per_tool.items()):
+            for name in values:
+                if name not in other.raw.get(scope, {}):
+                    raw.get(scope, {}).pop(name, None)
+        return ArgumentFixtures(shared={**self.shared, **other.shared}, per_tool=per_tool, raw=raw)
 
     def for_tool(self, tool: MCPToolDef) -> dict[str, Any]:
         """The values that apply to ``tool``.
@@ -195,8 +206,15 @@ class ArgumentFixtures:
         """
         properties = _schema_properties(tool)
         values = {name: value for name, value in self.shared.items() if name in properties}
-        values.update(self.per_tool.get(tool.name, {}))
-        return {name: _fit(value, properties.get(name)) for name, value in values.items()}
+        raw = {name: text for name, text in self.raw.get(SHARED_KEY, {}).items() if name in values}
+        tool_values = self.per_tool.get(tool.name, {})
+        values.update(tool_values)
+        for name in tool_values:
+            raw.pop(name, None)
+        raw.update(self.raw.get(tool.name, {}))
+        return {
+            name: _fit(value, properties.get(name), raw.get(name)) for name, value in values.items()
+        }
 
     def apply(self, tool: MCPToolDef, arguments: dict[str, Any]) -> dict[str, Any]:
         """``arguments`` with this tool's fixture values on top."""

@@ -266,3 +266,25 @@ def test_cli_proxy_rejects_a_bad_spec(tmp_path: Path) -> None:
         main, ["mcp", "proxy", "python x.py", "--inject", str(bad), "-o", str(tmp_path / "o.json")]
     )
     assert result.exit_code == 2
+
+
+def test_concurrent_session_writes_do_not_collide(tmp_path: Path) -> None:
+    import threading
+
+    recorder = MCPRecorder(SAMPLE, tmp_path / "s.json")
+    errors: list[BaseException] = []
+
+    def hammer() -> None:
+        try:
+            for _ in range(50):
+                recorder.write()
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=hammer) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    assert json.loads((tmp_path / "s.json").read_text())["format"] == "mcp"

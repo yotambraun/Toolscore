@@ -377,3 +377,73 @@ def test_cli_probe_config(tmp_path: Path) -> None:
     bad.write_text('{"relations": [{"tool": "x"}]}', encoding="utf-8")
     rejected = CliRunner().invoke(main, ["mcp", "test", command, "--probe-config", str(bad)])
     assert rejected.exit_code == 2
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"exclude": "delete_everything"},
+        {"writes": "w"},
+        {"pairs": [{"write": "w", "read": "r", "key": "name"}]},
+    ],
+)
+def test_names_must_be_lists(data: object) -> None:
+    with pytest.raises(ValueError):
+        ProbeConfig.from_mapping(data)
+
+
+def test_server_text_with_brackets_prints_literally() -> None:
+    from rich.console import Console
+
+    from toolscore.mcp.scorecard import _print_probes
+
+    console = Console(record=True, width=200)
+    probe = ProbeResult(
+        "round-trip", "t[/x]", "fail", "probe-silent-noop", "high", "path [/tmp/x] [b]"
+    )
+    _print_probes([probe], console)
+    text = console.export_text()
+    assert "path [/tmp/x] [b]" in text and "t[/x]" in text
+
+
+def test_a_failed_reread_is_not_data_loss() -> None:
+    """A reader that errors after the other write proves nothing (no probe-data-lost)."""
+    from toolscore.mcp.client import MCPToolResult
+
+    class Flaky:
+        timeout = 5.0
+
+        def __init__(self) -> None:
+            self.notes: dict[str, str] = {}
+            self.reads = 0
+
+        def call_tool(self, name: str, arguments: dict[str, object]) -> MCPToolResult:
+            if name == "save_note":
+                self.notes[str(arguments["title"])] = str(arguments.get("body", ""))
+                text, error = "ok", False
+            else:
+                self.reads += 1
+                error = self.reads > 2  # works for the first reads, then fails
+                text = "rate limited" if error else json.dumps(self.notes)
+            return MCPToolResult(
+                content=[{"type": "text", "text": text}],
+                is_error=error,
+                raw={"result": {}},
+                duration=0.0,
+            )
+
+    tools = [
+        MCPToolDef(
+            "save_note",
+            "Save a note.",
+            {
+                "type": "object",
+                "properties": {"title": {"type": "string"}, "body": {"type": "string"}},
+                "required": ["title"],
+            },
+        ),
+        MCPToolDef("list_notes", "List notes.", {"type": "object", "properties": {}}),
+    ]
+    results = run_probes(Flaky(), tools, allow_writes=True)  # type: ignore[arg-type]
+    trip = next(r for r in results if r.probe == "round-trip")
+    assert trip.rule != "probe-data-lost"

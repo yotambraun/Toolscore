@@ -140,3 +140,13 @@ def test_sample_server_keeps_notes_between_calls() -> None:
         listed = client.call_tool("list_notes", {"limit": 1}).structured_content
     assert {"title": "t", "body": "first"} in found["notes"]
     assert listed == {"notes": ["t"], "count": 1}
+
+
+def test_string_parameters_get_the_text_as_typed() -> None:
+    tool = _tool("pin", version={"type": "string"}, count={"type": "integer"})
+    fixtures = ArgumentFixtures.from_options(["version=1.10", "count=3", "pin:version=2.50"])
+    assert fixtures.for_tool(tool) == {"version": "2.50", "count": 3}
+    other = _tool("other", version={"type": "string"})
+    assert fixtures.for_tool(other) == {"version": "1.10"}
+    merged = ArgumentFixtures(shared={"version": "x"}).merged(fixtures)
+    assert merged.for_tool(other) == {"version": "1.10"}

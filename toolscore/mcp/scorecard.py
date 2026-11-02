@@ -47,6 +47,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -520,10 +521,10 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     for index, suggestion in enumerate(fixes[:_MAX_FIXES_SHOWN], start=1):
         issue_color = _PRIORITY_COLORS.get(suggestion.priority, "white")
         console.print(
-            f"  [bold]{index}.[/bold] [{issue_color}]{suggestion.tool}[/{issue_color}]  "
-            f"{suggestion.problem}"
+            f"  [bold]{index}.[/bold] [{issue_color}]{escape(suggestion.tool)}[/{issue_color}]  "
+            f"{escape(suggestion.problem)}"
         )
-        console.print(f"     [dim]-> {suggestion.fix}[/dim]")
+        console.print(f"     [dim]-> {escape(suggestion.fix)}[/dim]")
     remaining = len(fixes) - min(len(fixes), _MAX_FIXES_SHOWN)
     if remaining > 0:
         console.print(f"  [dim]... and {remaining} more issue(s).[/dim]")
@@ -559,10 +560,10 @@ def _print_probes(probes: list[ProbeResult], console: Console) -> None:
             style = _PROBE_STATUS_STYLE.get(probe.status, "white")
             if probe.status == "fail" and probe.severity == "warning":
                 style = "yellow"
-            detail = probe.message + (f" [dim]({probe.rule})[/dim]" if probe.rule else "")
+            detail = escape(probe.message) + (f" [dim]({probe.rule})[/dim]" if probe.rule else "")
             table.add_row(
                 probe.probe,
-                probe.tool,
+                escape(probe.tool),
                 Text(_probe_status(probe), style=style),
                 probe.confidence if probe.status in ("pass", "fail") else "",
                 detail,
@@ -654,7 +655,7 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
         for probe in probes:
             rule = f" (`{probe.rule}`)" if probe.rule else ""
             confidence = probe.confidence if probe.status in ("pass", "fail") else ""
-            message = probe.message.replace("|", "\\|")
+            message = " ".join(probe.message.split()).replace("|", "\\|")
             lines.append(
                 f"| {probe.probe} | `{probe.tool}` | {_probe_status(probe)} | {confidence} | "
                 f"{message}{rule} |"

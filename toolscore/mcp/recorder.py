@@ -105,6 +105,7 @@ class MCPRecorder:
         self._injector = injector
         self._lock = threading.Lock()
         self._out_lock = threading.Lock()
+        self._write_lock = threading.Lock()
         self._pending: dict[tuple[str, Any], float] = {}
         self._messages: list[dict[str, Any]] = []
         #: Forwarded calls whose response will be modified, by request id.
@@ -246,10 +247,13 @@ class MCPRecorder:
             if self._injector is not None:
                 payload["fault_spec"] = self._injector.spec.to_dict()
                 payload["injections"] = list(self.injections)
-        self._output.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._output.with_name(self._output.name + ".tmp")
-        tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        tmp.replace(self._output)
+        # Both relay threads write; one at a time, or the shared temporary file
+        # is renamed away under the other and the relay stops.
+        with self._write_lock:
+            self._output.parent.mkdir(parents=True, exist_ok=True)
+            tmp = self._output.with_name(self._output.name + ".tmp")
+            tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp.replace(self._output)
 
     # -- relaying -----------------------------------------------------------
 

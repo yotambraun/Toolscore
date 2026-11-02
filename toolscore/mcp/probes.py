@@ -305,9 +305,9 @@ class ProbeConfig:
             return cls(
                 args=ArgumentFixtures.from_mapping(data.get("args")),
                 builtins=bool(data.get("builtins", True)),
-                writes=[str(t) for t in data.get("writes", [])],
-                exclude=[str(t) for t in data.get("exclude", [])],
-                pairs=[RoundTripPair(**_entry(p, "pairs")) for p in data.get("pairs", [])],
+                writes=_names(data.get("writes", []), "writes"),
+                exclude=_names(data.get("exclude", []), "exclude"),
+                pairs=[_pair(_entry(p, "pairs")) for p in data.get("pairs", [])],
                 relations=[_relation(_entry(r, "relations")) for r in data.get("relations", [])],
                 agreements=[
                     _agreement(_entry(a, "agreements")) for a in data.get("agreements", [])
@@ -318,6 +318,20 @@ class ProbeConfig:
             )
         except TypeError as exc:
             raise ValueError(f"malformed probe config entry: {exc}") from exc
+
+
+def _names(value: Any, key: str) -> list[str]:
+    """A list of names; a bare string is an error, not a list of characters."""
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ValueError(f"probe config {key!r} must be a list of names, got {value!r}")
+    return list(value)
+
+
+def _pair(data: dict[str, Any]) -> RoundTripPair:
+    pair = RoundTripPair(**data)
+    if pair.key is not None:
+        pair.key = _names(pair.key, "key")
+    return pair
 
 
 def _entry(value: Any, section: str) -> dict[str, Any]:
@@ -815,7 +829,9 @@ def _probe_round_trip(
     if ok:
         expected = latest.key_markers or latest.value_markers
         for reader in confirmed:
-            _, found = visible(reader, latest)
+            answered_again, found = visible(reader, latest)
+            if not answered_again:
+                continue  # a failed read proves nothing about the stored data
             lost = [m for m in expected if m in seen[reader.tool.name] and m not in found]
             if lost:
                 return result(

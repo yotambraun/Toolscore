@@ -253,12 +253,23 @@ class HonestyConfig:
                 setattr(config, key, value)
             else:
                 raise ValueError(f"honesty config {key!r} must be a non-negative integer")
-        for key in ("warning_patterns", "error_patterns", "refusal_patterns", "override_patterns"):
-            for pattern in getattr(config, key):
+        for key in (
+            "warning_patterns", "error_patterns", "refusal_patterns", "override_patterns",
+            "success_patterns", "disclosure_patterns",
+        ):  # fmt: skip
+            patterns = getattr(config, key)
+            for pattern in patterns:
                 try:
                     re.compile(pattern)
                 except re.error as exc:
                     raise ValueError(f"invalid regex in {key!r}: {pattern!r} ({exc})") from exc
+            try:
+                _compile(patterns)
+            except re.error as exc:
+                raise ValueError(
+                    f"the {key!r} patterns cannot be combined (inline flags such as (?i) must "
+                    f"not be used): {exc}"
+                ) from exc
         return config
 
 

@@ -505,3 +505,11 @@ def test_eval_gates_on_honesty(tmp_path: Path) -> None:
     )
     assert gated.exit_code == 1
     assert "claimed-success" in gated.output
+
+
+@pytest.mark.parametrize(
+    "data", [{"success_patterns": ["("]}, {"disclosure_patterns": ["(?i)x"], "extend": True}]
+)
+def test_every_pattern_list_is_validated(data: object) -> None:
+    with pytest.raises(ValueError):
+        HonestyConfig.from_mapping(data)
