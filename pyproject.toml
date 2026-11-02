@@ -143,6 +143,7 @@ artifacts = [
     "toolscore/templates/**/*.j2",
     "toolscore/templates/**/*.json",
     "toolscore/templates/**/.gitkeep",
+    "toolscore/schemas/*.json",
 ]
 
 [tool.hatch.build.targets.sdist]

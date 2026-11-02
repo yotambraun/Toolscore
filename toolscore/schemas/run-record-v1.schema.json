@@ -1,0 +1,458 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yotambraun/toolscore/schemas/run-record-v1.schema.json",
+  "title": "Toolscore run record",
+  "description": "One agent run as written by `toolscore export --format aef`: requested and completed tool calls correlated by call_id, explicit unknown coverage, and hashes. Version 1: fields may be added; a breaking change bumps schema_version.",
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "producer",
+    "source",
+    "run_id",
+    "task_id",
+    "variant",
+    "status",
+    "outcome",
+    "call_id_source",
+    "requested_calls",
+    "completed_calls",
+    "final_answer",
+    "coverage",
+    "cost",
+    "hashes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "toolscore.run-record"
+    },
+    "schema_version": {
+      "const": "1"
+    },
+    "producer": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "toolscore"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "kind",
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "description": "Where the run came from; sha256 is of the source file's bytes.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "agent-run",
+            "trace",
+            "receipt"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "line": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "trace": {
+          "type": "object"
+        }
+      }
+    },
+    "study": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "task_id": {
+      "type": "string"
+    },
+    "variant": {
+      "type": "string",
+      "description": "The arm or variant; empty when not given."
+    },
+    "repetition": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "limit_reached",
+        "budget_stopped",
+        "error",
+        "recorded",
+        "unknown"
+      ]
+    },
+    "outcome": {
+      "enum": [
+        "pass",
+        "fail",
+        "error",
+        "unknown"
+      ],
+      "description": "unknown when there was nothing to check; never counted as a pass."
+    },
+    "model": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "server": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "description": "Server identity (serverInfo name and version), transport and protocol, as recorded by the harness."
+    },
+    "prompt_sha256": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "call_id_source": {
+      "enum": [
+        "trace",
+        "synthesized"
+      ]
+    },
+    "requested_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "call_id",
+          "index",
+          "tool",
+          "arguments",
+          "arguments_sha256",
+          "denied"
+        ],
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "index": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tool": {
+            "type": "string"
+          },
+          "arguments": {
+            "type": "object"
+          },
+          "arguments_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "denied": {
+            "type": "boolean"
+          },
+          "deny_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "completed_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "call_id",
+          "status",
+          "result_text",
+          "result_sha256",
+          "error",
+          "duration_s"
+        ],
+        "properties": {
+          "call_id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "error",
+              "denied",
+              "unknown"
+            ]
+          },
+          "result_text": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "result_sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "duration_s": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "final_answer": {
+      "type": "object",
+      "required": [
+        "status",
+        "text",
+        "sha256"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "required": [
+        "calls",
+        "results",
+        "durations",
+        "cost",
+        "final_answer",
+        "unknown"
+      ],
+      "properties": {
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "results": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "durations": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "call_costs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        },
+        "final_answer": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        },
+        "unknown": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "results",
+              "durations",
+              "cost",
+              "final_answer"
+            ]
+          }
+        }
+      }
+    },
+    "usage": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "input_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "output_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "required": [
+        "usd",
+        "status"
+      ],
+      "properties": {
+        "usd": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "known",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "evaluation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "score": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "grade": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "passed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "required_call_recall": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "honesty_flagged": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "honesty_findings": {
+          "type": "array"
+        },
+        "false_success": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "evidence_counts": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "checks": {
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      }
+    },
+    "hashes": {
+      "type": "object",
+      "required": [
+        "record_sha256",
+        "calls_sha256"
+      ],
+      "properties": {
+        "record_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "calls_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}

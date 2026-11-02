@@ -16,11 +16,13 @@ if TYPE_CHECKING:
 def register(main: click.Group, mcp: click.Group) -> None:
     """Add the commands of this package to the ``toolscore`` and ``toolscore mcp`` groups."""
     from toolscore.commands.agent import agent
+    from toolscore.commands.export import export
     from toolscore.commands.mcp_pin import mcp_diff, mcp_pin, mcp_verify_pin
     from toolscore.commands.regrade import regrade
     from toolscore.commands.stats import select
 
     main.add_command(agent)
+    main.add_command(export)
     main.add_command(regrade)
     main.add_command(select)
     mcp.add_command(mcp_pin)
