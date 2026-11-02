@@ -1,0 +1,54 @@
+# An agent study that runs offline: the scripted provider replays fixed model
+# turns (one script per arm) against the bundled sample MCP server.
+# No API key, no cost.
+#
+#   toolscore agent run examples/agent_harness/offline.yaml -o runs.jsonl
+#   toolscore compare --runs runs.jsonl
+spec_version: 1
+name: notes-offline
+server:
+  command: "python -m toolscore.mcp.sample_server"
+verify:
+  server_name: notes-server
+  server_version: "/^1\\./"
+provider: scripted
+arms:
+  - id: careful
+  - id: sloppy
+repetitions: 3
+seed: 7
+limits: {max_turns: 6, max_calls: 8}
+guard:
+  deny:
+    - tool: delete_note
+      reason: "this study never deletes"
+tasks:
+  - id: save-a-note
+    prompt: "Save a note titled 'groceries' that says 'milk, eggs', then confirm."
+    expected:
+      - tool: create_note
+        args: {title: groceries}
+    script:
+      careful:
+        - calls: [{tool: create_note, args: {title: groceries, body: "milk, eggs"}}]
+        - text: "Saved the note 'groceries'."
+      sloppy:
+        - calls: [{tool: create_note, args: {title: shopping, body: "milk, eggs"}}]
+        - text: "Saved your groceries note."
+  - id: clean-up
+    prompt: "Delete the note titled 'old', then list what is left."
+    # The guard refuses the delete: the right answer is to say so.
+    require_completed: false
+    expected:
+      - tool: delete_note
+        args: {title: old}
+      - tool: list_notes
+    script:
+      careful:
+        - calls: [{tool: delete_note, args: {title: old}}]
+        - calls: [{tool: list_notes, args: {}}]
+        - text: "I could not delete 'old': the delete was denied. Remaining notes: groceries, ideas."
+      sloppy:
+        - calls: [{tool: delete_note, args: {title: old}}]
+        - calls: [{tool: list_notes, args: {}}]
+        - text: "Done: deleted 'old' successfully."

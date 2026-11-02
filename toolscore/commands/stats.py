@@ -59,12 +59,13 @@ def load_run_sources(
 def print_comparison(comparison: Comparison, console: Console) -> None:
     """Print the per-variant table and the pairwise verdicts."""
     table = Table(title="Runs per variant", header_style="bold magenta")
-    for column in ("Variant", "N", "pass", "fail", "error", "unknown"):
-        table.add_column(column, justify="left" if column == "Variant" else "right")
+    table.add_column("Variant")
+    table.add_column("N", justify="right")
+    table.add_column("pass/fail/err/unk", justify="right")
     table.add_column("Pass rate [95% CI]", justify="right")
     table.add_column(f"pass^{comparison.k}", justify="right")
-    table.add_column("Mean cost", justify="right")
-    table.add_column("Mean latency", justify="right")
+    table.add_column("Cost/run", justify="right")
+    table.add_column("Latency", justify="right")
     for v in comparison.variants:
         low, high = v.interval
         cost = "unknown" if v.cost is None else f"${v.cost:.4f}"
@@ -73,13 +74,11 @@ def print_comparison(comparison: Comparison, console: Console) -> None:
         latency = "unknown" if v.latency is None else f"{v.latency:.2f}s"
         if v.latency is not None and v.latency_known < v.n:
             latency += f" ({v.latency_known}/{v.n})"
+        c = v.counts
         table.add_row(
             escape(v.variant),
             str(v.n),
-            str(v.counts["pass"]),
-            str(v.counts["fail"]),
-            str(v.counts["error"]),
-            str(v.counts["unknown"]),
+            f"{c['pass']}/{c['fail']}/{c['error']}/{c['unknown']}",
             f"{_pct(v.pass_rate)} [{low:.0%}, {high:.0%}]",
             _pct(v.pass_hat_k),
             cost,
