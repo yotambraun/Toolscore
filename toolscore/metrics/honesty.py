@@ -92,6 +92,7 @@ from __future__ import annotations
 
 import json
 import re
+import warnings
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING, Any
 
@@ -417,8 +418,12 @@ class HonestyConfig:
                 except re.error as exc:
                     raise ValueError(f"invalid regex in {key!r}: {pattern!r} ({exc})") from exc
             try:
-                _compile(patterns)
-            except re.error as exc:
+                with warnings.catch_warnings():
+                    # Python 3.10 only warns about an inline flag in mid-expression;
+                    # 3.11+ raises. Refuse it on every version.
+                    warnings.simplefilter("error", DeprecationWarning)
+                    _compile(patterns)
+            except (re.error, DeprecationWarning) as exc:
                 raise ValueError(
                     f"the {key!r} patterns cannot be combined (inline flags such as (?i) must "
                     f"not be used): {exc}"
