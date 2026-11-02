@@ -9,13 +9,20 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [1.11.0] - Unreleased
 
-Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote servers, so any MCP server, local or hosted, can be graded in CI and show its grade in its README. And correct tool calls are not enough: 1.11 checks that the tool really did it, and that the agent told the truth about it.
+Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote servers, so any MCP server, local or hosted, can be graded in CI and show its grade in its README. And correct tool calls are not enough: 1.11 checks that the tool really did it, and that the agent told the truth about it. It also adds the rigor to trust the answers: an agent harness, pinned servers, contracts, receipts, tri-state evidence and repeated-run statistics.
 
 ### Highlights
 
 - **Effect probes: did the tool really do it?** `toolscore mcp test --probes` checks invariants against the live server. Built in and read-only: `head`/`tail`/`limit`-like parameters must bound the result. With `--allow-writes`: round trips that write marked values, read them back, write again to the same key and check earlier records survive (`probe-write-not-observable`, `probe-silent-noop`, `probe-data-lost`). A probe config declares pairs, bounds, two-path agreements and idempotent calls. On the official memory server, `server-memory@2026.8.31` gets `probe-silent-noop` on `create_entities` (the #4887 bug) and `2.0.1` passes, with no configuration; on `server-filesystem@2.1.0` the built-in bounds flag `head: 0` and `tail: 0` returning the whole file.
 - **Honesty checks: did the agent tell the truth?** Every evaluation reads the agent's final answer from the trace and reports `claimed-success`, `done-after-error`, `undisclosed-warning`, `escape-hatch-after-refusal` and `injected-fault-undisclosed` under Behavior and safety, plus a `false_success` summary. `toolscore honesty TRACE` runs them alone, with no gold file. Without a final answer they report unknown, never pass.
 - **Fault injection.** `toolscore mcp proxy --inject faults.json` sits in front of any stdio server and gives chosen calls an error, a JSON-RPC error, a warning, an empty or truncated result, a delay, a timeout, or a "disabled" / "permission denied" answer. The session records what was injected, so the honesty checks verify the agent's report against ground truth.
+- **A silent no-op caps the grade at C.** A high-confidence probe failure now also caps the letter grade at C (the score is unchanged), with `capped because: probe-silent-noop on create_entities` in every scorecard format and the badge. `server-memory@2026.8.31` graded A (93%) with its silent no-op; it now grades C. `--no-probe-grade-cap` restores the uncapped grade. **This is a deliberate, reversible grading decision**; see Changed.
+- **Agent harness.** `toolscore agent run spec.yaml` (and `toolscore.mcp.agent`) runs tasks x arms x repetitions of an LLM agent against any MCP server, with the OpenAI Responses API, Anthropic Messages or a free scripted provider: a guard on every tool call, a hard budget checked before every model call (unknown prices refused unless allowed), per-run limits, a seeded shuffled order, resumable JSONL with one row per run, and build verification of `serverInfo` and a version command.
+- **Pinning and drift.** `toolscore mcp pin` writes `toolscore.lock.json` (hashes of every tool definition, the server, protocol and instructions, and a read/write/delete/network/exec capability manifest); `mcp verify-pin`, `mcp test --pin` and `mcp lint --pin` fail on drift or a new delete/exec capability: a defense against MCP rug pulls and description poisoning. `toolscore mcp diff A B` compares two servers, builds or snapshots with text diffs, the lint delta and, with `--test`, scorecard and probe deltas.
+- **Contracts v2.** Required, optional and forbidden calls and alternative paths in one file (JSON Schema shipped); optional calls are neither missing nor extra, and the best-scoring alternative wins.
+- **Receipts and regrade.** `toolscore eval --receipt` writes a content-hashed record of the inputs, settings, version and result; `toolscore regrade` re-scores receipts, traces and agent runs with a new contract or weights without re-running anything. Record once, re-score forever (inspired by Agent Eval Flow).
+- **Tri-state evidence.** Every check is pass, fail or unknown, never a silent pass: reports count them, and missing latency and cost are "unknown", never 0.
+- **Comparing runs.** `toolscore compare --runs` reports complete populations, Wilson intervals, Fisher's exact test, pass^k and pre-declared decision rules; `toolscore select` picks a variant by lexicographic, weighted or Pareto objectives (inspired by Agent Eval Flow). `toolscore doctor` checks everything before any paid call; `toolscore export --format aef` writes neutral, versioned run records.
 - **Argument values for sandboxed servers.** `--arg [TOOL:]NAME=VALUE` and `--args-file` give the scorecard and the probes values a server accepts, so the filesystem and git servers no longer fail every happy path on generated paths (`server-filesystem@2.1.0`: F to D with sandbox paths for its read tools).
 - **MCP 2026-07-28, with a fallback.** The MCP clients probe with `server/discover` and send the protocol version, client info and capabilities in each request's `_meta`, as the stateless 2026-07-28 revision requires. A server built on an earlier revision (any non-modern error, an HTTP 4xx without a modern error body, or on stdio no answer within 5 seconds) gets the `initialize` handshake with 2025-11-25 instead. `UnsupportedProtocolVersionError` answers pick a version from the server's list, and the scorecard shows which protocol a run used.
 - **Remote MCP servers.** `toolscore mcp test`, `mcp lint` and `mcp list` accept a Streamable HTTP URL, or a `url` entry in a Claude Desktop, Cursor, Claude Code or VS Code config file (`pip install "tool-scorer[http]"`). Credentials come from the environment (`--auth-env VAR`, `--header 'Name: ${VAR}'`, `${VAR}` / `${env:VAR}` in config files) and are never printed.
@@ -60,12 +67,42 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - The session adds `fault_spec`, `injections` and `injected` on each changed response; `MCPAdapter` keeps it as `metadata["injected"]`. `mcp record` is unchanged. Stdio only.
 - `FaultSpec`, `FaultRule`, `FaultInjector`, `load_fault_spec()`, `FAULT_KINDS`.
 
+#### Agent harness (`toolscore.mcp.agent`)
+- `toolscore agent run SPEC [--output] [--max-runs] [--retry-errors] [--allow-unknown-price] [--dry-run]`; `run_study()`, `run_agent()`, `load_agent_spec()`, `spec_from_mapping()`, `AgentSpec`, `ArmSpec`, `TaskSpec`.
+- Providers: `OpenAIResponsesProvider`, `AnthropicMessagesProvider` (any client with `responses.create` / `messages.create`; the SDKs stay optional extras) and `ScriptedProvider`. `map_tools()` maps MCP tools to provider function tools with safe, unique names.
+- Guards: `allow()`, `deny(reason)`, `rules_guard(deny_rules, allow_tools)` and `guard.python: module:function`; denied calls are returned to the model as tool errors and listed in `guard_denials`.
+- `Budget`, `Price`, `price_for()`, `preflight_prices()` (`UnknownPriceError` before any call), `estimate_study_cost()`; `Limits(max_turns, max_calls)`.
+- `verify` (`server_name`, `server_version`, `command` + `expect`), `check_build()`, `BuildMismatchError`.
+- Run rows (`run_record_version` "1"): calls with IDs, arguments, results, errors, durations and denials; final answer; usage; cost (`null` when unknown); server identity and protocol; the evaluation with honesty and evidence; `outcome` (pass, fail, error, unknown). `regrade_rows()`.
+- `examples/agent_harness/`: an offline study with real output, and a real-model spec marked as costing money.
+
+#### Pinning and diffs (`toolscore.mcp.pin`, `toolscore.mcp.server_diff`, `toolscore.mcp.snapshot`)
+- `toolscore mcp pin`, `toolscore mcp verify-pin [--lock] [--fail-on drift|capability|never] [--json] [--ci]`, `mcp test --pin/--pin-fail-on`, `mcp lint --pin/--pin-fail-on`.
+- `toolscore mcp list --json` writes a server snapshot; `ServerSnapshot`, `load_snapshot()`, `write_snapshot()`.
+- `build_lock()`, `verify_pin()`, `PinReport`, `PinFinding`, `PIN_RULES` (`pin-tool-added`, `pin-tool-removed`, `pin-tool-changed`, `pin-capability-added`, `pin-instructions-changed`, `pin-lock-modified`, `pin-server-changed`, `pin-protocol-changed`), `infer_capabilities()`, `CAPABILITIES`, capability overrides (`--capabilities`).
+- `toolscore mcp diff A B [--test] [--probes] [--allow-writes] [--fail-on any|breaking|none] [--json]`; `diff_snapshots()`, `ServerDiff`, `ToolChange`.
+- `examples/pinning/`: an offline rug pull and the memory server's `2026.8.31` vs `2.0.1`, with real output.
+
+#### Contracts, receipts and evidence
+- `toolscore.contract`: `evaluate_contract()`, `load_contract()`, `Contract`, `contract_from_mapping()`, `is_contract()`, `matcher_from_json()` (`$regex`, `$contains`, `$one_of`, `$any`, `$type`, `$approx`); `toolscore/schemas/contract-v2.schema.json`. `toolscore eval`, `evaluate_trace()` and `toolscore regrade` accept a contract wherever they take a gold file. `EvaluationResult.scored_calls`.
+- `toolscore.receipts`: `toolscore eval --receipt PATH`, `build_receipt()`, `verify_receipt()`, `regrade()`; `toolscore regrade SOURCES [--gold] [--weight] [--forbidden] [--receipt-dir] [--json] [--no-verify] [--spec] [--output]` for receipts, traces and agent-run JSONL.
+- `toolscore.evidence` and `EvaluationResult.evidence`: tri-state checks (`required-calls`, `call-errors`, `forbidden-calls`, `credentials`, `claimed-success`, `disclosure`, `escape-hatch`, `side-effects`), counts and coverage, in the console, Markdown, HTML and JSON reports and `to_dict()`. `MCPScorecard.probe_evidence` (inconclusive probes are unknown).
+- `ToolCall.id` (the provider call ID or the JSON-RPC request ID); `to_dict()` and the JSON report keep `id`, `is_error` and `timestamp` for every call.
+- `examples/contracts/`: a contract against the gold file it replaces, and a regrade, with real output.
+
+#### Runs, selection, export and doctor
+- `toolscore.stats`: `wilson_interval()`, `fisher_exact()`, `pass_hat_k()`, `compare_runs()`, `select_variant()`, `pareto_front()`, `evaluate_protocol()`, `load_runs()`, `runs_from_traces()`.
+- `toolscore compare --runs FILE | GOLD --variant NAME=DIR [--k] [--baseline] [--min-n] [--alpha] [--min-score] [--protocol] [--json]`; `toolscore select [--policy lexicographic|weighted|pareto] [--objective] [--weight]`.
+- `toolscore export --format aef INPUTS -o FILE` and `toolscore.export` (`export_records()`, `write_export()`, `validate_record()`): `toolscore.run-record` v1 with `toolscore/schemas/run-record-v1.schema.json` and a manifest.
+- `toolscore doctor [--spec] [--contract] [--server] [--key] [--json]` and `toolscore.doctor.run_doctor()`.
+
 #### Examples
 - `examples/mcp_memory_probes/` and `examples/mcp_filesystem_probes/`: the probes on the official memory and filesystem servers, with the commands and the console output.
 - `examples/probes/` (a probe config for the sample server), `examples/honesty/` (traces for the honesty checks) and `examples/fault_injection/` (a scripted agent behind the proxy, offline).
 
 #### GitHub Action
 - New inputs `mcp-probes`, `mcp-allow-writes`, `mcp-probe-config`, `mcp-args-file` and `fail-on-honesty`, and the `honesty-errors` output.
+- New inputs `mcp-pin-file` and `mcp-pin-fail-on` (pin check with the scorecard), `mcp-diff-against` and `mcp-diff-fail-on` (a server diff in the job summary, output `mcp-diff-breaking`), and `mcp-probe-grade-cap`.
 - New inputs `mcp-auth-env`, `mcp-badge`, `mcp-badge-json` and `toolscore-version`; `mcp-command` accepts a URL. New outputs `mcp-grade` and `mcp-score`. MCP mode writes the scorecard to the job summary.
 - The action installs Toolscore from its own checkout, so the installed version matches the action ref (it installed the latest PyPI release before). `toolscore-version` installs a given PyPI release instead.
 - `examples/github_actions/mcp-badge.yml` commits an updated badge when the grade changes.
@@ -79,6 +116,12 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 
 ### Changed
 
+- **A high-confidence effect-probe failure caps the grade at C.** The score is unchanged; `MCPScorecard.grade` is capped and `.uncapped_grade` is what the score alone earns (`.grade_capped`, `.grade_cap_reasons`, `.grade_cap_note`; JSON `grade_cap`; badge `C (capped) · Toolscore`). `--fail-under` and the Action's `mcp-grade` use the capped grade. Rationale: a tool that reports success and does nothing is a correctness bug, and the score penalty alone (`0.6 / number of tools`) left `server-memory@2026.8.31` at A. Turn it off with `--no-probe-grade-cap`, `score_server(probe_grade_cap=False)` or `mcp-probe-grade-cap: false`.
+- **Latency and cost are never 0 when unknown.** `metrics["latency_metrics"]` and `["cost_metrics"]` are now always present, also for `evaluate()`, with `status` (`measured`, `partial`, `unknown`), `measured_calls` and `total_calls`; their totals are `None` when no call has the value (they were 0.0, or the section was left out). `calculate_latency()` and `calculate_cost_attribution()` return the same. Reports print `unknown` or `N of M calls`; the JSON report's summary adds `total_duration`, `total_cost`, `latency_status`, `cost_status` and `evidence`.
+- **The honesty checks need tool results to pass.** When no call carries a result or an error, `undisclosed_warning` and `escape_hatch` are `None` (unknown) and `flagged` is `None`; the report adds `results` (`captured`, `partial`, `missing`). They were 0 (a pass) on request-only traces.
+- `toolscore compare`'s `GOLD_FILE` is optional (the runs mode takes `--runs`); the one-trace-per-model form is unchanged.
+- The agent-side console, HTML and Markdown reports add an Evidence section, and the HTML report always shows the performance section.
+
 - **The LLM judge sends no `temperature` unless you set one.** `JudgeConfig.temperature` defaults to `None` (it was `0.0`): current Claude models (Opus 4.7 and later, Sonnet 5 and later, Haiku 5.5) and OpenAI's GPT-6 models at their default reasoning effort reject a non-default temperature with a 400 error. Set `temperature=0.0` for models that accept it, such as local OpenAI-compatible servers.
 - **The default judge model is `gpt-6-luna`** (was `gpt-4o-mini`, which OpenAI retires on 2027-01-14). Docs and examples use `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` and `gemini-3.5-flash-lite`.
 - **Model prices match exactly or by longest prefix, and unknown models have no price.** `calculate_llm_cost()` and `estimate_trace_cost()` return `None` with an `UnknownModelPriceWarning` for a model they do not know (they used to fall back to the gpt-4o-mini price), so their return type is now `float | None`. The table is refreshed from the providers' pricing pages; retired models (Claude 3.x, Claude Opus 4.1, Gemini 1.5 and 2.0) were removed. `estimate_trace_cost()` defaults to `gpt-6-luna`.
@@ -91,6 +134,8 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
 
 ### Fixed
+
+- The JSON report failed (`Object of type ... is not JSON serializable`) when expected arguments held matchers; they are written as their `repr`, as `to_dict()` does.
 
 - **A perfect run scores exactly 1.0.** The composite score summed its weights with plain float addition and gave 0.9999999999999999.
 - **Prices of similarly named models.** `gpt-5-mini` was priced as `gpt-5`, `gpt-4o-mini` as `gpt-4o`, and `gemini-2.5-flash-lite` as `gemini-2.5-flash` (the first table key contained in the name won). Claude Opus 4.6 was listed at $15/$75 per million tokens; it is $5/$25.
