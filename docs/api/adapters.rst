@@ -80,3 +80,23 @@ Custom Adapter
    :members:
    :undoc-members:
    :show-inheritance:
+
+browser-use Adapter
+^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: BrowserUseAdapter
+   :members:
+   :show-inheritance:
+
+Coding-agent Session Adapters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+See :doc:`../coding_sessions`.
+
+.. autoclass:: ClaudeCodeSessionAdapter
+   :members:
+   :show-inheritance:
+
+.. autoclass:: CodexSessionAdapter
+   :members:
+   :show-inheritance:

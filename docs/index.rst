@@ -73,6 +73,15 @@ Contents
    what_it_catches
 
 .. toctree::
+   :maxdepth: 1
+   :caption: Who it's for
+
+   for_server_authors
+   for_agent_builders
+   for_security_teams
+   for_researchers
+
+.. toctree::
    :maxdepth: 2
    :caption: Guides
 
@@ -87,6 +96,8 @@ Contents
    mcp_testing
    effect_probes
    fault_injection
+   coding_sessions
+   config_lint
    pinning_diff
    agent_harness
    contracts

@@ -13,6 +13,7 @@ This section contains the complete API documentation for Toolscore.
    snapshots
    mcp
    rigor
+   integrations
    validators
    reports
    verdict

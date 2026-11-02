@@ -72,7 +72,13 @@ Accepted inputs:
 
 Parts with ``part_kind == "tool-call"`` (or class name ``ToolCallPart``) are
 collected; ``args_as_dict()`` is called when available, otherwise ``args`` is
-used (JSON string is parsed automatically).
+used (JSON string is parsed automatically). The ``ToolReturnPart`` with the
+same ``tool_call_id`` gives the call's ``result``. In Pydantic AI 2, a return
+whose ``outcome`` is ``failed``, ``denied``, ``interrupted`` or ``retried`` (the
+tool raised ``ModelRetry``), or a ``RetryPromptPart``, makes the call failed,
+and :func:`toolscore.evaluate` takes the run's text ``output`` as the final
+answer for the :doc:`honesty_checks`. Tested with pydantic-ai-slim 2.64.0 and
+a real ``Agent`` on a ``FunctionModel``.
 
 .. code-block:: python
 
