@@ -26,7 +26,9 @@ from toolscore.mcp.scorecard import (
 def _card(probes: list[ProbeResult] | None, cap: bool = True, tools: int = 9) -> MCPScorecard:
     return MCPScorecard(
         server_info={"name": "memory-server", "version": "0.6.3"},
-        tools=[MCPToolDef(name=f"tool_{i}", description="d", input_schema={}) for i in range(tools)],
+        tools=[
+            MCPToolDef(name=f"tool_{i}", description="d", input_schema={}) for i in range(tools)
+        ],
         results=[],
         lint=[],
         probes=probes,

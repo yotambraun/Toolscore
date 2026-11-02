@@ -171,9 +171,10 @@ class EvaluationResult:
         - ``required_call_recall``: see :attr:`required_call_recall`.
         - ``metrics``: every computed metric.
         - ``calls``: ``expected`` and ``actual`` calls with their arguments and,
-          for actual calls, ``result``, ``is_error``, ``error``, ``duration``
-          and ``cost``. Values that are not JSON (matcher objects, arbitrary
-          result objects) are stored as their ``repr``.
+          for actual calls, ``id``, ``result``, ``is_error``, ``error``,
+          ``duration``, ``cost`` and ``timestamp`` (``null`` when the trace does
+          not have them: unknown, never 0). Values that are not JSON (matcher
+          objects, arbitrary result objects) are stored as their ``repr``.
         - ``gold_calls_count``, ``trace_calls_count``: kept for compatibility.
 
         Returns:
@@ -214,6 +215,7 @@ def _call_record(call: ToolCall) -> dict[str, Any]:
     """The record of one actual call in :meth:`EvaluationResult.to_dict`."""
     error = call.metadata.get("error")
     return {
+        "id": call.id,
         "tool": call.tool,
         "args": call.args,
         "result": call.result,
@@ -221,6 +223,7 @@ def _call_record(call: ToolCall) -> dict[str, Any]:
         "error": None if isinstance(error, bool) else error,
         "duration": call.duration,
         "cost": call.cost,
+        "timestamp": call.timestamp,
     }
 
 
@@ -235,6 +238,10 @@ def _add_trace_checks(
 ) -> None:
     """Add the metrics shared by :func:`evaluate` and :func:`evaluate_trace`."""
     result.metrics["required_call_recall"] = calculate_required_call_recall(gold_calls, trace_calls)
+    # Always present: a trace without timings or costs reports them as unknown
+    # (status "unknown", totals None), never as 0.
+    result.metrics["latency_metrics"] = calculate_latency(trace_calls)
+    result.metrics["cost_metrics"] = calculate_cost_attribution(trace_calls)
     result.metrics["security_metrics"] = find_secrets(trace_calls)
     if forbidden is not None:
         result.metrics["policy_metrics"] = check_forbidden_calls(trace_calls, forbidden)
@@ -580,16 +587,6 @@ def evaluate_trace(
     schema_metrics = calculate_schema_validation_metrics(gold_calls, trace_calls)
     if schema_metrics["total_validated"] > 0:
         result.metrics["schema_metrics"] = schema_metrics
-
-    # Latency and cost (if available)
-    latency_metrics = calculate_latency(trace_calls)
-    if latency_metrics["total_duration"] > 0:
-        result.metrics["latency_metrics"] = latency_metrics
-
-    cost_metrics = calculate_cost_attribution(trace_calls)
-    total_cost = cost_metrics.get("total_cost", 0.0)
-    if isinstance(total_cost, (int, float)) and total_cost > 0:
-        result.metrics["cost_metrics"] = cost_metrics
 
     # Side effects validation
     if validate_side_effects:

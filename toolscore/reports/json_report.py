@@ -19,8 +19,10 @@ def _serialize_tool_call(call: Any) -> dict[str, Any]:
         Dictionary representation.
     """
     return {
+        "id": call.id,
         "tool": call.tool,
         "args": call.args,
+        "is_error": call.is_error,
         "result": call.result,
         "timestamp": call.timestamp,
         "duration": call.duration,
@@ -57,6 +59,13 @@ def generate_json_report(
             "policy_violations": len(result.policy_violations),
             "secrets": (result.metrics.get("security_metrics") or {}).get("secret_count", 0),
             "false_success": result.false_success,
+            # None means unknown (the trace has no timings or costs), never 0.
+            "total_duration": (result.metrics.get("latency_metrics") or {}).get("total_duration"),
+            "total_cost": (result.metrics.get("cost_metrics") or {}).get("total_cost"),
+            "latency_status": (result.metrics.get("latency_metrics") or {}).get(
+                "status", "unknown"
+            ),
+            "cost_status": (result.metrics.get("cost_metrics") or {}).get("status", "unknown"),
         },
         "metrics": result.metrics,
         "gold_calls": [_serialize_tool_call(call) for call in result.gold_calls],

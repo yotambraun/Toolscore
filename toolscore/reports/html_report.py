@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Template
 
+from toolscore.metrics.cost import format_measure
 from toolscore.metrics.security import redact_secrets
 from toolscore.reports.findings import behavior_findings
 
@@ -255,29 +256,23 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
         </div>
 
-        {% if total_duration > 0 or total_cost > 0 %}
         <div class="metric-section">
             <h2>Performance Metrics</h2>
             <div class="metric-grid">
-                {% if total_duration > 0 %}
                 <div class="metric-card">
                     <h3>Total Duration</h3>
-                    <div class="metric-value">{{ "%.2f"|format(total_duration) }}s</div>
+                    <div class="metric-value">{{ total_duration }}</div>
                 </div>
                 <div class="metric-card">
                     <h3>Average Duration</h3>
-                    <div class="metric-value">{{ "%.2f"|format(avg_duration) }}s</div>
+                    <div class="metric-value">{{ avg_duration }}</div>
                 </div>
-                {% endif %}
-                {% if total_cost > 0 %}
                 <div class="metric-card">
                     <h3>Total Cost</h3>
-                    <div class="metric-value">${{ "%.4f"|format(total_cost) }}</div>
+                    <div class="metric-value">{{ total_cost }}</div>
                 </div>
-                {% endif %}
             </div>
         </div>
-        {% endif %}
     </div>
 </body>
 </html>
@@ -319,9 +314,10 @@ def generate_html_report(
         "argument_f1": arg_metrics.get("f1", 0.0),
         "redundant_rate": eff_metrics.get("redundant_rate", 0.0),
         "side_effect_rate": se_metrics.get("success_rate") if se_metrics else None,
-        "total_duration": lat_metrics.get("total_duration", 0.0),
-        "avg_duration": lat_metrics.get("average_duration", 0.0),
-        "total_cost": cost_metrics.get("total_cost", 0.0),
+        # "unknown" when the trace has no timings or costs, never 0.
+        "total_duration": format_measure(lat_metrics, "total_duration"),
+        "avg_duration": format_measure(lat_metrics, "average_duration"),
+        "total_cost": format_measure(cost_metrics, "total_cost", unit="$"),
         "score": result.score,
         "grade": result.grade,
         "required_call_recall": result.required_call_recall,

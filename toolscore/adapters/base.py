@@ -47,6 +47,19 @@ class ToolCall:
             raise ValueError("Tool name cannot be empty")
 
     @property
+    def id(self) -> str | None:
+        """The call's ID, if the trace has one (``metadata["id"]``, else the JSON-RPC ID).
+
+        Provider traces carry a call ID (OpenAI ``call_id``, Anthropic
+        ``tool_use`` ID); recorded MCP sessions the JSON-RPC request ID. It
+        pairs a requested call with its result and is kept in every record.
+        """
+        value = self.metadata.get("id")
+        if value is None:
+            value = self.metadata.get("jsonrpc_id")
+        return None if value is None else str(value)
+
+    @property
     def is_error(self) -> bool:
         """Whether the call failed.
 

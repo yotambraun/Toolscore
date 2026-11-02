@@ -132,6 +132,21 @@ def generate_markdown_report(
 
         lines.append("")
 
+    # Latency and cost: "unknown" when the trace has none, never 0
+    if "latency_metrics" in metrics or "cost_metrics" in metrics:
+        from toolscore.metrics.cost import format_measure
+
+        lat_metrics = metrics.get("latency_metrics")
+        cost_metrics = metrics.get("cost_metrics")
+        lines.append("## ⏱️ Latency and Cost")
+        lines.append("")
+        lines.append("| Metric | Value |")
+        lines.append("|--------|-------|")
+        lines.append(f"| Total Duration | {format_measure(lat_metrics, 'total_duration')} |")
+        lines.append(f"| Average Duration | {format_measure(lat_metrics, 'average_duration')} |")
+        lines.append(f"| Total Cost | {format_measure(cost_metrics, 'total_cost', unit='$')} |")
+        lines.append("")
+
     # Semantic Evaluation
     if "semantic_metrics" in metrics:
         lines.append("## 🧠 Semantic Evaluation")

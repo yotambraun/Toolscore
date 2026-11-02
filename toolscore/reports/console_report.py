@@ -501,19 +501,23 @@ def print_evaluation_summary(
         console.print(se_table)
         console.print()
 
-    # Performance metrics if available
+    # Performance: latency and cost, "unknown" when the trace has none (never 0)
     lat_metrics = metrics.get("latency_metrics")
-    if lat_metrics:
+    cost_metrics = metrics.get("cost_metrics")
+    if lat_metrics is not None or cost_metrics is not None:
+        from toolscore.metrics.cost import format_measure
+
         perf_table = Table(
             title="Performance Metrics", show_header=True, header_style="bold magenta"
         )
         perf_table.add_column("Metric", style="cyan", no_wrap=True)
         perf_table.add_column("Value", justify="right")
 
-        perf_table.add_row("Total Duration", f"{lat_metrics.get('total_duration', 0):.3f}s")
-        perf_table.add_row("Average Duration", f"{lat_metrics.get('average_duration', 0):.3f}s")
-        perf_table.add_row("Max Duration", f"{lat_metrics.get('max_duration', 0):.3f}s")
-        perf_table.add_row("Min Duration", f"{lat_metrics.get('min_duration', 0):.3f}s")
+        perf_table.add_row("Total Duration", format_measure(lat_metrics, "total_duration"))
+        perf_table.add_row("Average Duration", format_measure(lat_metrics, "average_duration"))
+        perf_table.add_row("Max Duration", format_measure(lat_metrics, "max_duration"))
+        perf_table.add_row("Min Duration", format_measure(lat_metrics, "min_duration"))
+        perf_table.add_row("Total Cost", format_measure(cost_metrics, "total_cost", unit="$"))
 
         console.print(perf_table)
         console.print()

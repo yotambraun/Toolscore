@@ -114,6 +114,7 @@ def test_to_dict_is_a_complete_versioned_record() -> None:
     # The required write failed, so only one of the two required calls was completed.
     assert record["required_call_recall"] == 0.5
     assert record["calls"]["actual"][0] == {
+        "id": None,
         "tool": "search",
         "args": {"q": "cats"},
         "result": "<Opaque>",
@@ -121,6 +122,7 @@ def test_to_dict_is_a_complete_versioned_record() -> None:
         "error": None,
         "duration": 0.5,
         "cost": None,
+        "timestamp": None,
     }
     assert record["calls"]["actual"][1]["is_error"] is True
     assert record["calls"]["actual"][1]["error"] == "permission denied"

@@ -33,6 +33,8 @@ def generate_csv_report(
     rows.append(["Category", "Metric", "Value"])
     rows.append(["Summary", "Gold Calls Count", str(len(result.gold_calls))])
     rows.append(["Summary", "Trace Calls Count", str(len(result.trace_calls))])
+    rows.append(["Summary", "Score", f"{result.score * 100:.2f}%"])
+    rows.append(["Summary", "Grade", result.grade])
     rows.append(["", "", ""])  # Empty row for separation
 
     # Add all metrics
@@ -46,6 +48,9 @@ def generate_csv_report(
             elif isinstance(value, (list, tuple)):
                 # Convert lists to comma-separated strings
                 rows.append([prefix.rstrip("."), key, ", ".join(map(str, value))])
+            elif value is None:
+                # A value the trace does not have (no timings, no final answer...)
+                rows.append([prefix.rstrip("."), key, "unknown"])
             else:
                 # Format percentages and numbers
                 if isinstance(value, float):
