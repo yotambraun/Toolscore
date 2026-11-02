@@ -99,7 +99,7 @@ The lint also flagged a description in [GitHub's MCP server](https://github.com/
 | --- | --- | --- |
 | **MCP server author** | `toolscore mcp test "python server.py" --probes --badge mcp-grade.svg` | [Grade, probe and badge a server](https://yotambraun.github.io/Toolscore/docs/for_server_authors.html) |
 | **Agent builder** | `toolscore init`, then `pytest`; or `toolscore eval contract.json trace.json` | [Tool-call tests in CI](https://yotambraun.github.io/Toolscore/docs/for_agent_builders.html) |
-| **Security or platform team** | `toolscore mcp pin`, then `toolscore mcp verify-pin` in CI | [Pin servers, gate unsafe calls](https://yotambraun.github.io/Toolscore/docs/for_security_teams.html) |
+| **Security or platform team** | `toolscore mcp pin`, then `toolscore mcp verify-pin` in CI; `toolscore lint-config` | [Pin servers, gate unsafe calls](https://yotambraun.github.io/Toolscore/docs/for_security_teams.html) |
 | **Researcher** | `toolscore agent run spec.yaml`, then `toolscore compare --runs runs.jsonl` | [Repeatable agent studies](https://yotambraun.github.io/Toolscore/docs/for_researchers.html) |
 
 ## What it checks
@@ -112,6 +112,8 @@ The lint also flagged a description in [GitHub's MCP server](https://github.com/
 | What does the agent do when a tool fails? | `toolscore mcp proxy --inject faults.json` | [Fault injection](https://yotambraun.github.io/Toolscore/docs/fault_injection.html) |
 | Does the agent call the right tools, with the right arguments? Required, optional, forbidden and alternative calls; pytest snapshots | `toolscore eval`, `expect()`, `toolscore_snapshot` | [Contracts](https://yotambraun.github.io/Toolscore/docs/contracts.html), [snapshots](https://yotambraun.github.io/Toolscore/docs/snapshot_testing.html) |
 | Destructive commands or credentials in tool arguments? | `toolscore eval --forbidden rules.json --fail-on-violations` | [Behavior and safety](https://yotambraun.github.io/Toolscore/docs/behavior_safety.html) |
+| Do my `CLAUDE.md`, `AGENTS.md` and skills name tools that exist? Unknown tools, deleting with a read-only tool | `toolscore lint-config` | [Config lint](https://yotambraun.github.io/Toolscore/docs/config_lint.html) |
+| What did my coding agent do yesterday? Claude Code and Codex CLI sessions, read-only, credentials redacted | `toolscore sessions list`, `toolscore honesty SESSION.jsonl` | [Coding sessions](https://yotambraun.github.io/Toolscore/docs/coding_sessions.html) |
 | Did a server change under me? MCP rug pulls, new delete or exec capabilities | `toolscore mcp pin`, `mcp verify-pin`, `mcp diff` | [Pinning and diffs](https://yotambraun.github.io/Toolscore/docs/pinning_diff.html) |
 | Is variant B really better? Wilson intervals, Fisher's exact test, pass^k, budgets, receipts | `toolscore agent run`, `compare --runs`, `select`, `regrade` | [Agent harness](https://yotambraun.github.io/Toolscore/docs/agent_harness.html), [comparing runs](https://yotambraun.github.io/Toolscore/docs/comparing_runs.html) |
 
@@ -119,7 +121,7 @@ Every check reports pass, fail or **unknown**: a trace without a final answer or
 
 ## Works with
 
-OpenAI (Chat Completions and Responses API) · Anthropic · Gemini · LangGraph · Pydantic AI · OpenAI Agents SDK · Claude Agent SDK · CrewAI · browser-use · OpenTelemetry GenAI spans · MCP sessions recorded with `toolscore mcp record` · MCP servers over stdio or Streamable HTTP, and Claude Desktop, Cursor, VS Code and Claude Code configs · pytest · GitHub Actions · Claude Code (plugin)
+OpenAI (Chat Completions and Responses API) · Anthropic · Gemini · LangGraph · Pydantic AI · OpenAI Agents SDK (run results and live tracing) · Claude Agent SDK (messages and live hooks) · CrewAI · browser-use · Inspect AI (scorer) · Claude Code and Codex CLI sessions · OpenTelemetry GenAI spans · MCP sessions recorded with `toolscore mcp record` · MCP servers over stdio or Streamable HTTP, and Claude Desktop, Cursor, VS Code and Claude Code configs · pytest · GitHub Actions · Claude Code (plugin)
 
 Pass a raw response or run result straight to `evaluate()`; the format is detected ([frameworks guide](https://yotambraun.github.io/Toolscore/docs/frameworks.html)):
 
@@ -129,6 +131,18 @@ from toolscore import evaluate
 response = client.responses.create(model="gpt-6-luna", input=[...], tools=[...])
 result = evaluate(expected=[{"tool": "get_weather", "args": {"city": "NYC"}}], actual=response)
 print(result.score, result.false_success)
+```
+
+Or assert in any test framework, or let the bundled pytest fixture record the calls once and replay them on every run (`toolscore init` scaffolds it for your framework):
+
+```python
+from toolscore import Regex, expect
+
+expect(agent).on("book me a flight to NYC") \
+    .calls("search_flights", destination="NYC") \
+    .then_calls("book_flight", flight_id=Regex(r"FL-\d+")) \
+    .does_not_call("cancel_booking") \
+    .run()
 ```
 
 ## Install
