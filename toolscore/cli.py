@@ -2517,11 +2517,11 @@ def _register_commands() -> None:
     register(main, mcp)
 
 
-_register_commands()
-
-
-if __name__ == "__main__":
-    main()
+# Run as ``python -m toolscore.cli``, this file is ``__main__``, a second copy of
+# the module: the commands register on the ``toolscore.cli`` module they import,
+# and the guard at the end of the file runs that one.
+if __name__ != "__main__":
+    _register_commands()
 
 
 # ---------------------------------------------------------------------------
@@ -2852,3 +2852,9 @@ def lint_config_command(
         fail_on == "warning" and (report.errors or report.warnings)
     ):
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    from toolscore.cli import main as _main
+
+    _main()
