@@ -49,6 +49,47 @@ const ciYaml = `# Grade your MCP server on every PR — fail the build below a B
     mcp-auth-env: MCP_TOKEN
     mcp-fail-under: 'B'`;
 
+const probeOutput = `$ toolscore mcp test "python -m toolscore.mcp.sample_server --bug silent-skip" \\
+    --probes --allow-writes
+
+│ Grade C   Score 74%                                │
+│ happy 80%  |  edge 100%  |  lint 91%  |  effect 0% │
+
+                         Effect probes
+│ bound      │ list_notes  │ pass   │ medium     │ limit bounded the result for [1, 2]   │
+│ round-trip │ create_note │ FAIL   │ high       │ a second write to key                 │
+│            │             │        │            │ 'tsp64c7f0-title' reported success;   │
+│            │             │        │            │ state unchanged (probe-silent-noop)   │`;
+
+const memoryProbes = `server-memory@2026.8.31  (before the #4887 fix)
+  round-trip  create_entities  FAIL  high
+  a second write to key 'tspd11f8d-name' reported success;
+  state unchanged (probe-silent-noop)
+
+server-memory@2.0.1
+  round-trip  create_entities  pass  high
+  write visible and kept after another write;
+  a same-key write was reported as skipped`;
+
+const faultSpec = `{
+  "seed": 7,
+  "faults": [
+    {"tools": ["create_note"], "calls": [2], "fault": "error"},
+    {"tools": ["list_notes"], "fault": "warning",
+     "message": "WARNING: the list may be out of date."}
+  ]
+}`;
+
+const proxyConfig = `{
+  "mcpServers": {
+    "notes": {
+      "command": "toolscore",
+      "args": ["mcp", "proxy", "--inject", "faults.json",
+               "-o", "session.json", "--", "python", "my_server.py"]
+    }
+  }
+}`;
+
 const remoteConfig = `{
   "servers": {
     "remote": {
@@ -103,7 +144,7 @@ const scorecardMd = `# MCP Scorecard: notes-server 1.1.0
 
 <BaseLayout
   title="Test your MCP server"
-  description="Grade any MCP server with Toolscore, local (stdio) or remote (Streamable HTTP), on MCP 2026-07-28 or earlier: happy-path + adversarial edge-case scenarios, lint for annotations, output schemas, missing tools and tool poisoning, token cost, session recording, a README badge, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
+  description="Grade any MCP server with Toolscore, local (stdio) or remote (Streamable HTTP), on MCP 2026-07-28 or earlier: happy-path + adversarial edge-case scenarios, effect probes that check a tool really did what it reported, fault injection, lint for annotations, output schemas, missing tools and tool poisoning, token cost, session recording, a README badge, and an A–F scorecard with a ranked Top issues to fix list. Deterministic, offline, $0."
 >
   <PageHeader
     eyebrow="For MCP server authors"
@@ -181,6 +222,38 @@ const scorecardMd = `# MCP Scorecard: notes-server 1.1.0
     </div>
   </section>
 
+  <!-- Effect probes -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+      <div>
+        <p class="eyebrow mb-3">Did the tool really do it?</p>
+        <h2 class="h2">Effect probes catch “success” that changed nothing</h2>
+        <p class="lead mt-4">
+          A tool can answer success and do nothing. <code class="font-mono text-sm text-brand">--probes</code>
+          checks invariants against the live server: <code class="font-mono text-sm text-brand">head</code>,
+          <code class="font-mono text-sm text-brand">tail</code> and <code class="font-mono text-sm text-brand">limit</code>-like
+          parameters must bound the result, and with <code class="font-mono text-sm text-brand">--allow-writes</code>
+          a write must be visible through the server's read tools, a second write to the same key must
+          change it or say why not, and earlier records must survive.
+        </p>
+        <p class="mt-4 text-sm text-muted">
+          Only high-confidence failures (declared in a probe config, or seen through a read tool that
+          already showed the record) lower the grade; heuristics only warn, and every result says how
+          its read tool was chosen. On the official filesystem server (2.1.0), the built-in bounds flag
+          <code class="font-mono text-brand">head: 0</code> and <code class="font-mono text-brand">tail: 0</code>
+          returning the whole file. Write probes leave marker records: use a disposable server.
+        </p>
+        <p class="mt-4 text-sm">
+          <a class="text-brand hover:underline" href={`${site.docs}effect_probes.html`} target="_blank" rel="noopener">Effect probes guide →</a>
+        </p>
+      </div>
+      <div class="space-y-4">
+        <CodeBlock title="the sample server, started with a deliberate bug — real output, narrowed" lang="text" code={probeOutput} />
+        <CodeBlock title="official MCP memory server, no probe config — real results" lang="text" code={memoryProbes} />
+      </div>
+    </div>
+  </section>
+
   <!-- Remote servers + protocol -->
   <section class="section">
     <div class="wrap grid items-start gap-10 lg:grid-cols-2">
@@ -233,7 +306,7 @@ const scorecardMd = `# MCP Scorecard: notes-server 1.1.0
       </div>
 
       <p class="mt-6 text-center font-mono text-xs text-faint">
-        score = happy 60% + edge 20% + lint 20% &nbsp;·&nbsp; token cost reported per-tool
+        score = happy 60% + edge 20% + lint 20% &nbsp;·&nbsp; a high-confidence probe failure costs a tool's happy share &nbsp;·&nbsp; token cost reported per-tool
       </p>
     </div>
   </section>
@@ -290,6 +363,29 @@ const scorecardMd = `# MCP Scorecard: notes-server 1.1.0
         <InstallCommand class="mt-6" cmd="toolscore eval gold.json session.json" />
       </div>
       <CodeBlock title="claude_desktop_config.json (any MCP client)" lang="json" code={recordConfig} />
+    </div>
+  </section>
+
+  <!-- Fault injection -->
+  <section class="section">
+    <div class="wrap grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+        <p class="eyebrow mb-3">Make it fail on purpose</p>
+        <h2 class="h2">Inject faults, then check what the agent said</h2>
+        <p class="lead mt-4">
+          <code class="rounded bg-elevated px-1.5 py-0.5 font-mono text-sm text-brand">toolscore mcp proxy --inject</code>
+          relays your stdio server like <code class="font-mono text-sm text-brand">mcp record</code> and
+          gives chosen calls an error, a warning, an empty or truncated result, a delay, a timeout, or a
+          “disabled” / “permission denied” answer. The session records what was injected, so
+          <code class="font-mono text-sm text-brand">toolscore honesty session.json --final-answer @answer.txt</code>
+          knows the ground truth when the agent reports back.
+        </p>
+        <p class="mt-4 text-sm text-muted">Stdio only; tools by name or glob, calls by number or by seeded probability.</p>
+      </div>
+      <div class="space-y-4">
+        <CodeBlock title="faults.json" lang="json" code={faultSpec} />
+        <CodeBlock title=".mcp.json / claude_desktop_config.json (any MCP client)" lang="json" code={proxyConfig} />
+      </div>
     </div>
   </section>
 

@@ -108,6 +108,21 @@ export const steps = [
 // Feature grid (home).
 export const features = [
   {
+    title: 'Did the tool really do it?',
+    body: 'Effect probes write marked values, read them back and write again: a tool that reports success and changes nothing, or loses earlier data, fails. On the official memory server they catch the #4887 bug in the release before the fix.',
+    icon: 'scan',
+  },
+  {
+    title: 'Did the agent tell the truth?',
+    body: 'Honesty checks compare tool results with the agent’s final answer: success claimed after a failure, warnings left out, a JavaScript escape hatch after a disabled button. Unknown, never pass, when the answer is missing.',
+    icon: 'alert',
+  },
+  {
+    title: 'Fault injection',
+    body: 'toolscore mcp proxy --inject makes chosen calls fail in front of any stdio server: errors, warnings, timeouts, "permission denied". The session records the ground truth for the honesty checks.',
+    icon: 'record',
+  },
+  {
     title: 'Top issues to fix',
     body: 'Not just a number — a ranked, plain-English list of what is broken and how to fix it, from broken handlers to untyped schemas to thin descriptions.',
     icon: 'list',
@@ -296,7 +311,12 @@ export const mcpCommands = [
   },
   { cmd: 'toolscore mcp list "python my_server.py"', note: 'Show the advertised tools.' },
   { cmd: 'toolscore mcp lint "python my_server.py"', note: 'Lint only: schemas, annotations, missing tools, tool poisoning, with rule IDs (exit 1 on errors).' },
+  { cmd: 'toolscore mcp test "python my_server.py" --probes', note: 'Effect probes, read-only: head/tail/limit-like parameters must bound the result.' },
+  { cmd: 'toolscore mcp test "python my_server.py" --probes --allow-writes', note: 'Plus round trips: a write must be visible, a same-key write must change it or say why not, earlier records must survive. Use a disposable server.' },
+  { cmd: 'toolscore mcp test "python my_server.py" --probe-config probes.yaml', note: 'Declared pairs, bounds and agreements: high confidence, they count in the grade.' },
+  { cmd: 'toolscore mcp test "npx -y @modelcontextprotocol/server-filesystem /sandbox" --arg path=/sandbox/a.txt', note: 'Give a sandboxed server values it accepts (TOOL:NAME=VALUE for one tool, --args-file for many).' },
   { cmd: 'toolscore mcp record -o session.json -- python my_server.py', note: 'Record a real client session, then score it with toolscore eval.' },
+  { cmd: 'toolscore mcp proxy --inject faults.json -o session.json -- python my_server.py', note: 'Record a session and make chosen calls fail; then toolscore honesty session.json checks what the agent said.' },
   { cmd: 'toolscore mcp test "python my_server.py" --report md --output SCORECARD.md', note: 'Export a Markdown report for a PR or README.' },
   { cmd: 'toolscore mcp test "python my_server.py" --fail-under B', note: 'CI gate: exit 1 below a B.' },
   { cmd: 'toolscore mcp test "python my_server.py" --ci', note: 'Write the verdict to $GITHUB_STEP_SUMMARY, fail on blocking issues.' },

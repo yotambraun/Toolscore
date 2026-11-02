@@ -29,6 +29,15 @@ import { features, foundWith, url } from '../data/site';
         </p>
         <a class="shrink-0 text-sm text-brand hover:underline" href={url('mcp')}>How they were found →</a>
       </div>
+      <div class="card mt-3 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <p class="text-sm text-muted">
+          <span class="font-semibold text-ink">Now caught automatically:</span>
+          the effect probes flag the #4887 bug (<span class="font-mono">probe-silent-noop</span>) in
+          <span class="font-mono">server-memory@2026.8.31</span>, the release before the fix, and pass
+          the fixed <span class="font-mono">2.0.1</span>. No configuration.
+        </p>
+        <a class="shrink-0 text-sm text-brand hover:underline" href="https://github.com/yotambraun/toolscore/tree/main/examples/mcp_memory_probes" target="_blank" rel="noopener">Commands and output →</a>
+      </div>
     </div>
   </section>
 
