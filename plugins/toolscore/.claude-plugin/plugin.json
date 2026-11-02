@@ -1,0 +1,22 @@
+{
+  "name": "toolscore",
+  "displayName": "Toolscore",
+  "version": "1.11.0",
+  "description": "Test MCP servers and the tool calls your agents make, with the Toolscore CLI: lint and grade a server, check with effect probes that its tools really did what they reported, turn traces into tool-call tests, check that an agent told the truth about its tool results, and pin servers against drift. Deterministic, local, no API key.",
+  "author": {
+    "name": "Yotam Braun",
+    "url": "https://github.com/yotambraun"
+  },
+  "homepage": "https://yotambraun.github.io/Toolscore/",
+  "repository": "https://github.com/yotambraun/toolscore",
+  "license": "Apache-2.0",
+  "keywords": [
+    "mcp",
+    "testing",
+    "tool-calling",
+    "agents",
+    "evaluation",
+    "honesty",
+    "ci"
+  ]
+}

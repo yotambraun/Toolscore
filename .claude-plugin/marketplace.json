@@ -1,0 +1,17 @@
+{
+  "name": "toolscore",
+  "description": "Toolscore: test MCP servers and the tool calls your agents make. Deterministic, local, no API key.",
+  "owner": {
+    "name": "Yotam Braun",
+    "url": "https://github.com/yotambraun"
+  },
+  "plugins": [
+    {
+      "name": "toolscore",
+      "source": "./plugins/toolscore",
+      "description": "Correct tool calls are not enough: audit MCP servers (lint, scorecard, effect probes), turn agent traces into tool-call tests, check that an agent told the truth about what its tools did, and pin MCP servers against drift in CI.",
+      "category": "development",
+      "tags": ["mcp", "testing", "agents", "evaluation", "ci", "security"]
+    }
+  ]
+}
