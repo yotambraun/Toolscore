@@ -18,6 +18,9 @@ Where the final answer comes from:
 * Claude Agent SDK / ``claude -p --output-format json`` results
   (``{"type": "result", "result": ...}``);
 * OpenTelemetry spans with ``gen_ai.output.messages``;
+* browser-use histories: the ``done`` action's text (the last result with
+  ``is_done: true``), whose ``success`` flag is kept as
+  :attr:`Transcript.success`;
 * otherwise a final "done" tool call (``done``, ``finish``, ``final_answer``...)
   with a ``text``/``message``/``answer``/``summary`` argument.
 
@@ -64,12 +67,15 @@ class Transcript:
         final_source: Where the final answer was found (for reports), or ``None``.
         injections: Faults injected by ``toolscore mcp proxy --inject`` (from a
             proxy session file); empty otherwise.
+        success: The agent's own verdict on the run, when the trace records
+            one (browser-use's ``done`` ``success``); ``None`` otherwise.
     """
 
     calls: list[ToolCall]
     final_answer: str | None = None
     final_source: str | None = None
     injections: list[dict[str, Any]] = field(default_factory=list)
+    success: bool | None = None
 
 
 def normalize_tool_name(name: str) -> str:
@@ -204,7 +210,13 @@ def final_answer_of(
         ``(final answer, where it was found)``, or ``(None, None)`` when the
         trace holds no final answer.
     """
-    if isinstance(data, dict):
+    from toolscore.adapters.browser_use import browser_use_final, looks_like_browser_use
+
+    found: tuple[str | None, str | None]
+    if looks_like_browser_use(data):
+        text = browser_use_final(data)[0]
+        found = (text, "browser-use done result") if text else (None, None)
+    elif isinstance(data, dict):
         found = _from_fields(data)
         if found[0] is None:
             from toolscore.adapters.otel import looks_like_otel
@@ -235,6 +247,13 @@ def final_answer_of(
     if found[0] is None and calls:
         found = _from_done_call(calls)
     return found
+
+
+def agent_success_of(data: Any) -> bool | None:
+    """The agent's own success flag, when the trace records one (browser-use ``done``)."""
+    from toolscore.adapters.browser_use import browser_use_final, looks_like_browser_use
+
+    return browser_use_final(data)[1] if looks_like_browser_use(data) else None
 
 
 def transcript_from_data(
@@ -270,6 +289,7 @@ def transcript_from_data(
         injections=[i for i in injections if isinstance(i, dict)]
         if isinstance(injections, list)
         else [],
+        success=agent_success_of(data),
     )
 
 

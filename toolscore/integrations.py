@@ -570,6 +570,57 @@ def from_otel(spans: Any) -> list[dict[str, Any]]:
     return tool_calls_from_otel(spans)
 
 
+def _browser_use_data(history: Any) -> Any:
+    """A browser-use history as plain data: ``model_dump()`` objects, step objects, or as is."""
+    if isinstance(history, (dict, str)):
+        return json.loads(history) if isinstance(history, str) else history
+    if hasattr(history, "model_dump") and not isinstance(history, list):
+        return history.model_dump()
+    if isinstance(history, list):
+        return [h.model_dump() if hasattr(h, "model_dump") else h for h in history]
+    return history
+
+
+def from_browser_use(history: Any) -> list[dict[str, Any]]:
+    """Extract the executed actions of a browser-use agent run as tool calls.
+
+    Accepts an ``AgentHistoryList`` (what ``await agent.run()`` returns), its
+    ``model_dump()`` dict, the JSON text ``history.save_to_file()`` writes, or
+    a list of ``AgentHistory`` steps (objects or dicts). Each executed action
+    is one call: ``tool`` is the action name (``click``, ``input``,
+    ``evaluate``, ``done``...), ``args`` its parameters, ``result`` the action
+    result's ``extracted_content`` and ``error`` its ``error``; actions that
+    browser-use skipped after an error or a page change have no result and are
+    left out. See :mod:`toolscore.adapters.browser_use`.
+
+    Args:
+        history: The browser-use history.
+
+    Returns:
+        List of dicts with ``tool``, ``args``, ``result``, ``id``, ``timestamp``,
+        ``duration``, failure fields and ``metadata`` (step, url, and
+        ``is_done`` / ``success`` on the ``done`` call).
+
+    Raises:
+        ValueError: If ``history`` is not a browser-use history.
+
+    Example:
+        >>> history = await agent.run()
+        >>> result = evaluate(expected=[...], actual=from_browser_use(history))
+    """
+    from toolscore.adapters.browser_use import browser_use_calls
+    from toolscore.core import _tool_call_dict
+
+    calls = []
+    for call in browser_use_calls(_browser_use_data(history)):
+        item = _tool_call_dict(call)
+        item["id"] = call.id
+        if call.is_error:
+            item["error"] = call.metadata.get("error")
+        calls.append(item)
+    return calls
+
+
 def from_crewai(result: Any) -> list[dict[str, Any]]:
     """Extract tool calls from a CrewAI result (experimental).
 
@@ -736,8 +787,10 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
     10. Bare list of messages where some message has ``tool_calls`` → LangGraph
 
     OpenTelemetry GenAI tool spans (an OTLP export with ``resourceSpans``, or a
-    span list containing ``execute_tool`` / MCP ``tools/call`` spans) are
-    detected before step 2 and converted with :func:`from_otel`.
+    span list containing ``execute_tool`` / MCP ``tools/call`` spans) and
+    browser-use histories (an ``AgentHistoryList``, its dump or its step list)
+    are detected before step 2 and converted with :func:`from_otel` and
+    :func:`from_browser_use`.
 
     Args:
         actual: A raw LLM provider response (object or dict), or an
@@ -762,6 +815,16 @@ def auto_extract(actual: Any) -> list[dict[str, Any]]:
 
     if looks_like_otel(actual):
         return from_otel(actual)
+
+    # browser-use histories (AgentHistoryList, its dump, or its step list)
+    from toolscore.adapters.browser_use import looks_like_browser_use
+
+    if looks_like_browser_use(actual) or (
+        hasattr(actual, "history")
+        and hasattr(actual, "model_dump")
+        and looks_like_browser_use(_browser_use_data(actual))
+    ):
+        return from_browser_use(actual)
 
     # 2. Pydantic / SDK object → convert to dict first
     if hasattr(actual, "model_dump"):

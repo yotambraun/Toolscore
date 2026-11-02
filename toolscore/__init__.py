@@ -22,6 +22,7 @@ from toolscore.expect import Expectation, expect
 from toolscore.integrations import (
     auto_extract,
     from_anthropic,
+    from_browser_use,
     from_claude_agent_sdk,
     from_crewai,
     from_gemini,
@@ -111,6 +112,7 @@ __all__ = [
     "evaluate_trace",
     "expect",
     "from_anthropic",
+    "from_browser_use",
     "from_claude_agent_sdk",
     "from_crewai",
     "from_gemini",

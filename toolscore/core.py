@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 from toolscore.adapters import (
     AnthropicAdapter,
+    BrowserUseAdapter,
     CustomAdapter,
     GeminiAdapter,
     LangChainAdapter,
@@ -278,6 +279,12 @@ def _add_trace_checks(
     )
 
 
+#: Every trace format name ``load_trace`` and the CLI ``--format`` options accept.
+TRACE_FORMATS = (
+    "auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "browser-use", "custom",
+)  # fmt: skip
+
+
 def load_gold_standard(file_path: str | Path) -> list[ToolCall]:
     """Load gold standard specification from JSON file.
 
@@ -346,7 +353,7 @@ def load_trace(
 
     Args:
         file_path: Path to trace file.
-        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel', 'custom').
+        format: Trace format (one of :data:`TRACE_FORMATS`; 'auto' detects it).
 
     Returns:
         List of tool calls from the trace.
@@ -370,7 +377,7 @@ def adapter_for(data: Any, format: str = "auto") -> BaseAdapter:
 
     Args:
         data: The parsed trace.
-        format: 'auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel' or 'custom'.
+        format: One of :data:`TRACE_FORMATS` ('auto' detects it).
 
     Returns:
         The adapter.
@@ -386,6 +393,7 @@ def adapter_for(data: Any, format: str = "auto") -> BaseAdapter:
         "langchain": LangChainAdapter,
         "custom": CustomAdapter,
         "otel": OTelAdapter,
+        "browser-use": BrowserUseAdapter,
     }
     if format == "auto":
         return _detect_format(data)
@@ -424,6 +432,12 @@ def _detect_format(data: Any) -> BaseAdapter:
         return MCPAdapter()
     if _is_jsonrpc_list(data):
         return MCPAdapter()
+
+    # browser-use AgentHistoryList dumps ({"history": [steps]} or the step list)
+    from toolscore.adapters.browser_use import looks_like_browser_use
+
+    if looks_like_browser_use(data):
+        return BrowserUseAdapter()
 
     # OpenTelemetry GenAI tool spans (OTLP JSON export or a span list)
     if looks_like_otel(data):
@@ -535,7 +549,7 @@ def evaluate_trace(
             (required / optional / forbidden calls and alternatives, see
             :mod:`toolscore.contract`).
         trace_file: Path to agent trace.
-        format: Trace format ('auto', 'openai', 'anthropic', 'gemini', 'mcp', 'langchain', 'otel', 'custom').
+        format: Trace format (one of :data:`TRACE_FORMATS`; 'auto' detects it).
         validate_side_effects: Whether to validate side effects.
         judge: LLM-as-a-judge configuration for semantic evaluation. ``False``
             (default) disables it. ``True`` uses a default ``JudgeConfig()``.

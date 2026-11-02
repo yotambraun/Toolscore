@@ -2,6 +2,7 @@
 
 from toolscore.adapters.anthropic import AnthropicAdapter
 from toolscore.adapters.base import BaseAdapter, ToolCall
+from toolscore.adapters.browser_use import BrowserUseAdapter
 from toolscore.adapters.custom import CustomAdapter
 from toolscore.adapters.gemini import GeminiAdapter
 from toolscore.adapters.langchain import LangChainAdapter
@@ -12,6 +13,7 @@ from toolscore.adapters.otel import OTelAdapter
 __all__ = [
     "AnthropicAdapter",
     "BaseAdapter",
+    "BrowserUseAdapter",
     "CustomAdapter",
     "GeminiAdapter",
     "LangChainAdapter",

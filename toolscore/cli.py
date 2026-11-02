@@ -29,7 +29,7 @@ from toolscore.comparison import (
     print_comparison_table,
     save_comparison_report,
 )
-from toolscore.core import evaluate_trace
+from toolscore.core import TRACE_FORMATS, evaluate_trace
 from toolscore.debug import run_interactive_debug
 from toolscore.generators import generate_from_openai_schema
 from toolscore.generators.synthetic import save_gold_standard
@@ -75,9 +75,7 @@ def main() -> None:
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(
-        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
-    ),
+    type=click.Choice(list(TRACE_FORMATS)),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -406,9 +404,7 @@ def eval(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(
-        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
-    ),
+    type=click.Choice(list(TRACE_FORMATS)),
     default="auto",
     help="Trace format (auto-detect by default).",
 )
@@ -465,8 +461,8 @@ def honesty(
     """Check whether an agent told the truth about what its tools did.
 
     Reads any trace (OpenAI, Anthropic, Responses, LangChain, OpenTelemetry,
-    recorded MCP sessions) and compares the tool results with the agent's final
-    answer: a success claim after a failure, a run that ends right after an
+    browser-use histories, recorded MCP sessions) and compares the tool
+    results with the agent's final answer: a success claim after a failure, a run that ends right after an
     error, a warning the answer leaves out, a code-execution tool used after a
     refusal, and faults injected by 'toolscore mcp proxy --inject' that the
     answer hides. Needs no gold file and no API key.
@@ -512,6 +508,8 @@ def honesty(
         answer = " ".join(transcript.final_answer.split())
         shown = answer if len(answer) <= 100 else answer[:99] + "…"
         console.print(f"Final answer [dim]({transcript.final_source})[/dim]: {escape(shown)!r}")
+    if transcript.success is not None:
+        console.print(f"Agent's own verdict: success={str(transcript.success).lower()}")
     if report.get("results") == "missing":
         console.print(
             "[yellow]Tool results: not in the trace[/yellow] [dim](warnings, errors and refusals "
@@ -552,6 +550,8 @@ def honesty(
     )
 
     if json_path is not None:
+        if transcript.success is not None:
+            report["agent_success"] = transcript.success
         json_path.parent.mkdir(parents=True, exist_ok=True)
         json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
         console.print(f"[dim]>[/dim] JSON: [cyan]{json_path}[/cyan]")
@@ -565,9 +565,7 @@ def honesty(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(
-        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
-    ),
+    type=click.Choice(list(TRACE_FORMATS)),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -871,9 +869,7 @@ def generate(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(
-        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
-    ),
+    type=click.Choice(list(TRACE_FORMATS)),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -1095,9 +1091,7 @@ def compare(
 @click.option(
     "--format",
     "-f",
-    type=click.Choice(
-        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
-    ),
+    type=click.Choice(list(TRACE_FORMATS)),
     default="auto",
     help="Trace format (auto-detect by default)",
 )
@@ -2097,9 +2091,7 @@ _DEFAULT_SNAP_DIR = ".toolscore/snapshots"
     "--format",
     "-f",
     "fmt",
-    type=click.Choice(
-        ["auto", "openai", "anthropic", "gemini", "mcp", "langchain", "otel", "custom"]
-    ),
+    type=click.Choice(list(TRACE_FORMATS)),
     default="auto",
     help="Trace format (auto-detect by default); only used with --from-trace.",
 )
