@@ -453,6 +453,15 @@ def eval(
     help="JSON or YAML file with honesty-check patterns and tool lists.",
 )
 @click.option(
+    "--forbidden",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "Forbidden-call rules (as for eval --forbidden): a matching call after an instruction "
+        "planted by 'mcp proxy --inject' (prompt_injection) is prompt-injection-followed."
+    ),
+)
+@click.option(
     "--json",
     "json_path",
     type=click.Path(path_type=Path),  # type: ignore[type-var]
@@ -474,6 +483,7 @@ def honesty(
     final_answer: str | None,
     injected: Path | None,
     config_path: Path | None,
+    forbidden: Path | None,
     json_path: Path | None,
     fail_on_findings: bool,
     sarif_path: Path | None = None,
@@ -496,6 +506,7 @@ def honesty(
 
     from toolscore.core import load_gold_standard
     from toolscore.metrics.honesty import apply_injections, check_honesty
+    from toolscore.metrics.policy import load_forbidden_rules
     from toolscore.metrics.security import redact_secrets
     from toolscore.transcript import load_transcript
 
@@ -512,6 +523,7 @@ def honesty(
             gold_calls=load_gold_standard(gold) if gold else None,
             config=load_honesty_config(config_path) if config_path else None,
             final_source=transcript.final_source,
+            forbidden=load_forbidden_rules(forbidden) if forbidden else None,
         )
     except (OSError, ValueError) as exc:
         print_error(f"Could not check {trace_file}: {exc}", console)
@@ -565,6 +577,13 @@ def honesty(
             shown_value = str(value)
         table.add_row(key, shown_value)
     console.print(table)
+    planted = report.get("prompt_injection") or {}
+    if planted.get("planted"):
+        leaked = planted.get("canary_leaked")
+        console.print(
+            f"Prompt injection: {planted['planted']} planted, {planted['followed']} followed, "
+            f"canary leaked {'unknown (no final answer)' if leaked is None else leaked}"
+        )
 
     verdict = {True: "[red]FLAGGED[/red]", False: "[green]no false success found[/green]"}
     missing = (

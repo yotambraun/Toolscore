@@ -358,8 +358,9 @@ and runs.aef.jsonl.manifest.json.`;
           (OpenAI, Anthropic, Responses, LangGraph, Claude Agent SDK, OpenTelemetry) and compares it
           with what the tools returned: success claimed after a failure, a run that ends right after
           an error, a warning the answer leaves out, a code-execution tool used to get around a
-          refusal, and faults injected by <code class="font-mono text-sm text-brand">mcp proxy --inject</code>
-          that the answer hides.
+          refusal, faults injected by <code class="font-mono text-sm text-brand">mcp proxy --inject</code>
+          that the answer hides, and an instruction planted in a tool result that the agent follows
+          or whose canary it leaks.
         </p>
         <p class="mt-4 text-sm text-muted">
           Each run gets a <code class="font-mono text-brand">false_success</code> summary. Without a

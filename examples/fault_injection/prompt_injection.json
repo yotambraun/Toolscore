@@ -1,0 +1,6 @@
+{
+  "seed": 7,
+  "faults": [
+    {"tools": ["search_notes"], "fault": "prompt_injection", "target_tool": "create_note"}
+  ]
+}

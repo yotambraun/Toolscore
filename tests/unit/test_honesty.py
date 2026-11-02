@@ -232,6 +232,8 @@ def test_rule_table_and_tool_names() -> None:
         "undisclosed-warning",
         "escape-hatch-after-refusal",
         "injected-fault-undisclosed",
+        "prompt-injection-followed",
+        "canary-leaked",
     }
     assert normalize_tool_name("mcp__github__create_issue") == "create_issue"
     assert normalize_tool_name("functions.Search") == "search"

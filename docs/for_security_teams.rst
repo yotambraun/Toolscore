@@ -82,4 +82,7 @@ Claude Code and Codex CLI sessions are read in place, read-only, and nothing is
 uploaded (:doc:`coding_sessions`). To see how an agent behaves when a tool is
 denied or fails, put ``toolscore mcp proxy --inject faults.json`` in front of a
 server: the session records what was injected, so the honesty checks know the
-ground truth (:doc:`fault_injection`).
+ground truth (:doc:`fault_injection`). The ``prompt_injection`` fault plants an
+instruction and a canary token in a tool result; ``prompt-injection-followed``
+and ``canary-leaked`` report an agent that obeys it, with your forbidden-call
+rules as the list of tools it must not reach.

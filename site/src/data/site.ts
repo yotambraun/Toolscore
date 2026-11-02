@@ -151,7 +151,7 @@ export const features = [
   },
   {
     title: 'Fault injection',
-    body: 'toolscore mcp proxy --inject makes chosen calls fail in front of any stdio server: errors, warnings, timeouts, "permission denied". The session records the ground truth for the honesty checks.',
+    body: 'toolscore mcp proxy --inject makes chosen calls fail in front of any stdio server: errors, warnings, timeouts, "permission denied", or an instruction planted in the result with a canary. The session records the ground truth: the honesty checks flag a hidden failure, a followed instruction and a leaked canary.',
     icon: 'record',
   },
   {
@@ -466,7 +466,7 @@ export const compareJobs: { job: string; reach: string; toolscore: string; self?
   {
     job: 'Red-team an agent or an MCP server with generated attacks',
     reach: 'Promptfoo (MCP provider, MCP red-team plugin)',
-    toolscore: 'Fault injection with fixed, reproducible faults (mcp proxy --inject), not attack generation.',
+    toolscore: 'Fault injection with fixed, reproducible faults (mcp proxy --inject), including one planted instruction with a canary, not attack generation.',
   },
   {
     job: 'Check that a write really happened (write, then read back)',

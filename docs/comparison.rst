@@ -68,7 +68,8 @@ Which tool for which job
    * - Red-team an agent or an MCP server with generated attacks
      - **Promptfoo** (MCP provider and the MCP red-team plugin)
      - Fault injection with fixed, reproducible faults (``mcp proxy --inject``),
-       not attack generation.
+       including one planted instruction with a canary token, not attack
+       generation.
    * - Compare prompts and models over a test matrix in YAML
      - **Promptfoo**
      - Not its job; Toolscore is a pytest plugin, a CLI and a Python API.

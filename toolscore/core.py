@@ -278,6 +278,7 @@ def _add_trace_checks(
         gold_calls=gold_calls,
         config=honesty,
         final_source=final_source,
+        forbidden=forbidden,
     )
 
 
