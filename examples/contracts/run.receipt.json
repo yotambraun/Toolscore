@@ -1,0 +1,40 @@
+{
+  "receipt_version": "1",
+  "kind": "toolscore.evaluation",
+  "created_at": "2026-11-02T01:37:05+00:00",
+  "toolscore_version": "1.11.0",
+  "inputs": {
+    "gold": {
+      "path": "gold.json",
+      "sha256": "05b674ee0738c2e8251743c80e51cfdc1df8f9898c9f2c278914cf34b07b5fff",
+      "bytes": 125
+    },
+    "trace": {
+      "path": "trace.json",
+      "sha256": "bc38bf6fa710eb3f36b584b8be3447d38c0d5438697cb6cb12da7d6eccd0827b",
+      "bytes": 545
+    }
+  },
+  "settings": {
+    "format": "auto",
+    "validate_side_effects": true,
+    "llm_judge": null,
+    "weights": {
+      "selection_accuracy": 0.4,
+      "argument_f1": 0.3,
+      "sequence_accuracy": 0.2,
+      "redundant_rate": 0.1,
+      "required_call_recall": 0.0
+    },
+    "final_answer_sha256": null
+  },
+  "contract_sha256": "96c4cf5810213f4f7ccb087383d09c8756f236a008e9ee986850390445bb9b26",
+  "result": {
+    "score": 0.383333333333,
+    "grade": "F",
+    "required_call_recall": 0.5,
+    "record_schema_version": "2",
+    "record_sha256": "bf39055cf8fe556b0ff8730f56f5d8bc1a4e58518c083ebcbfaed2dd7202d412"
+  },
+  "receipt_sha256": "1eef4329b43f8a7989081aa7f926a7e4d3d7e4ed361b49dc96545e0fd201a68d"
+}

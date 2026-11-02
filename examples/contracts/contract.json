@@ -1,0 +1,17 @@
+{
+  "contract_version": 2,
+  "description": "Book a flight to Lisbon. Checking the weather is fine; cancelling is not.",
+  "required": [
+    {"tool": "search_flights", "args": {"destination": "LIS", "date": {"$regex": "^2026-12-"}}},
+    {
+      "id": "book",
+      "alternatives": [
+        [{"tool": "book_flight", "args": {"flight_id": {"$regex": "^FL-\\d+$"}}}],
+        [{"tool": "reserve_seat", "args": {"flight_id": {"$regex": "^FL-\\d+$"}}}]
+      ]
+    }
+  ],
+  "optional": [{"tool": "get_weather"}],
+  "forbidden": [{"tool": "cancel_booking", "reason": "never cancel an existing booking"}],
+  "min_score": 0.9
+}

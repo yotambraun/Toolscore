@@ -1,0 +1,37 @@
+$ toolscore eval gold.json trace.json -o gold.out.json --receipt run.receipt.json
+
+╭──────────────────────────────╮
+│ Toolscore Evaluation Results │
+╰──────────────────────────────╯
+
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
+┃ Metric             ┃ Score ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
+│ Overall Score      │ 38.3% │
+│ Selection Accuracy │ 33.3% │
+│ Argument F1        │ 50.0% │
+│ Sequence Accuracy  │ 33.3% │
+└────────────────────┴───────┘
+
+╭────────────────────────╮
+│ Grade F   FAIL (38.3%) │
+╰────────────────────────╯
+
+Required calls completed: 1 of 2 (missing or failed; not part of the default score)
+
+Top issues to fix
+  1. get_weather  called `get_weather` where `book_flight` was expected
+     -> Adjust the prompt or tool descriptions so the agent picks `book_flight` here.
+  2. search_flights  `search_flights` called with unexpected arguments (unexpected: date)
+     -> Align the arguments with what's expected, or relax the spec with a matcher like ANY/Regex if
+the value may vary.
+  3. reserve_seat  unexpected extra call to `reserve_seat`
+     -> Remove the redundant call, or add it to the expected spec if it is intended.
+
+Evidence: 5 pass, 1 fail, 0 unknown
+
+Use --verbose for detailed metrics and failure analysis.
+
+> JSON report: gold.out.json
+> Receipt: run.receipt.json
+

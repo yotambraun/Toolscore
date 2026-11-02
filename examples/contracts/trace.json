@@ -1,0 +1,11 @@
+{
+  "final_answer": "Found 3 flights to Lisbon and booked FL-204 for you.",
+  "calls": [
+    {"id": "call_1", "tool": "search_flights", "args": {"destination": "LIS", "date": "2026-12-04"},
+     "result": "[\"FL-204\", \"FL-310\", \"FL-415\"]", "duration": 0.41},
+    {"id": "call_2", "tool": "get_weather", "args": {"city": "Lisbon"},
+     "result": "18C, sunny", "duration": 0.12},
+    {"id": "call_3", "tool": "reserve_seat", "args": {"flight_id": "FL-204", "seat": "auto"},
+     "result": "reserved FL-204 seat 14C", "duration": 0.33}
+  ]
+}

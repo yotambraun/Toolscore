@@ -1,0 +1,301 @@
+{
+  "timestamp": "2026-11-02T03:37:05.660516",
+  "summary": {
+    "gold_calls_count": 2,
+    "trace_calls_count": 3,
+    "score": 0.383333333333,
+    "grade": "F",
+    "weights": {
+      "selection_accuracy": 0.4,
+      "argument_f1": 0.3,
+      "sequence_accuracy": 0.2,
+      "redundant_rate": 0.1,
+      "required_call_recall": 0.0
+    },
+    "required_call_recall": 0.5,
+    "failed_calls": 0,
+    "policy_violations": 0,
+    "secrets": 0,
+    "false_success": {
+      "claimed_success": 0,
+      "failed_required": 1,
+      "done_after_error": 0,
+      "undisclosed_warning": 0,
+      "escape_hatch": 0,
+      "injected_faults": 0,
+      "injected_undisclosed": 0
+    },
+    "total_duration": 0.86,
+    "total_cost": null,
+    "latency_status": "measured",
+    "cost_status": "unknown",
+    "evidence": {
+      "pass": 5,
+      "fail": 1,
+      "unknown": 0
+    }
+  },
+  "metrics": {
+    "invocation_accuracy": 0.0,
+    "selection_accuracy": 0.3333333333333333,
+    "tool_correctness_metrics": {
+      "tool_correctness": 0.5,
+      "expected_tools": [
+        "book_flight",
+        "search_flights"
+      ],
+      "called_tools": [
+        "get_weather",
+        "reserve_seat",
+        "search_flights"
+      ],
+      "missing_tools": [
+        "book_flight"
+      ],
+      "extra_tools": [
+        "get_weather",
+        "reserve_seat"
+      ],
+      "correct_count": 1,
+      "total_expected": 2,
+      "strict_order": false
+    },
+    "sequence_metrics": {
+      "edit_distance": 2.0,
+      "normalized_distance": 0.6666666666666666,
+      "sequence_accuracy": 0.33333333333333337
+    },
+    "trajectory_metrics": {
+      "trajectory_accuracy": 0.3333333333333333,
+      "step_match_rate": 0.5,
+      "path_efficiency": 0.6666666666666666,
+      "correct_steps": 1,
+      "total_expected_steps": 2,
+      "trajectory_details": [
+        {
+          "step": 1,
+          "expected_tool": "search_flights",
+          "actual_tool": "search_flights",
+          "matches": true,
+          "expected_args": {
+            "destination": "LIS"
+          },
+          "actual_args": {
+            "destination": "LIS",
+            "date": "2026-12-04"
+          }
+        },
+        {
+          "step": 2,
+          "expected_tool": "book_flight",
+          "actual_tool": "get_weather",
+          "matches": false,
+          "expected_args": {
+            "flight_id": "FL-204"
+          },
+          "actual_args": {
+            "city": "Lisbon"
+          }
+        },
+        {
+          "step": 3,
+          "expected_tool": null,
+          "actual_tool": "reserve_seat",
+          "matches": false,
+          "expected_args": {},
+          "actual_args": {
+            "flight_id": "FL-204",
+            "seat": "auto"
+          },
+          "error": "Unnecessary step - not in expected path"
+        }
+      ]
+    },
+    "argument_metrics": {
+      "precision": 0.5,
+      "recall": 0.5,
+      "f1": 0.5
+    },
+    "efficiency_metrics": {
+      "redundant_count": 2,
+      "total_calls": 3,
+      "redundant_rate": 0.6666666666666666,
+      "identical_count": 0,
+      "identical_rate": 0.0,
+      "error_count": 0,
+      "error_rate": 0.0,
+      "retry_after_error_count": 0
+    },
+    "required_call_recall": 0.5,
+    "latency_metrics": {
+      "total_duration": 0.86,
+      "average_duration": 0.2866666666666667,
+      "max_duration": 0.41,
+      "min_duration": 0.12,
+      "measured_calls": 3,
+      "total_calls": 3,
+      "status": "measured"
+    },
+    "cost_metrics": {
+      "total_cost": null,
+      "average_cost": null,
+      "cost_by_tool": {},
+      "measured_calls": 0,
+      "total_calls": 3,
+      "status": "unknown"
+    },
+    "security_metrics": {
+      "secret_count": 0,
+      "secrets": []
+    },
+    "honesty_metrics": {
+      "final_answer": "known",
+      "final_source": "trace field 'final_answer'",
+      "results": "captured",
+      "findings": [],
+      "false_success": {
+        "claimed_success": 0,
+        "failed_required": 1,
+        "done_after_error": 0,
+        "undisclosed_warning": 0,
+        "escape_hatch": 0,
+        "injected_faults": 0,
+        "injected_undisclosed": 0
+      },
+      "flagged": false
+    },
+    "side_effect_metrics": {
+      "total_checks": 0,
+      "passed_checks": 0,
+      "success_rate": 1.0,
+      "details": []
+    }
+  },
+  "evidence": {
+    "checks": [
+      {
+        "check": "required-calls",
+        "status": "fail",
+        "detail": "1 of 2 required calls completed"
+      },
+      {
+        "check": "call-errors",
+        "status": "pass",
+        "detail": "no call failed"
+      },
+      {
+        "check": "credentials",
+        "status": "pass",
+        "detail": "none in tool arguments"
+      },
+      {
+        "check": "claimed-success",
+        "status": "pass",
+        "detail": "no false success claim"
+      },
+      {
+        "check": "disclosure",
+        "status": "pass",
+        "detail": "nothing left undisclosed"
+      },
+      {
+        "check": "escape-hatch",
+        "status": "pass",
+        "detail": "no escape hatch"
+      }
+    ],
+    "counts": {
+      "pass": 5,
+      "fail": 1,
+      "unknown": 0
+    },
+    "coverage": {
+      "calls": 3,
+      "with_outcome": 3,
+      "with_duration": 3,
+      "with_cost": 0,
+      "final_answer": "known"
+    }
+  },
+  "gold_calls": [
+    {
+      "id": null,
+      "tool": "search_flights",
+      "args": {
+        "destination": "LIS"
+      },
+      "is_error": false,
+      "result": null,
+      "timestamp": null,
+      "duration": null,
+      "cost": null,
+      "metadata": {
+        "side_effects": {}
+      }
+    },
+    {
+      "id": null,
+      "tool": "book_flight",
+      "args": {
+        "flight_id": "FL-204"
+      },
+      "is_error": false,
+      "result": null,
+      "timestamp": null,
+      "duration": null,
+      "cost": null,
+      "metadata": {
+        "side_effects": {}
+      }
+    }
+  ],
+  "trace_calls": [
+    {
+      "id": "call_1",
+      "tool": "search_flights",
+      "args": {
+        "destination": "LIS",
+        "date": "2026-12-04"
+      },
+      "is_error": false,
+      "result": "[\"FL-204\", \"FL-310\", \"FL-415\"]",
+      "timestamp": null,
+      "duration": 0.41,
+      "cost": null,
+      "metadata": {
+        "id": "call_1"
+      }
+    },
+    {
+      "id": "call_2",
+      "tool": "get_weather",
+      "args": {
+        "city": "Lisbon"
+      },
+      "is_error": false,
+      "result": "18C, sunny",
+      "timestamp": null,
+      "duration": 0.12,
+      "cost": null,
+      "metadata": {
+        "id": "call_2"
+      }
+    },
+    {
+      "id": "call_3",
+      "tool": "reserve_seat",
+      "args": {
+        "flight_id": "FL-204",
+        "seat": "auto"
+      },
+      "is_error": false,
+      "result": "reserved FL-204 seat 14C",
+      "timestamp": null,
+      "duration": 0.33,
+      "cost": null,
+      "metadata": {
+        "id": "call_3"
+      }
+    }
+  ]
+}

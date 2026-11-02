@@ -47,6 +47,11 @@ Run any of them with:
 uv run python examples/<file>.py     # or: python examples/<file>.py
 ```
 
+### Rigor: agents, pinning, contracts, receipts and runs
+- **agent_harness/** - `toolscore agent run` on an offline spec (scripted provider, a guard that refuses deletes, two arms), then `toolscore compare --runs` with a pre-declared `protocol.yaml`, `toolscore select`, `toolscore export --format aef` and `toolscore doctor`, all with real output; plus `memory-anthropic.yaml`, a real-model spec that **costs money** (not run).
+- **pinning/** - `toolscore mcp pin` / `verify-pin` catching a poisoned description and a new shell tool (offline), and the official memory server's `2026.8.31` vs `2.0.1` with `mcp verify-pin` and `mcp diff` (needs Node.js).
+- **contracts/** - a contract with an optional call, a forbidden call and alternatives, against the gold file it replaces, and `toolscore regrade` of a receipt (offline).
+
 ### GitHub Actions
 - **github_actions/** - workflows for evaluation, regression, quality gates, and `mcp-badge.yml`, which keeps an "MCP grade" badge in your README current
 

@@ -1,0 +1,8 @@
+$ toolscore regrade run.receipt.json --gold contract.json
+                     Regrade                     
+┏━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━┓
+┃ Source           ┃  Before ┃   After ┃ Change ┃
+┡━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━┩
+│ run.receipt.json │ 38.3% F │ 95.7% A │ +57.4% │
+└──────────────────┴─────────┴─────────┴────────┘
+Nothing was re-run: same traces, new contract or weights.

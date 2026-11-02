@@ -1,0 +1,4 @@
+[
+  {"tool": "search_flights", "args": {"destination": "LIS"}},
+  {"tool": "book_flight", "args": {"flight_id": "FL-204"}}
+]

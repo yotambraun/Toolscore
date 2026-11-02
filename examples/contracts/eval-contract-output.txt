@@ -1,0 +1,30 @@
+$ toolscore eval contract.json trace.json -o contract.out.json
+
+╭──────────────────────────────╮
+│ Toolscore Evaluation Results │
+╰──────────────────────────────╯
+
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ Metric             ┃  Score ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ Overall Score      │  95.7% │
+│ Selection Accuracy │ 100.0% │
+│ Argument F1        │  85.7% │
+│ Sequence Accuracy  │ 100.0% │
+└────────────────────┴────────┘
+
+╭────────────────────────╮
+│ Grade A   PASS (95.7%) │
+╰────────────────────────╯
+
+Top issues to fix
+  1. reserve_seat  `reserve_seat` called with unexpected arguments (unexpected: seat)
+     -> Align the arguments with what's expected, or relax the spec with a matcher like ANY/Regex if
+the value may vary.
+
+Evidence: 7 pass, 0 fail, 0 unknown
+
+Use --verbose for detailed metrics and failure analysis.
+
+> JSON report: contract.out.json
+
