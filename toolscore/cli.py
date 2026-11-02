@@ -857,7 +857,7 @@ def generate(
 
 
 @main.command()
-@click.argument("gold_file", type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
+@click.argument("gold_file", required=False, type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
 @click.argument("trace_files", nargs=-1, type=click.Path(exists=True, path_type=Path))  # type: ignore[type-var]
 @click.option(
     "--names",
@@ -888,31 +888,120 @@ def generate(
     default=False,
     help="Verbose output",
 )
+@click.option(
+    "--runs",
+    "runs_files",
+    multiple=True,
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    help=(
+        "Repeated runs: a JSONL file (toolscore agent run output or an export), repeatable. "
+        "Switches to the statistics view (N, Wilson intervals, Fisher test, pass^k)."
+    ),
+)
+@click.option(
+    "--variant",
+    "variants",
+    multiple=True,
+    metavar="NAME=DIR",
+    help="Repeated runs: a directory of traces for one variant, scored against GOLD_FILE.",
+)
+@click.option(
+    "--variant-key", default=None, help="JSONL field naming the variant (default arm_id)."
+)
+@click.option("--k", "k", type=int, default=1, show_default=True, help="k of pass^k (runs mode).")
+@click.option(
+    "--baseline", default=None, help="Runs mode: compare every variant with this one only."
+)
+@click.option(
+    "--min-n",
+    type=int,
+    default=10,
+    show_default=True,
+    help="Runs mode: runs per variant before a difference can be called distinguishable.",
+)
+@click.option(
+    "--alpha", type=float, default=0.05, show_default=True, help="Runs mode: Fisher test level."
+)
+@click.option(
+    "--min-score",
+    type=float,
+    default=0.9,
+    show_default=True,
+    help="Runs mode with --variant: the score a trace needs to pass.",
+)
+@click.option(
+    "--protocol",
+    type=click.Path(exists=True, path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help=(
+        "Runs mode: decision rules declared before the runs (YAML/JSON); evaluated and "
+        "reported, exit 1 when the decision is reject."
+    ),
+)
+@click.option(
+    "--json",
+    "json_out",
+    type=click.Path(path_type=Path),  # type: ignore[type-var]
+    default=None,
+    help="Runs mode: write the statistics as JSON.",
+)
 def compare(
-    gold_file: Path,
+    gold_file: Path | None,
     trace_files: tuple[Path, ...],
     names: tuple[str, ...],
     format: str,
     output: Path,
     verbose: bool,
+    runs_files: tuple[Path, ...],
+    variants: tuple[str, ...],
+    variant_key: str | None,
+    k: int,
+    baseline: str | None,
+    min_n: int,
+    alpha: float,
+    min_score: float,
+    protocol: Path | None,
+    json_out: Path | None,
 ) -> None:
-    """Compare multiple model traces against gold standard.
+    """Compare models or variants.
 
-    Evaluates multiple traces and displays a side-by-side comparison table
-    showing which model performs best on each metric.
+    One trace per model: GOLD_FILE TRACE_FILES... prints a side-by-side
+    table of every metric.
 
-    GOLD_FILE: Path to gold standard specification
+    Repeated runs per variant (--runs runs.jsonl, or GOLD_FILE with
+    --variant NAME=DIR): per-variant N, pass/fail/error/unknown counts (errored
+    runs stay in the denominator), pass rates with 95% Wilson intervals,
+    pass^k per task, two-sided Fisher exact tests, and "not distinguishable"
+    when the intervals overlap or N is too small. --protocol evaluates
+    pre-declared decision rules.
 
-    TRACE_FILES: Paths to trace files from different models
-
-    Example:
+    Examples:
 
         toolscore compare gold.json gpt4_trace.json claude_trace.json \\
             -n gpt-6-luna -n claude-haiku-5-5 -o comparison.json
+
+        toolscore compare --runs runs.jsonl --k 3 --protocol protocol.yaml
     """
+    if runs_files or variants:
+        from toolscore.commands.stats import run_compare
+
+        run_compare(
+            runs_files,
+            variants,
+            gold_file,
+            variant_key,
+            k,
+            baseline,
+            min_n,
+            alpha,
+            min_score,
+            protocol,
+            json_out,
+        )
+        return
     console = Console()
 
-    if not trace_files:
+    if gold_file is None or not trace_files:
         print_error("At least one trace file is required", console)
         sys.exit(1)
 
