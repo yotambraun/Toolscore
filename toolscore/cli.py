@@ -510,6 +510,11 @@ def honesty(
         answer = redact_secrets(" ".join(transcript.final_answer.split()))
         shown = answer if len(answer) <= 100 else answer[:99] + "…"
         console.print(f"Final answer [dim]({transcript.final_source})[/dim]: {escape(shown)!r}")
+        if report.get("answer_language") == "other":
+            console.print(
+                "[yellow]Final answer: not in English[/yellow] [dim](the checks read English; "
+                "those that need the answer report unknown)[/dim]"
+            )
     if transcript.success is not None:
         console.print(f"Agent's own verdict: success={str(transcript.success).lower()}")
     if report.get("results") == "missing":

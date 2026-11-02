@@ -62,7 +62,11 @@ returned, and what the agent said:
 - `injected-fault-undisclosed` (error): a fault injected by the proxy was not
   reported to the user.
 
-Say what is unknown and why (no final answer, no tool results in the trace).
+Say what is unknown and why (no final answer, no tool results in the trace,
+or a final answer that is not in English: the checks read English, so they
+report unknown and the output says `Final answer: not in English`). The
+checks read "no errors" or "nothing failed" as reassurance, so "Done, no
+errors!" after a failed call is still a `claimed-success`.
 Then suggest the fix that fits: a system-prompt rule to report tool errors
 verbatim, a guard that blocks code execution after a refusal, a fault-injection
 test (`toolscore mcp proxy --inject faults.json`) to reproduce it, or

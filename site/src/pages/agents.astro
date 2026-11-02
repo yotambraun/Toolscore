@@ -363,9 +363,12 @@ and runs.aef.jsonl.manifest.json.`;
         </p>
         <p class="mt-4 text-sm text-muted">
           Each run gets a <code class="font-mono text-brand">false_success</code> summary. Without a
-          final answer the checks report <em>unknown</em>, never pass.
+          final answer, or with one that is not in English, the checks report <em>unknown</em>, never
+          pass. &ldquo;Done, no errors!&rdquo; after a failed call is still a false success claim: a
+          negated problem word is reassurance, not a disclosure.
           <code class="font-mono text-brand">--fail-on-honesty</code> turns error findings into a CI gate.
-          Deterministic patterns, not a model: the guide lists what they can and cannot see.
+          Deterministic patterns, not a model: the guide lists what they can and cannot see, with
+          their measured precision and recall on a labelled set of answers.
         </p>
         <p class="mt-4 text-sm">
           <a class="text-brand hover:underline" href={`${site.docs}honesty_checks.html`} target="_blank" rel="noopener">Honesty checks guide →</a>
