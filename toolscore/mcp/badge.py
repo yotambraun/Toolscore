@@ -3,7 +3,8 @@
 ``toolscore mcp test SERVER --badge mcp-grade.svg`` writes a self-contained SVG
 badge, and ``--badge-json mcp-grade.json`` a `shields.io endpoint`_ JSON file.
 Both are produced from the scorecard of that run; there is no way to pass a
-grade in by hand.
+grade in by hand. A grade capped by a failed effect probe reads
+``C (capped) · Toolscore``, and the SVG's title says why.
 
 .. _shields.io endpoint: https://shields.io/badges/endpoint-badge
 """
@@ -45,27 +46,30 @@ def _text_width(text: str) -> int:
     return round(width)
 
 
-def badge_message(grade: str) -> str:
-    """The right half of the badge, e.g. ``"A · Toolscore"``."""
-    return f"{grade} · Toolscore"
+def badge_message(grade: str, capped: bool = False) -> str:
+    """The right half of the badge, e.g. ``"A · Toolscore"`` or ``"C (capped) · Toolscore"``."""
+    return f"{grade} (capped) · Toolscore" if capped else f"{grade} · Toolscore"
 
 
-def badge_svg(grade: str) -> str:
+def badge_svg(grade: str, cap_note: str = "") -> str:
     """Render the grade as a flat, shields.io-style SVG badge.
 
     Args:
         grade: The scorecard grade (``A``-``F``).
+        cap_note: :attr:`~toolscore.mcp.scorecard.MCPScorecard.grade_cap_note`
+            when the grade is capped (``"capped because: ..."``); it marks the
+            badge "(capped)" and goes in the SVG title.
 
     Returns:
         The SVG document.
     """
     _, color = GRADE_COLORS.get(grade.upper(), ("lightgrey", "#9f9f9f"))
-    message = badge_message(grade.upper())
+    message = badge_message(grade.upper(), capped=bool(cap_note))
     label_text, message_text = escape(LABEL), escape(message)
     label_w = _text_width(LABEL) + 10
     message_w = _text_width(message) + 10
     total = label_w + message_w
-    title = f"{label_text}: {message_text}"
+    title = f"{label_text}: {message_text}" + (f" ({escape(cap_note)})" if cap_note else "")
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{total}" height="20" role="img" '
         f'aria-label="{title}">'
@@ -90,11 +94,12 @@ def badge_svg(grade: str) -> str:
     )
 
 
-def badge_endpoint(grade: str) -> dict[str, Any]:
+def badge_endpoint(grade: str, cap_note: str = "") -> dict[str, Any]:
     """The shields.io endpoint JSON for the grade.
 
     Args:
         grade: The scorecard grade (``A``-``F``).
+        cap_note: The cap note when the grade is capped (see :func:`badge_svg`).
 
     Returns:
         ``{"schemaVersion": 1, "label": ..., "message": ..., "color": ...}``.
@@ -103,6 +108,6 @@ def badge_endpoint(grade: str) -> dict[str, Any]:
     return {
         "schemaVersion": 1,
         "label": LABEL,
-        "message": badge_message(grade.upper()),
+        "message": badge_message(grade.upper(), capped=bool(cap_note)),
         "color": named,
     }

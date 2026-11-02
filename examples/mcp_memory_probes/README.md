@@ -34,6 +34,6 @@ Full console output: [`output-2026.8.31.txt`](output-2026.8.31.txt) and [`output
 
 `add_observations` (both versions) and `create_relations` (2.0.1) were **inconclusive**: they need an entity that already exists, and the probe's generated names do not. Declare values with `--arg` or a probe config to cover them.
 
-The grade: 2026.8.31 scores 93% (A) with the failing probe, from 100% without probes. A tool with a high-confidence probe failure costs as much as a tool that fails all of its happy paths (0.6 divided by the 9 tools). `toolscore mcp test --ci` fails the run on it.
+The grade: 2026.8.31 scores 93% with the failing probe, from 100% without probes. A tool with a high-confidence probe failure costs as much as a tool that fails all of its happy paths (0.6 divided by the 9 tools), which alone would still be an A, so a high-confidence probe failure also caps the grade at C: the header reads `Grade C   Score 93%` and `Grade A by score, capped because: probe-silent-noop on create_entities` (rerun on 2026-11-02 with the cap; `--no-probe-grade-cap` shows the uncapped A). `toolscore mcp test --ci` fails the run on it.
 
 `#4885` (unreadable lines in the graph file deleted by the next write) needs a corrupted file before the write, which a probe cannot create through the server's tools, so it is not covered here.

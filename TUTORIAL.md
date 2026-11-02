@@ -734,7 +734,7 @@ $ toolscore mcp test "python -m toolscore.mcp.sample_server --bug silent-skip" -
 
 Round trips write values carrying a unique marker, read them back through the server's read tools, write again with the same key and new values (`probe-silent-noop` if success is reported and nothing changes, unless the result says it skipped), and check an earlier record survives a later write (`probe-data-lost`). Built-in bounds check that `head`/`tail`/`limit`-like parameters of read-only tools return the right number of lines or items (`probe-bound-exceeded`, `probe-bound-short`, `probe-slice-mismatch`). A probe config declares pairs, bounds, two-path agreements and idempotent calls (see `examples/probes/notes-probes.yaml`).
 
-Only **high-confidence** failures (declared, or seen through a read tool that already showed the record) lower the grade, by as much as a tool failing all its happy paths; heuristics only warn. On the official memory server, `server-memory@2026.8.31` gets `probe-silent-noop` on `create_entities` (#4887) and `2.0.1` passes ([example](examples/mcp_memory_probes/)). Write probes leave marker records: use a disposable server.
+Only **high-confidence** failures (declared, or seen through a read tool that already showed the record) lower the score by as much as a tool failing all its happy paths, and cap the grade at C (`Grade A by score, capped because: probe-silent-noop on create_entities`; `--no-probe-grade-cap` turns the cap off); heuristics only warn. On the official memory server, `server-memory@2026.8.31` gets `probe-silent-noop` on `create_entities` (#4887) and `2.0.1` passes ([example](examples/mcp_memory_probes/)). Write probes leave marker records: use a disposable server.
 
 ### Fault Injection
 

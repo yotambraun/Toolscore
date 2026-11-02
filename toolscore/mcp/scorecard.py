@@ -36,6 +36,16 @@ so a run whose probes all pass, or that ran no probes, scores exactly as before.
 Medium- and low-confidence probe findings are warnings and never change the
 score.
 
+Grade cap
+---------
+A tool that reports success and does nothing is a correctness bug, whatever the
+other tools do. On a server with many tools the score penalty above is small
+(``0.6 / 9`` on the official memory server, which still scored 93%), so any
+high-confidence probe failure also **caps the letter grade at C**
+(:data:`PROBE_GRADE_CAP`). The score is unchanged; the grade, the badge and every
+report say ``capped because: probe-silent-noop on create_entities``. Turn the
+cap off with ``probe_grade_cap=False`` (``--no-probe-grade-cap``).
+
 Letter grades follow the usual bands: ``>= 0.9`` → A, ``>= 0.8`` → B,
 ``>= 0.7`` → C, ``>= 0.6`` → D, otherwise F. All rates guard against division by
 zero, so a server with zero scenarios still scores cleanly.
@@ -61,6 +71,9 @@ from toolscore.mcp.harness import (
     tool_definition_tokens,
 )
 from toolscore.verdict import GRADE_ORDER, FixSuggestion, letter_grade
+
+#: The best grade a server with a high-confidence effect-probe failure can get.
+PROBE_GRADE_CAP = "C"
 
 if TYPE_CHECKING:
     from toolscore.mcp.client import MCPClient, MCPToolDef
@@ -107,6 +120,8 @@ class MCPScorecard:
             (``initialize`` handshake), if known.
         probes: Effect-probe results, or ``None`` when probes did not run
             (see :mod:`toolscore.mcp.probes`).
+        probe_grade_cap: Cap the grade at :data:`PROBE_GRADE_CAP` when a
+            high-confidence probe failed (the default). The score is unchanged.
     """
 
     server_info: dict[str, Any]
@@ -117,6 +132,7 @@ class MCPScorecard:
     protocol_version: str | None = None
     era: str | None = None
     probes: list[ProbeResult] | None = None
+    probe_grade_cap: bool = True
 
     # -- component rates ---------------------------------------------------
 
@@ -207,9 +223,42 @@ class MCPScorecard:
         return max(0.0, base - _WEIGHT_HAPPY * failed / max(len(self.tools), 1))
 
     @property
-    def grade(self) -> str:
-        """The letter grade (``"A"`` … ``"F"``) for :attr:`score`."""
+    def uncapped_grade(self) -> str:
+        """The letter grade the score alone earns (before any cap)."""
         return letter_grade(self.score)
+
+    @property
+    def grade_cap_reasons(self) -> list[str]:
+        """Why the grade is capped, e.g. ``["probe-silent-noop on create_entities"]``.
+
+        Empty when the cap is off, no high-confidence probe failed, or the score
+        already earns :data:`PROBE_GRADE_CAP` or worse.
+        """
+        if not self.probe_grade_cap or grade_meets(PROBE_GRADE_CAP, self.uncapped_grade):
+            return []
+        reasons: list[str] = []
+        for probe in self.probes or []:
+            if probe.severity == "error":
+                reason = f"{probe.rule} on {probe.tool}"
+                if reason not in reasons:
+                    reasons.append(reason)
+        return reasons
+
+    @property
+    def grade_capped(self) -> bool:
+        """Whether :attr:`grade` is lower than :attr:`uncapped_grade` because of the cap."""
+        return bool(self.grade_cap_reasons)
+
+    @property
+    def grade_cap_note(self) -> str:
+        """``"capped because: probe-silent-noop on create_entities"``, or ``""``."""
+        reasons = self.grade_cap_reasons
+        return f"capped because: {', '.join(reasons)}" if reasons else ""
+
+    @property
+    def grade(self) -> str:
+        """The letter grade (``"A"`` … ``"F"``) for :attr:`score`, after the probe cap."""
+        return PROBE_GRADE_CAP if self.grade_capped else self.uncapped_grade
 
     @property
     def total_tool_tokens(self) -> int:
@@ -238,6 +287,7 @@ def score_server(
     fixtures: ArgumentFixtures | None = None,
     probes: ProbeConfig | bool | None = None,
     allow_writes: bool = False,
+    probe_grade_cap: bool = True,
 ) -> MCPScorecard:
     """Run the full scorecard against a started client.
 
@@ -254,6 +304,8 @@ def score_server(
             :class:`~toolscore.mcp.probes.ProbeConfig`. ``None``/``False`` skips them.
         allow_writes: Let probes call write tools (round trips). Writes leave
             marker records on the server.
+        probe_grade_cap: Cap the grade at C when a high-confidence probe
+            fails (see the module docstring).
 
     Returns:
         The scorecard.
@@ -285,6 +337,7 @@ def score_server(
         protocol_version=client.protocol_version,
         era=client.era,
         probes=probe_results,
+        probe_grade_cap=probe_grade_cap,
     )
 
 
@@ -470,6 +523,10 @@ def print_scorecard(card: MCPScorecard, console: Console | None = None) -> None:
     header.append("Grade ", style="dim")
     header.append(card.grade, style=f"bold {color}")
     header.append(f"   Score {card.score:.0%}\n", style="dim")
+    if card.grade_capped:
+        header.append(
+            f"Grade {card.uncapped_grade} by score, {card.grade_cap_note}\n", style="bold red"
+        )
     header.append(
         f"happy {card.happy_pass_rate:.0%}  |  "
         f"edge {card.edge_resilience_rate:.0%}  |  "
@@ -612,6 +669,12 @@ def scorecard_to_markdown(card: MCPScorecard) -> str:
     lines.append(f"# MCP Scorecard: {title}")
     lines.append("")
     lines.append(f"**Grade: {card.grade}** &middot; Score {card.score:.0%}")
+    if card.grade_capped:
+        lines.append("")
+        lines.append(
+            f"**Grade {card.uncapped_grade} by score, {card.grade_cap_note}** "
+            f"(a tool reported success and did not do it)."
+        )
     lines.append("")
     lines.append(
         f"- Happy-path pass rate: {card.happy_pass_rate:.0%}\n"
@@ -695,6 +758,14 @@ def scorecard_to_json(card: MCPScorecard) -> dict[str, Any]:
         },
         "grade": card.grade,
         "score": card.score,
+        "grade_cap": {
+            "enabled": card.probe_grade_cap,
+            "capped": card.grade_capped,
+            "cap": PROBE_GRADE_CAP,
+            "uncapped_grade": card.uncapped_grade,
+            "reasons": card.grade_cap_reasons,
+            "note": card.grade_cap_note,
+        },
         "protocol": {"version": card.protocol_version, "era": card.era},
         "total_tool_tokens": card.total_tool_tokens,
         "instructions_tokens": card.instructions_tokens,

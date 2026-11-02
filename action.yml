@@ -89,6 +89,10 @@ inputs:
     description: 'Path to a JSON or YAML file of argument values the server accepts (for servers limited to allowed roots), used by the scenarios and the probes.'
     required: false
     default: ''
+  mcp-probe-grade-cap:
+    description: 'Cap the grade at C when a high-confidence effect probe fails (a tool reported success and did not do it). The score is the same either way. Set to false for the uncapped grade.'
+    required: false
+    default: 'true'
   toolscore-version:
     description: 'tool-scorer version to install from PyPI (e.g. "1.11.0"). Empty (the default) installs the version of this action itself, so a pinned action tag runs the matching Toolscore.'
     required: false
@@ -168,6 +172,7 @@ runs:
         INPUT_MCP_ALLOW_WRITES: ${{ inputs.mcp-allow-writes }}
         INPUT_MCP_PROBE_CONFIG: ${{ inputs.mcp-probe-config }}
         INPUT_MCP_ARGS_FILE: ${{ inputs.mcp-args-file }}
+        INPUT_MCP_PROBE_GRADE_CAP: ${{ inputs.mcp-probe-grade-cap }}
       run: |
         echo "Running Toolscore MCP scorecard for: $INPUT_MCP_COMMAND"
         FLAGS=(--fail-under "$INPUT_MCP_FAIL_UNDER" --ci --report json -o toolscore-mcp.json)
@@ -178,6 +183,7 @@ runs:
         if [ "$INPUT_MCP_ALLOW_WRITES" = "true" ]; then FLAGS+=(--allow-writes); fi
         if [ -n "$INPUT_MCP_PROBE_CONFIG" ]; then FLAGS+=(--probe-config "$INPUT_MCP_PROBE_CONFIG"); fi
         if [ -n "$INPUT_MCP_ARGS_FILE" ]; then FLAGS+=(--args-file "$INPUT_MCP_ARGS_FILE"); fi
+        if [ "$INPUT_MCP_PROBE_GRADE_CAP" = "false" ]; then FLAGS+=(--no-probe-grade-cap); fi
         STATUS=0
         toolscore mcp test "$INPUT_MCP_COMMAND" "${FLAGS[@]}" || STATUS=$?
         if [ -f toolscore-mcp.json ]; then

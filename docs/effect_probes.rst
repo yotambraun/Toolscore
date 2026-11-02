@@ -157,7 +157,8 @@ and how sure that is:
 Confidence  When                                                              A failure is
 ==========  ================================================================  ==================
 high        declared in a probe config, or the read tool already showed       an error; lowers
-            this record (steps 3 and 4 above)                                 the grade
+            this record (steps 3 and 4 above)                                 the score, caps
+                                                                              the grade at C
 medium      inferred from names: a built-in bound, a read tool sharing a      a warning
             noun with the write tool
 low         any other read tool; a built-in ``limit`` counted in text lines   a warning
@@ -171,6 +172,35 @@ failure costs as much as a tool that fails all of its happy paths::
 so a run whose probes all pass scores exactly as without probes. The header
 shows ``effect`` (the share of high-confidence checks that passed, ``n/a`` when
 there were none), and ``--ci`` treats a high-confidence failure as blocking.
+
+The grade cap
+~~~~~~~~~~~~~
+
+On a server with many tools that penalty is small: the official memory server
+has 9 tools, so ``probe-silent-noop`` on ``create_entities`` costs ``0.6 / 9``
+and ``server-memory@2026.8.31`` still scored 93%. A tool that reports success
+and does nothing is a correctness bug, not a style issue, so any high-confidence
+probe failure also **caps the letter grade at C**. The score is unchanged; the
+grade, the badge (``C (capped) · Toolscore``, with the reason in its title) and
+every report say why:
+
+.. code-block:: text
+
+   ╭────────────────────────────────────────────────────────────────────────╮
+   │ MCP Scorecard: memory-server 0.6.3                                     │
+   │ Grade C   Score 93%                                                    │
+   │ Grade A by score, capped because: probe-silent-noop on create_entities │
+   │ happy 100%  |  edge 100%  |  lint 100%  |  effect 50%                  │
+   │ MCP 2025-11-25 (initialize handshake)                                  │
+   ╰────────────────────────────────────────────────────────────────────────╯
+
+The JSON report has ``grade_cap`` (``enabled``, ``capped``, ``cap``,
+``uncapped_grade``, ``reasons``, ``note``). ``--fail-under`` and the Action's
+``mcp-grade`` output use the capped grade. ``--no-probe-grade-cap``
+(``score_server(..., probe_grade_cap=False)``, Action input
+``mcp-probe-grade-cap: false``) restores the grade the score alone earns. A
+grade that is already C or worse is not marked capped, and warnings
+(medium/low confidence) never cap.
 
 Probe rules
 ~~~~~~~~~~~

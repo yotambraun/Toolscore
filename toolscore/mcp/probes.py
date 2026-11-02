@@ -39,7 +39,8 @@ two-path agreements (``probe-paths-disagree``: ``search`` results missing from
 different results).
 
 Confidence decides what a failure does. ``high`` (declared in the config, or a
-read tool that has already shown this record) is an error and lowers the grade.
+read tool that has already shown this record) is an error: it lowers the score
+and caps the grade at C (see :mod:`toolscore.mcp.scorecard`).
 ``medium`` (inferred from names, such as a ``limit`` parameter or a read tool
 that shares a word with the write tool) and ``low`` (any other read tool) are
 warnings that never change the grade. Every result says how the pairing or the

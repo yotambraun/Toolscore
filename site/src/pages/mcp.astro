@@ -238,7 +238,8 @@ const scorecardMd = `# MCP Scorecard: notes-server 1.1.0
         </p>
         <p class="mt-4 text-sm text-muted">
           Only high-confidence failures (declared in a probe config, or seen through a read tool that
-          already showed the record) lower the grade; heuristics only warn, and every result says how
+          already showed the record) lower the score and cap the grade at C, so a tool that reports
+          success and does nothing never ships with an A; heuristics only warn, and every result says how
           its read tool was chosen. On the official filesystem server (2.1.0), the built-in bounds flag
           <code class="font-mono text-brand">head: 0</code> and <code class="font-mono text-brand">tail: 0</code>
           returning the whole file. Write probes leave marker records: use a disposable server.

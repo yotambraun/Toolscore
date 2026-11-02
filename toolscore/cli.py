@@ -1590,7 +1590,7 @@ def mcp_lint(
     help=(
         "Run effect probes: check that tools really did what they reported (bounds such as "
         "head/limit on read-only tools; with --allow-writes, round trips through read tools). "
-        "High-confidence failures lower the grade."
+        "High-confidence failures lower the score and cap the grade at C."
     ),
 )
 @click.option(
@@ -1609,6 +1609,15 @@ def mcp_lint(
     help=(
         "JSON or YAML file declaring round-trip pairs, bound relations, agreements and argument "
         "values for the probes (implies --probes)."
+    ),
+)
+@click.option(
+    "--no-probe-grade-cap",
+    is_flag=True,
+    default=False,
+    help=(
+        "Do not cap the grade at C when a high-confidence probe fails (the score is the same "
+        "either way)."
     ),
 )
 def mcp_test(
@@ -1632,6 +1641,7 @@ def mcp_test(
     probes: bool,
     allow_writes: bool,
     probe_config: Path | None,
+    no_probe_grade_cap: bool,
 ) -> None:
     """Run the full scorecard against an MCP server.
 
@@ -1688,6 +1698,7 @@ def mcp_test(
                 fixtures=fixtures,
                 probes=probe_setting,
                 allow_writes=allow_writes,
+                probe_grade_cap=not no_probe_grade_cap,
             )
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to test MCP server: {exc}", console)
@@ -1701,21 +1712,27 @@ def mcp_test(
         else:
             output.write_text(scorecard_to_markdown(card), encoding="utf-8")
         name = str(card.server_info.get("name", "server"))
+        capped = f", {card.grade_cap_note}" if card.grade_capped else ""
         console.print(
             f"[bold]{name}[/bold] -> Grade [bold]{card.grade}[/bold] "
-            f"(score {card.score:.0%}). Report written to [cyan]{output}[/cyan]."
+            f"(score {card.score:.0%}{capped}). Report written to [cyan]{output}[/cyan]."
         )
         wrote_file = True
 
     badge_notes: list[str] = []
     for path, content in (
-        (badge, badge_svg(card.grade) if badge else ""),
-        (badge_json, json.dumps(badge_endpoint(card.grade), ensure_ascii=False) + "\n"),
+        (badge, badge_svg(card.grade, card.grade_cap_note) if badge else ""),
+        (
+            badge_json,
+            json.dumps(badge_endpoint(card.grade, card.grade_cap_note), ensure_ascii=False)
+            + "\n",
+        ),
     ):
         if path is not None:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(content, encoding="utf-8")
-            badge_notes.append(f"[dim]Badge (grade {card.grade}) written to {path}.[/dim]")
+            capped = f", {card.grade_cap_note}" if card.grade_capped else ""
+            badge_notes.append(f"[dim]Badge (grade {card.grade}{capped}) written to {path}.[/dim]")
 
     # Always show the console scorecard unless a file report was the only output.
     if ci or not wrote_file:
