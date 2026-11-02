@@ -70,6 +70,7 @@ Contents
 
    installation
    quickstart
+   what_it_catches
 
 .. toctree::
    :maxdepth: 2
@@ -91,6 +92,7 @@ Contents
    contracts
    receipts
    comparing_runs
+   ci
    extending
    comparison
 
