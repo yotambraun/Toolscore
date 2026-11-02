@@ -49,8 +49,8 @@ failed, error severity          result, ``kind: fail``,            ``<failure>``
                                 ``level: error``
 warning / note                  result, ``level: warning`` /       passing test case,
                                 ``note``                           ``<system-out>warning: ...``
-unknown (no final answer, an    result, ``kind: open``,            ``<skipped message="unknown:
-inconclusive probe, a call      ``level: none`` (SARIF's "not      ..."/>``
+unknown (no final answer, an    result, ``kind: open``,            ``<skipped>``, its message
+inconclusive probe, a call      ``level: none`` (SARIF's "not      starting ``unknown:``
 that needed client input)       enough information")
 passed                          not written                        passing test case
 ==============================  =================================  =============================

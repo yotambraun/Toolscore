@@ -320,6 +320,8 @@ The scorecard blends three signals into a single score in ``[0, 1]``:
   (missing required arguments, wrong types, empty/zero values) that the server
   handled **without crashing or timing out**. A returned error is fine and
   expected here -- crashing the process is not.
+* **lint_score** -- schema cleanliness, computed as
+  ``max(0, 1 - (errors * 0.25 + warnings * 0.1) / num_tools)``.
 
 Two outcomes are reported without changing the score:
 
@@ -352,8 +354,6 @@ requires, and anything else (``roots/list``, ``sampling/createMessage``,
 since Toolscore declares none of those capabilities. The client keeps the last
 200 server messages (``client.server_messages``) and counts the rest
 (``client.server_messages_dropped``).
-* **lint_score** -- schema cleanliness, computed as
-  ``max(0, 1 - (errors * 0.25 + warnings * 0.1) / num_tools)``.
 
 The score maps to a letter grade:
 
