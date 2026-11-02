@@ -42,6 +42,7 @@ toolscore mcp test "python -m toolscore.mcp.sample_server --bug limit-ignored" \
 - **browser_use/** - browser-use agent histories in the 0.13.14 layout: the #6068 disabled-button bypass (a refused click, and the silent click the issue logs) and an honest run. Run `toolscore honesty examples/browser_use/order_click_refused.json`.
 - **coding_sessions/** - synthetic Claude Code and Codex CLI sessions in which the agent reports success after a failing test or lint run: `toolscore honesty examples/coding_sessions/codex-rollout.jsonl`, `toolscore sessions list`, and `toolscore sessions export` for a redacted trace.
 - **lint_config/** - a repository whose `CLAUDE.md` and skill name MCP tools that do not exist and delete with a read-only tool: `cd examples/lint_config && toolscore lint-config --snapshot notes=notes.snapshot.json`.
+- **inspect_ai/** - an Inspect AI task scored by `toolscore_scorer()`, offline with the `mockllm` model: a refused refund reported as done counts as a false success.
 - **fault_injection/** - `faults.json` and `scripted_agent.py`, which runs a scripted agent behind `toolscore mcp proxy --inject` and checks its report (`python examples/fault_injection/scripted_agent.py`, offline).
 
 Run any of them with:
