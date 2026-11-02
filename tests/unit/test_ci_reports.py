@@ -318,7 +318,7 @@ def test_mcp_diff_reports_breaking_changes(tmp_path: Path) -> None:
     args = ["mcp", "diff", str(a), str(b), "--fail-on", "breaking"]
     result = _run([*args, "--sarif", str(sarif), "--junit", str(junit)])
     assert result.exit_code == 1
-    log, suites = _read(sarif, junit)
+    log, _ = _read(sarif, junit)
     breaking = [r for r in log["runs"][0]["results"] if r["ruleId"] == "diff-breaking"]
     assert breaking and all(r["level"] == "error" for r in breaking)
     assert any("run_command" in r["message"]["text"] for r in breaking)
