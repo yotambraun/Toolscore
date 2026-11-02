@@ -6,23 +6,22 @@ import ScorecardDemo from './ScorecardDemo.astro';
 ---
 
 <section class="relative overflow-hidden bg-hero-glow">
-  <div class="wrap grid items-center gap-12 py-16 lg:grid-cols-[1.02fr_1.1fr] lg:py-24">
+  <div class="wrap grid grid-cols-[minmax(0,1fr)] items-center gap-12 py-16 lg:grid-cols-[1.02fr_1.1fr] lg:py-24">
     <div>
       <p class="eyebrow mb-5">MCP servers · agents · deterministic, offline, $0</p>
 
       <h1 class="text-balance text-4xl font-extrabold leading-[1.06] tracking-tight sm:text-5xl lg:text-6xl">
-        Test your <span class="brand-text">MCP server</span> and your agent's tool calls
+        Correct tool calls are <span class="brand-text">not enough</span>
       </h1>
 
-      <p class="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-muted">
-        Toolscore grades any MCP server A–F, local or remote, and checks the tool calls your agent
-        makes against the ones you expect, with
+      <p class="mt-6 max-w-xl text-pretty text-lg leading-relaxed text-ink">
+        Toolscore checks that the tool really did it, and that the agent told the truth about it.
+      </p>
+      <p class="mt-4 max-w-xl text-pretty text-base leading-relaxed text-muted">
+        It grades any MCP server A–F, local or remote, probes whether a tool that said “success”
+        changed anything, and checks your agent’s tool calls and final answer, with
         <span class="text-ink">exactly what’s broken and how to fix it</span> —
         deterministically, offline, with <span class="text-ink">zero API cost</span>.
-      </p>
-      <p class="mt-4 max-w-xl text-pretty text-base leading-relaxed text-ink">
-        Correct tool calls are not enough. Toolscore checks that the tool really did it, and that
-        the agent told the truth about it.
       </p>
 
       <div class="mt-8 grid max-w-md gap-2.5">

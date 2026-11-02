@@ -238,7 +238,7 @@ and runs.aef.jsonl.manifest.json.`;
 
   <!-- The 60-second loop -->
   <section class="section">
-    <div class="wrap grid items-start gap-10 lg:grid-cols-[1.05fr_1fr]">
+    <div class="wrap grid grid-cols-[minmax(0,1fr)] items-start gap-10 lg:grid-cols-[1.05fr_1fr]">
       <div>
         <p class="eyebrow mb-3">Snapshot testing</p>
         <h2 class="h2">Record → approve → replay</h2>
@@ -340,7 +340,7 @@ and runs.aef.jsonl.manifest.json.`;
         </p>
         <p class="mt-4 text-sm text-muted">
           The same rule in a test:
-          <code class="font-mono text-brand">expect(agent).on(prompt).does_not_call("run_shell", command=Contains("rm -rf"))</code>
+          <code class="break-all font-mono text-brand">expect(agent).on(prompt).does_not_call("run_shell", command=Contains("rm -rf"))</code>
         </p>
       </div>
       <CodeBlock title="examples/guardrails" lang="text" code={guardrailsSnippet} />

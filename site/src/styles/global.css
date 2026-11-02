@@ -86,3 +86,11 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Two-column page sections stack on phones. A grid with no explicit columns sizes its one
+   track to the widest child (a long code line, the terminal demo), which pushed the page
+   wider than the screen. :where() keeps this at zero specificity, so lg:grid-cols-[…]
+   still sets the desktop layout. */
+:where(.wrap.grid) {
+  grid-template-columns: minmax(0, 1fr);
+}
