@@ -1,0 +1,116 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import CodeBlock from '../components/CodeBlock.astro';
+import CTASection from '../components/CTASection.astro';
+import Button from '../components/Button.astro';
+import { site } from '../data/site';
+
+const recipes = [
+  {
+    id: 'servers',
+    eyebrow: 'MCP server authors',
+    title: 'Grade, probe and badge your server',
+    body: 'Generated happy-path and edge-case calls, lint with stable rule IDs, effect probes that catch a tool reporting success and doing nothing, and a badge from the run’s own grade.',
+    code: `toolscore mcp test "python my_server.py" --badge .github/badges/mcp-grade.svg
+toolscore mcp test "python my_server.py" --probes --allow-writes   # a disposable instance
+toolscore mcp pin "python my_server.py"                            # lock what you ship`,
+    output: `╭──────────────────────────────────────╮
+│ MCP Scorecard: notes-server 1.1.0    │
+│ Grade B   Score 86%                  │
+│ happy 80%  |  edge 100%  |  lint 91% │
+│ MCP 2026-07-28 (stateless)           │
+╰──────────────────────────────────────╯
+…
+Badge (grade B) written to .github/badges/mcp-grade.svg.`,
+    doc: 'for_server_authors.html',
+  },
+  {
+    id: 'agents',
+    eyebrow: 'Agent builders',
+    title: 'Tool-call tests that fail CI on drift',
+    body: 'Scaffold a pytest suite for your framework, write a contract of required, optional and forbidden calls, and check that the agent told the truth about what its tools returned.',
+    code: `toolscore init && pytest && toolscore approve --all
+toolscore eval contract.json trace.json
+toolscore honesty trace.json --fail-on-findings`,
+    output: `Honesty check  examples/honesty/disabled_button.json  (2 tool calls)
+Final answer (assistant message): 'Your order for the blue mug has been placed.'
+
+  ERROR    call 2 evaluate ran code after call 1 click was refused ('disabled'): its
+code overrides the refusal ('.disabled = false'); the final answer does not mention it
+(escape-hatch-after-refusal)`,
+    doc: 'for_agent_builders.html',
+  },
+  {
+    id: 'security',
+    eyebrow: 'Security and platform teams',
+    title: 'Pin servers, gate unsafe calls, review sessions',
+    body: 'Fail CI on MCP rug pulls and new delete or exec capabilities, block destructive commands and leaked keys, lint the instructions that name the tools, and see where coding agents claimed success after a failure.',
+    code: `toolscore mcp verify-pin "uvx my-server" --lock toolscore.lock.json
+toolscore lint-config --pin my-server=toolscore.lock.json
+toolscore sessions list --since 1d --flagged`,
+    output: `Pin check
+  ERROR  new tool 'run_command' can exec (name 'run' + 'command'; description 'Runs a
+shell command') (pin-capability-added)
+  ERROR  new tool 'run_command' (exec) is not in the lock (pin-tool-added)
+…
+Pin check: FAIL (3 failing of 3 finding(s), --fail-on drift)`,
+    doc: 'for_security_teams.html',
+  },
+  {
+    id: 'research',
+    eyebrow: 'Researchers',
+    title: 'Repeatable agent studies with honest statistics',
+    body: 'Preflight before any paid call, run tasks x arms x repetitions against an MCP server with a hard budget, and compare variants with Wilson intervals, Fisher’s exact test, pass^k and pre-declared rules.',
+    code: `toolscore doctor --spec study.yaml
+toolscore agent run study.yaml -o runs.jsonl
+toolscore compare --runs runs.jsonl --k 2 --protocol protocol.yaml`,
+    output: `┃ Variant ┃ N ┃ pass/fail/err/unk ┃ Pass rate [95% CI] ┃ pass^2 ┃ Cost/run ┃ Latency ┃
+│ careful │ 6 │           6/0/0/0 │   100% [61%, 100%] │   100% │  $0.0000 │   0.00s │
+│ sloppy  │ 6 │           0/6/0/0 │       0% [0%, 39%] │     0% │  $0.0000 │   0.00s │
+…
+Decision (careful vs sloppy): adopt`,
+    doc: 'for_researchers.html',
+  },
+];
+---
+
+<BaseLayout
+  title="Use cases"
+  description="End-to-end Toolscore recipes for MCP server authors, agent builders, security and platform teams, and researchers: the commands and their real output."
+>
+  <PageHeader
+    eyebrow="Who it's for"
+    title="One deterministic check, <span class='brand-text'>four ways in</span>"
+    sub="Each recipe is three commands and the output they really print. Every step runs locally, calls no model unless you run an agent, and costs nothing per run."
+  >
+    <div class="mt-8 flex flex-wrap gap-2">
+      {recipes.map((r) => (
+        <a href={`#${r.id}`} class="rounded-full border border-line2/60 px-3 py-1.5 text-sm text-muted transition-colors hover:border-brand/50 hover:text-ink">{r.eyebrow}</a>
+      ))}
+    </div>
+  </PageHeader>
+
+  {
+    recipes.map((r) => (
+      <section id={r.id} class="section scroll-mt-20">
+        <div class="wrap grid items-start gap-10 lg:grid-cols-2">
+          <div class="min-w-0">
+            <p class="eyebrow mb-3">{r.eyebrow}</p>
+            <h2 class="h2">{r.title}</h2>
+            <p class="lead mt-4">{r.body}</p>
+            <div class="mt-6 flex flex-wrap gap-3">
+              <Button href={`${site.docs}${r.doc}`} variant="secondary">The full recipe →</Button>
+            </div>
+          </div>
+          <div class="min-w-0 space-y-4">
+            <CodeBlock title="commands" lang="bash" code={r.code} />
+            <CodeBlock title="real output (shortened)" code={r.output} />
+          </div>
+        </div>
+      </section>
+    ))
+  }
+
+  <CTASection />
+</BaseLayout>

@@ -36,6 +36,7 @@ export const ogTitle = 'Toolscore — MCP server and agent tool-call testing';
 export const nav = [
   { label: 'MCP servers', href: url('mcp') },
   { label: 'Agents', href: url('agents') },
+  { label: 'Use cases', href: url('use-cases') },
   { label: 'Compare', href: url('compare') },
   { label: 'Quickstart', href: url('quickstart') },
 ];
@@ -71,10 +72,40 @@ export const audiences = [
     points: [
       'Snapshot record / approve / replay',
       'Failed calls, leaked credentials and forbidden calls, flagged',
-      'Auto-detects 8 frameworks, MCP sessions and OpenTelemetry',
+      'Auto-detects the major SDKs, browser-use, MCP sessions and OpenTelemetry',
     ],
     href: url('agents'),
     cta: 'Test your agent',
+  },
+  {
+    key: 'security',
+    eyebrow: 'You run the platform',
+    title: 'Gate what agents can touch',
+    blurb:
+      'Pin every MCP server your agents use and fail CI when a description, schema or capability changes under you. Block destructive calls and leaked keys, lint the instruction files that name the tools, and review what coding agents did on developer machines.',
+    cmd: 'toolscore mcp verify-pin "uvx my-server" --lock toolscore.lock.json',
+    points: [
+      'Lock files with a read/write/delete/network/exec manifest',
+      'lint-config for CLAUDE.md, AGENTS.md, skills and MCP configs',
+      'Claude Code and Codex sessions, read-only, credentials redacted',
+    ],
+    href: url('use-cases#security'),
+    cta: 'Secure your agents',
+  },
+  {
+    key: 'research',
+    eyebrow: 'You study agents',
+    title: 'Run repeatable agent studies',
+    blurb:
+      'Run tasks x arms x repetitions of an LLM agent against any MCP server with a guard and a hard budget, compare variants with Wilson intervals, Fisher’s exact test and pass^k, and re-score every run later without re-running it.',
+    cmd: 'toolscore compare --runs runs.jsonl --k 2',
+    points: [
+      'Preflight with toolscore doctor before any paid call',
+      'Honesty and false-success counts next to pass rates',
+      'An Inspect AI scorer and neutral run records for study tools',
+    ],
+    href: url('use-cases#research'),
+    cta: 'Study agents',
   },
 ] as const;
 
@@ -124,6 +155,16 @@ export const features = [
     icon: 'record',
   },
   {
+    title: 'What did my coding agent do?',
+    body: 'toolscore sessions list reads Claude Code and Codex CLI sessions on your machine, read-only, and flags the ones where the agent reported success after a failing test or command. Credentials are redacted in everything it prints or exports.',
+    icon: 'scan',
+  },
+  {
+    title: 'Lint the instructions too',
+    body: 'toolscore lint-config checks CLAUDE.md, AGENTS.md, skills, Cursor and Copilot rules and MCP configs against the tools that really exist: unknown tools and servers, deleting with a read-only tool, SSE configs.',
+    icon: 'list',
+  },
+  {
     title: 'Top issues to fix',
     body: 'Not just a number — a ranked, plain-English list of what is broken and how to fix it, from broken handlers to untyped schemas to thin descriptions.',
     icon: 'list',
@@ -145,7 +186,7 @@ export const features = [
   },
   {
     title: 'Framework auto-detect',
-    body: 'Pass raw responses from OpenAI (Chat Completions or Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, or CrewAI. Toolscore detects the format.',
+    body: 'Pass raw responses from OpenAI (Chat Completions or Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI or browser-use. Toolscore detects the format; live recorders plug into the Claude Agent SDK hooks and OpenAI Agents SDK tracing.',
     icon: 'plug',
   },
   {
