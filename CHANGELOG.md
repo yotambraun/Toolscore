@@ -9,10 +9,14 @@ and uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/).
 
 ## [1.11.0] - Unreleased
 
-Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote servers, so any MCP server, local or hosted, can be graded in CI and show its grade in its README.
+Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote servers, so any MCP server, local or hosted, can be graded in CI and show its grade in its README. And correct tool calls are not enough: 1.11 checks that the tool really did it, and that the agent told the truth about it.
 
 ### Highlights
 
+- **Effect probes: did the tool really do it?** `toolscore mcp test --probes` checks invariants against the live server. Built in and read-only: `head`/`tail`/`limit`-like parameters must bound the result. With `--allow-writes`: round trips that write marked values, read them back, write again to the same key and check earlier records survive (`probe-write-not-observable`, `probe-silent-noop`, `probe-data-lost`). A probe config declares pairs, bounds, two-path agreements and idempotent calls. On the official memory server, `server-memory@2026.8.31` gets `probe-silent-noop` on `create_entities` (the #4887 bug) and `2.0.1` passes, with no configuration; on `server-filesystem@2.1.0` the built-in bounds flag `head: 0` and `tail: 0` returning the whole file.
+- **Honesty checks: did the agent tell the truth?** Every evaluation reads the agent's final answer from the trace and reports `claimed-success`, `done-after-error`, `undisclosed-warning`, `escape-hatch-after-refusal` and `injected-fault-undisclosed` under Behavior and safety, plus a `false_success` summary. `toolscore honesty TRACE` runs them alone, with no gold file. Without a final answer they report unknown, never pass.
+- **Fault injection.** `toolscore mcp proxy --inject faults.json` sits in front of any stdio server and gives chosen calls an error, a JSON-RPC error, a warning, an empty or truncated result, a delay, a timeout, or a "disabled" / "permission denied" answer. The session records what was injected, so the honesty checks verify the agent's report against ground truth.
+- **Argument values for sandboxed servers.** `--arg [TOOL:]NAME=VALUE` and `--args-file` give the scorecard and the probes values a server accepts, so the filesystem and git servers no longer fail every happy path on generated paths (`server-filesystem@2.1.0`: F to D with sandbox paths for its read tools).
 - **MCP 2026-07-28, with a fallback.** The MCP clients probe with `server/discover` and send the protocol version, client info and capabilities in each request's `_meta`, as the stateless 2026-07-28 revision requires. A server built on an earlier revision (any non-modern error, an HTTP 4xx without a modern error body, or on stdio no answer within 5 seconds) gets the `initialize` handshake with 2025-11-25 instead. `UnsupportedProtocolVersionError` answers pick a version from the server's list, and the scorecard shows which protocol a run used.
 - **Remote MCP servers.** `toolscore mcp test`, `mcp lint` and `mcp list` accept a Streamable HTTP URL, or a `url` entry in a Claude Desktop, Cursor, Claude Code or VS Code config file (`pip install "tool-scorer[http]"`). Credentials come from the environment (`--auth-env VAR`, `--header 'Name: ${VAR}'`, `${VAR}` / `${env:VAR}` in config files) and are never printed.
 - **Lint for what clients rely on.** Behavior annotations (`readOnlyHint`, `destructiveHint`, ...) missing on tools whose names say they write or delete, `readOnlyHint: true` on `delete_*`, and conflicting hints; and `structuredContent` that does not match a tool's `outputSchema`. Every lint issue now has a stable rule ID.
@@ -33,7 +37,34 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - `toolscore mcp test --badge` and `--badge-json` (`toolscore.mcp.badge`).
 - The bundled sample server (`python -m toolscore.mcp.sample_server`) speaks both eras and now declares annotations and an output schema; the demo grade stays B, with one new finding (`create_note` declares no annotations).
 
+#### Effect probes (`toolscore.mcp.probes`)
+- `toolscore mcp test --probes`, `--allow-writes` and `--probe-config FILE` (JSON or YAML; implies `--probes`). `score_server(client, probes=True | ProbeConfig, allow_writes=False)` and `run_probes()`.
+- Rules: `probe-write-not-observable`, `probe-silent-noop`, `probe-data-lost`, `probe-bound-exceeded`, `probe-bound-short`, `probe-slice-mismatch`, `probe-paths-disagree`, `probe-not-idempotent` (`PROBE_RULES`).
+- Every result has a `confidence` (`high`: declared, or seen through a read tool that already showed the record; `medium`: inferred from names; `low`: any other read tool) and a `basis` saying how the read tool or relation was chosen. Only high-confidence failures are errors and lower the grade, by as much as a tool failing all its happy paths (`0.6 / number of tools` per failing tool); passing probes leave the score unchanged. `--ci` treats them as blocking.
+- `ProbeConfig`, `RoundTripPair`, `BoundRelation`, `Agreement`, `CallSpec`, `ProbeResult`, `load_probe_config()`; `MCPScorecard.probes`, `.effect_rate`, `.probe_failed_tools`; the console and Markdown scorecards show an "Effect probes" table and the JSON report `probes` and `scores.effect_rate`.
+- Probes that write run only with `--allow-writes` (a probe config cannot enable them) and leave `tsp<hex>-` marker records behind.
+- The sample server stores its notes, and `python -m toolscore.mcp.sample_server --bug silent-skip | lose-on-write | limit-ignored` misbehaves without an error, for demos and tests. The default behavior and the demo scorecard are unchanged.
+- `--arg [TOOL:]NAME=VALUE` and `--args-file` on `mcp test` (`ArgumentFixtures`, `load_fixtures()`, `generate_scenarios(fixtures=...)`): values replace generated ones in happy paths and seed the probes; edge cases keep their bad values.
+
+#### Honesty checks (`toolscore.metrics.honesty`)
+- `metrics["honesty_metrics"]` in every `evaluate()` and `evaluate_trace()` result, `EvaluationResult.false_success`, and `summary.false_success` in the JSON report. Findings appear under Behavior and safety with their rule ID.
+- Rules: `claimed-success` and `injected-fault-undisclosed` (errors), `escape-hatch-after-refusal` (error when the code overrides the refusal, warning when it only targets the same thing), `done-after-error` and `undisclosed-warning` (warnings) (`HONESTY_RULES`).
+- `false_success` counts per run: `claimed_success`, `failed_required`, `done_after_error`, `undisclosed_warning`, `escape_hatch`, `injected_faults`, `injected_undisclosed`; `None` where the final answer (or the gold) is needed and missing.
+- `toolscore honesty TRACE [--gold] [--final-answer TEXT|@FILE] [--injected SESSION] [--config] [--json] [--fail-on-findings]`; `toolscore eval --final-answer`, `--honesty-config`, `--injected` and `--fail-on-honesty`.
+- `check_honesty()`, `HonestyConfig` (every pattern and tool list configurable; JSON/YAML with `"extend": true` to add to the defaults), `apply_injections()`, `evaluate(final_answer=..., honesty=...)`, `evaluate_trace(final_answer=..., honesty=..., injections=...)`.
+- `toolscore.transcript`: `load_transcript()`, `Transcript` and `final_answer_of()` find the final answer in OpenAI Chat Completions, Anthropic, Responses, LangChain/LangGraph and Claude Agent SDK messages, OpenTelemetry `gen_ai.output.messages`, a final `done`-style call, or a `final_answer` / `final_output` / `output_text` field. `toolscore.core.adapter_for()`.
+
+#### Fault injection (`toolscore.mcp.faults`)
+- `toolscore mcp proxy COMMAND -o SESSION [--inject SPEC]` and `MCPRecorder(..., injector=FaultInjector(spec))`. Faults: `error`, `jsonrpc_error`, `warning`, `empty`, `delay`, `timeout`, `disabled`, `denied`, `truncate`; tools by name or glob, calls by number or probability with a fixed seed; failures are answered without reaching the server unless `forward: true`.
+- The session adds `fault_spec`, `injections` and `injected` on each changed response; `MCPAdapter` keeps it as `metadata["injected"]`. `mcp record` is unchanged. Stdio only.
+- `FaultSpec`, `FaultRule`, `FaultInjector`, `load_fault_spec()`, `FAULT_KINDS`.
+
+#### Examples
+- `examples/mcp_memory_probes/` and `examples/mcp_filesystem_probes/`: the probes on the official memory and filesystem servers, with the commands and the console output.
+- `examples/probes/` (a probe config for the sample server), `examples/honesty/` (traces for the honesty checks) and `examples/fault_injection/` (a scripted agent behind the proxy, offline).
+
 #### GitHub Action
+- New inputs `mcp-probes`, `mcp-allow-writes`, `mcp-probe-config`, `mcp-args-file` and `fail-on-honesty`, and the `honesty-errors` output.
 - New inputs `mcp-auth-env`, `mcp-badge`, `mcp-badge-json` and `toolscore-version`; `mcp-command` accepts a URL. New outputs `mcp-grade` and `mcp-score`. MCP mode writes the scorecard to the job summary.
 - The action installs Toolscore from its own checkout, so the installed version matches the action ref (it installed the latest PyPI release before). `toolscore-version` installs a given PyPI release instead.
 - `examples/github_actions/mcp-badge.yml` commits an updated badge when the grade changes.
@@ -52,6 +83,9 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - **Model prices match exactly or by longest prefix, and unknown models have no price.** `calculate_llm_cost()` and `estimate_trace_cost()` return `None` with an `UnknownModelPriceWarning` for a model they do not know (they used to fall back to the gpt-4o-mini price), so their return type is now `float | None`. The table is refreshed from the providers' pricing pages; retired models (Claude 3.x, Claude Opus 4.1, Gemini 1.5 and 2.0) were removed. `estimate_trace_cost()` defaults to `gpt-6-luna`.
 - `MCPStdioClient` sends `server/discover` before `initialize`. Servers built on earlier revisions answer it with an error (handled), or do not answer, which costs up to `probe_timeout` (5 seconds by default) before the handshake. `DEFAULT_PROTOCOL_VERSION` is now "2026-07-28".
 - **Grades can drop slightly.** The new annotation and output-schema warnings count toward the lint score like any warning (0.1 per warning, divided by the number of tools, in a term weighted 20%). A server whose write tools declare no annotations loses a few points; check `--fail-under` gates after upgrading. The bundled sample server went from 87% to 86%.
+- **Evaluations report more findings.** The honesty checks add Behavior and safety lines to traces that failed or warned: a trace that ends right after a failed call gets `done-after-error`, and a trace with failures but no final answer gets "disclosure unknown". They do not change the score. The examples' guardrails trace now shows both.
+- **Chat histories keep tool results.** OpenAI Chat Completions `role: "tool"` messages and Anthropic `tool_result` blocks are attached to their calls as `result` (they were dropped), and an Anthropic `tool_result` with `is_error: true` makes the call failed, so it now counts in `error_count`, `required_call_recall` and the findings. Side-effect validators that read `result` see it too.
+- Chat histories that start with a user or system message are detected as OpenAI or Anthropic traces (they were read as the custom format, with no calls).
 - Python 3.14 is supported and tested.
 - The release workflow publishes with PyPI Trusted Publishing and moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves.
 
@@ -63,6 +97,7 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - Error messages and reprs never show credentials: URLs are shown without userinfo, query or fragment, `MCPServerSpec` keeps `env`, `url` and `headers` out of its repr, and a malformed `--header` is not echoed. Error panels show server text literally instead of parsing it as Rich markup.
 - **`toolscore init` scaffolds that failed on their first run.** The fake responses written for Pydantic AI, the OpenAI Agents SDK and CrewAI were bare lists that `evaluate()` could not detect. Lists of Pydantic AI messages, Agents SDK `tool_call_item` items and CrewAI `tool_name` entries are now auto-detected.
 - The Anthropic capture example stored SDK content blocks, which `json.dump` cannot serialize; it now stores them as JSON.
+- Behavior and safety findings are printed literally in the console (text in brackets from a tool result was read as Rich markup).
 
 ## [1.10.0] - 2026-10-03
 
