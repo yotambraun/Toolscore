@@ -18,11 +18,14 @@ This tutorial walks you through the complete workflow of using Toolscore to test
 13. [MCP Scorecard](#mcp-scorecard)
     - [Effect Probes](#effect-probes)
     - [Fault Injection](#fault-injection)
-14. [LLM Judge for Every Provider](#llm-judge-for-every-provider)
-15. [Async Agents](#async-agents)
-16. [Regression Testing](#regression-testing)
-17. [CI/CD Integration](#cicd-integration)
-18. [Advanced Usage](#advanced-usage)
+    - [Pinning and Diffs](#pinning-and-diffs)
+14. [Rigor: Contracts, Receipts, Evidence](#rigor-contracts-receipts-evidence)
+15. [Running Agents and Comparing Runs](#running-agents-and-comparing-runs)
+16. [LLM Judge for Every Provider](#llm-judge-for-every-provider)
+17. [Async Agents](#async-agents)
+18. [Regression Testing](#regression-testing)
+19. [CI/CD Integration](#cicd-integration)
+20. [Advanced Usage](#advanced-usage)
     - [Pytest Integration](#pytest-integration)
     - [Integration Helpers](#integration-helpers)
     - [LangChain Support](#langchain-support)
@@ -748,6 +751,55 @@ To see whether an agent discloses failures, make tools fail. `toolscore mcp prox
 ```
 
 Faults: `error`, `jsonrpc_error`, `warning`, `empty`, `delay`, `timeout`, `disabled`, `denied`, `truncate`; tools by name or glob, calls by number or seeded probability. Put the proxy in your MCP client config (`"command": "toolscore", "args": ["mcp", "proxy", "--inject", "faults.json", "-o", "session.json", "--", "python", "my_server.py"]`), run the agent, then `toolscore honesty session.json --final-answer @answer.txt`. The session records every injected fault, so the check knows the ground truth. `python examples/fault_injection/scripted_agent.py` runs the loop offline. stdio only.
+
+### Pinning and Diffs
+
+A server can change what it tells the model at any time (a "rug pull"). Pin its tools once, commit the lock, and check it in CI:
+
+```bash
+toolscore mcp pin "python my_server.py"                 # writes toolscore.lock.json
+toolscore mcp verify-pin "python my_server.py"          # exit 1 on drift
+toolscore mcp test "python my_server.py" --pin toolscore.lock.json
+```
+
+The lock hashes each tool's name, title, description, schemas and annotations, and records the server, protocol, instructions and a capability manifest (`read`, `write`, `delete`, `network`, `exec`, `unknown`; from annotations first, then name and description rules, each with its reason). `verify-pin` reports `pin-tool-added`, `pin-tool-removed`, `pin-tool-changed` (with a text diff), `pin-capability-added` (a new `delete` or `exec`), `pin-instructions-changed` and `pin-lock-modified`; `--fail-on capability` fails only on a new risky capability.
+
+`toolscore mcp diff A B` compares two servers, builds or saved snapshots (`toolscore mcp list --json snap.json`): tools added and removed, changed fields with text diffs, capability changes, the lint delta, and with `--test` the scorecards and probes. `--fail-on breaking` exits 1 only on removed tools or parameters, newly required parameters, changed types, new `delete`/`exec` capabilities, new lint errors, a lower grade or a newly failing probe. [examples/pinning/](examples/pinning/) has an offline rug pull and the memory server's two builds.
+
+## Rigor: Contracts, Receipts, Evidence
+
+**Contracts.** A gold file says which calls are required; a contract also says which are optional, forbidden, or interchangeable:
+
+```json
+{
+  "contract_version": 2,
+  "required": [
+    {"tool": "search_flights", "args": {"destination": "LIS"}},
+    {"id": "book", "alternatives": [[{"tool": "book_flight"}], [{"tool": "reserve_seat"}]]}
+  ],
+  "optional": [{"tool": "get_weather"}],
+  "forbidden": [{"tool": "cancel_booking"}]
+}
+```
+
+Optional calls are neither missing nor extra; for alternatives, every combination is scored and the highest composite wins (ties go to the first declared). Arguments take `$regex`, `$contains`, `$one_of`, `$any`, `$type` and `$approx`. Use a contract wherever a gold file goes: `toolscore eval contract.json trace.json`, `evaluate_trace()`, `evaluate_contract()`.
+
+**Receipts and regrade.** `toolscore eval gold.json trace.json --receipt run.receipt.json` records the SHA-256 of every input, the settings, the Toolscore version and the hash of the full result. Later, `toolscore regrade run.receipt.json --gold contract.json` checks the trace is unchanged and re-scores it, running nothing. In [examples/contracts/](examples/contracts/) the same trace goes from 38.3% F (gold) to 95.7% A (contract).
+
+**Tri-state evidence.** Every report ends with a line such as `Evidence: 4 pass, 0 fail, 3 unknown`: a check that lacks its data (no tool results, no final answer) is `unknown`, never a pass. Latency and cost the trace does not have are reported as `unknown`, never `0`.
+
+## Running Agents and Comparing Runs
+
+`toolscore agent run spec.yaml` runs every task x arm x repetition of an LLM agent (OpenAI Responses API, Anthropic Messages, or a free scripted provider) against an MCP server, with a guard on every tool call, a budget checked before every model call (unknown prices refused unless allowed), per-run limits, a seeded order and one resumable JSONL row per run. Start with `toolscore doctor --spec spec.yaml` (keys by name only, server, build, prices, worst-case cost) and `--dry-run`; real providers cost money.
+
+```bash
+toolscore agent run examples/agent_harness/offline.yaml -o runs.jsonl      # offline, free
+toolscore compare --runs runs.jsonl --k 2 --protocol examples/agent_harness/protocol.yaml
+toolscore select --runs runs.jsonl --policy pareto --objective pass_rate:max --objective cost:min
+toolscore export --format aef runs.jsonl -o records.jsonl
+```
+
+`compare --runs` reports N with pass/fail/error/unknown (errored runs stay in the denominator), Wilson 95% intervals, pass^k per task, Fisher's exact test ("not distinguishable" when the intervals overlap or N is small), and evaluates decision rules declared before the runs. `select` picks a variant and prints the Pareto front. `export` writes neutral, versioned run records (requested and completed calls correlated by ID, explicit unknowns, hashes). For a full study, use [Agent Eval Flow](https://github.com/guybass/agent-eval-flow).
 
 ## LLM Judge for Every Provider
 
