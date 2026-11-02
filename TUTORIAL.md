@@ -667,6 +667,21 @@ Final answer (assistant message): "Done! You're booked on TP1351 to Lisbon at 9:
 
 Each run also gets a `false_success` summary (`claimed_success`, `failed_required`, `done_after_error`, `undisclosed_warning`, `escape_hatch`, `injected_faults`, `injected_undisclosed`), in `result.false_success` and the JSON report. Without a final answer, the checks that need one report `unknown` (their counts are `None`), never a pass. In Python: `evaluate(expected, actual, final_answer="...")`, or `check_honesty(calls, final_answer)`. Patterns and tool lists are configurable (`--honesty-config`, `HonestyConfig`); the [guide](https://yotambraun.github.io/Toolscore/docs/honesty_checks.html) lists the defaults and the limits (English only, disclosure checked per run, success claims need a success phrase).
 
+### Where agents run: browser agents, coding agents, SDK hooks, Inspect AI
+
+The honesty checks read the places agents already leave a record:
+
+```bash
+toolscore honesty run.json                    # a browser-use history (history.save_to_file)
+toolscore sessions list --since 1d            # Claude Code and Codex CLI sessions on this machine
+toolscore honesty ~/.claude/projects/<project>/<session>.jsonl
+toolscore sessions export SESSION.jsonl -o trace.json   # a trace with credentials redacted
+```
+
+Session files are read in place and never changed or uploaded ([coding sessions](https://yotambraun.github.io/Toolscore/docs/coding_sessions.html), [synthetic examples](examples/coding_sessions/)). The browser-use adapter catches the disabled-button override of browser-use #6068 ([examples/browser_use/](examples/browser_use/)).
+
+To capture runs live, `toolscore.recorders.ClaudeAgentSDKRecorder` plugs into the Claude Agent SDK's tool hooks (`ClaudeAgentOptions(hooks=recorder.hooks())`) and `OpenAIAgentsRecorder` is an OpenAI Agents SDK tracing processor (`add_trace_processor(recorder)`); both record calls, results and errors and write a trace with `recorder.save("trace.json")`. For Inspect AI tasks, `toolscore.inspect_scorer.toolscore_scorer()` scores each sample's tool calls and honesty ([examples/inspect_ai/](examples/inspect_ai/), offline with `mockllm`).
+
 ## MCP Scorecard
 
 Toolscore can test any MCP (Model Context Protocol) server, local (stdio) or remote (Streamable HTTP): it generates happy-path and edge-case scenarios from each tool's input schema, executes them, checks results against declared output schemas, lints the tool definitions, measures each tool's token cost, and prints an A–F grade with a ranked **Top issues to fix** list. It speaks MCP 2026-07-28 and falls back to the `initialize` handshake (2025-11-25) for servers built on earlier revisions; the scorecard shows which one it used.
@@ -765,6 +780,16 @@ toolscore mcp test "python my_server.py" --pin toolscore.lock.json
 The lock hashes each tool's name, title, description, schemas and annotations, and records the server, protocol, instructions and a capability manifest (`read`, `write`, `delete`, `network`, `exec`, `unknown`; from annotations first, then name and description rules, each with its reason). `verify-pin` reports `pin-tool-added`, `pin-tool-removed`, `pin-tool-changed` (with a text diff), `pin-capability-added` (a new `delete` or `exec`), `pin-instructions-changed` and `pin-lock-modified`; `--fail-on capability` fails only on a new risky capability.
 
 `toolscore mcp diff A B` compares two servers, builds or saved snapshots (`toolscore mcp list --json snap.json`): tools added and removed, changed fields with text diffs, capability changes, the lint delta, and with `--test` the scorecards and probes. `--fail-on breaking` exits 1 only on removed tools or parameters, newly required parameters, changed types, new `delete`/`exec` capabilities, new lint errors, a lower grade or a newly failing probe. [examples/pinning/](examples/pinning/) has an offline rug pull and the memory server's two builds.
+
+### Lint the Instructions That Name the Tools
+
+`CLAUDE.md`, `AGENTS.md`, skills, Cursor rules and Copilot instructions name tools; servers change. `toolscore lint-config` checks the references against the tools the configured servers expose, from a snapshot, a lock file, or (with `--connect`) the running servers:
+
+```bash
+toolscore lint-config --snapshot notes=notes.snapshot.json   # or --pin notes=pins/notes.lock.json
+```
+
+It reports `config-unknown-tool`, `config-unknown-server`, `config-annotation-contradiction` (deleting with a `readOnlyHint` tool) and `config-server-invalid` (for example the deprecated SSE transport), and says which rules it skipped when it has no tool list ([guide](https://yotambraun.github.io/Toolscore/docs/config_lint.html), [example](examples/lint_config/)).
 
 ## Rigor: Contracts, Receipts, Evidence
 
@@ -1056,7 +1081,7 @@ Extract tool calls explicitly when you want them as plain dicts:
 from toolscore.integrations import (
     from_openai, from_openai_responses, from_anthropic, from_gemini,
     from_langgraph, from_pydantic_ai, from_openai_agents,
-    from_claude_agent_sdk, from_crewai, auto_extract,
+    from_claude_agent_sdk, from_crewai, from_browser_use, auto_extract,
 )
 
 calls = from_openai(openai_response)
