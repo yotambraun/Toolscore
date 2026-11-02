@@ -59,10 +59,12 @@ if TYPE_CHECKING:
 @click.group()
 @click.version_option(version=__version__, prog_name="toolscore")
 def main() -> None:
-    """Toolscore: LLM Tool Usage Evaluation Package.
+    """Toolscore: test MCP servers and the tool calls your agents make.
 
     Evaluate the tool-using behavior of LLM-based agents by comparing
-    traces against gold-standard specifications.
+    traces against gold-standard specifications, grade MCP servers A-F,
+    check that tools really did what they reported (mcp test --probes), and
+    that agents told the truth about it (honesty).
     """
     pass
 
@@ -1263,7 +1265,7 @@ def _connect(
 
 @main.group()
 def mcp() -> None:
-    """Test, lint, and score MCP servers.
+    """Test, lint, score, record and fault-inject MCP servers.
 
     Point these commands at any MCP server: pass its launch command as a single
     quoted string, its Streamable HTTP URL, or an MCP host config file with
