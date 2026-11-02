@@ -177,3 +177,118 @@ Badges
 .. autofunction:: toolscore.mcp.badge.badge_svg
 
 .. autofunction:: toolscore.mcp.badge.badge_endpoint
+
+.. autodata:: toolscore.mcp.scorecard.PROBE_GRADE_CAP
+
+Snapshots, pinning and diffs
+----------------------------
+
+See :doc:`../pinning_diff`.
+
+.. autoclass:: ServerSnapshot
+   :members:
+
+.. autofunction:: load_snapshot
+
+.. autofunction:: write_snapshot
+
+.. autofunction:: toolscore.mcp.snapshot.snapshot_from_json
+
+.. autofunction:: build_lock
+
+.. autofunction:: verify_pin
+
+.. autofunction:: load_lock
+
+.. autofunction:: write_lock
+
+.. autofunction:: infer_capabilities
+
+.. autofunction:: toolscore.mcp.pin.load_capability_overrides
+
+.. autoclass:: PinReport
+   :members:
+
+.. autoclass:: PinFinding
+   :members:
+
+.. autodata:: toolscore.mcp.pin.PIN_RULES
+   :no-value:
+
+.. autodata:: toolscore.mcp.pin.CAPABILITIES
+
+.. autofunction:: diff_snapshots
+
+.. autoclass:: ServerDiff
+   :members:
+
+.. autoclass:: ToolChange
+   :members:
+
+.. autofunction:: toolscore.mcp.server_diff.render_diff
+
+Agent harness
+-------------
+
+See :doc:`../agent_harness`.
+
+.. automodule:: toolscore.mcp.agent
+   :no-index:
+
+.. currentmodule:: toolscore.mcp.agent
+
+.. autofunction:: run_agent
+
+.. autofunction:: run_study
+
+.. autofunction:: load_agent_spec
+
+.. autofunction:: spec_from_mapping
+
+.. autofunction:: regrade_rows
+
+.. autofunction:: evaluate_run
+
+.. autofunction:: estimate_study_cost
+
+.. autofunction:: preflight_prices
+
+.. autofunction:: check_build
+
+.. autofunction:: map_tools
+
+.. autofunction:: rules_guard
+
+.. autofunction:: allow
+
+.. autofunction:: deny
+
+.. autoclass:: OpenAIResponsesProvider
+
+.. autoclass:: AnthropicMessagesProvider
+
+.. autoclass:: ScriptedProvider
+
+.. autoclass:: ModelProvider
+   :members:
+
+.. autoclass:: AgentRun
+   :members:
+
+.. autoclass:: AgentSpec
+   :members: cells
+
+.. autoclass:: Budget
+   :members:
+
+.. autoclass:: Limits
+
+.. autoclass:: Price
+
+.. autoclass:: GuardCall
+
+.. autoclass:: GuardDecision
+
+.. autoexception:: UnknownPriceError
+
+.. autoexception:: BuildMismatchError

@@ -53,6 +53,7 @@ Key Features
 * **Comprehensive Metrics Suite**: Tool invocation accuracy, selection accuracy, sequence edit distance, argument matching, redundant and repeated calls, required calls completed, and side-effect validation
 * **Behavior and Safety Checks**: Failed calls, blind retries, credentials passed into tool arguments, and forbidden-call policies, with a CI gate (:doc:`behavior_safety`)
 * **Truth Checks**: effect probes that catch tools reporting success without doing it (:doc:`effect_probes`), honesty checks that compare tool results with the agent's final answer (:doc:`honesty_checks`), and a fault-injection proxy that makes chosen calls fail (:doc:`fault_injection`)
+* **Rigor**: an agent harness that runs LLM agents against MCP servers with guards, budgets and resumable runs (:doc:`agent_harness`); pinning and drift checks against MCP rug pulls, and server diffs (:doc:`pinning_diff`); contracts with optional, forbidden and alternative calls (:doc:`contracts`); content-hashed receipts, regrading and tri-state evidence (:doc:`receipts`); repeated-run statistics and variant selection (:doc:`comparing_runs`)
 * **Snapshot Testing**: Record, approve and replay your agent's tool calls in pytest (:doc:`snapshot_testing`)
 * **MCP Scorecard, Lint and Recorder**: Grade any MCP server (stdio or Streamable HTTP, MCP 2026-07-28 with a fallback to the ``initialize`` handshake), lint its annotations, output schemas, missing-tool references and tool poisoning, write a grade badge, and record real sessions (:doc:`mcp_testing`)
 * **Native Everywhere**: OpenAI (Chat Completions and Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI, MCP and OpenTelemetry traces (:doc:`frameworks`)
@@ -85,6 +86,11 @@ Contents
    mcp_testing
    effect_probes
    fault_injection
+   pinning_diff
+   agent_harness
+   contracts
+   receipts
+   comparing_runs
    extending
    comparison
 
@@ -99,6 +105,7 @@ Contents
    api/metrics
    api/snapshots
    api/mcp
+   api/rigor
    api/validators
    api/reports
 
