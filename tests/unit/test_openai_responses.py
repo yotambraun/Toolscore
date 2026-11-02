@@ -71,17 +71,31 @@ def test_real_sdk_mcp_call_keeps_output_and_error() -> None:
         "arguments": '{"q": "mcp"}',
         "output": "3 results",
     }
+    pydantic = pytest.importorskip("pydantic")
     mcp_failed = {
         "type": "mcp_call",
         "id": "mcp_2",
         "name": "delete_doc",
         "server_label": "docs",
         "arguments": "{}",
-        # The SDK types ``McpCall.error`` as a string (openai 2.41); the typed error
-        # object some payloads carry is covered with plain dicts below.
-        "error": "doc not found",
     }
-    response = responses.Response.model_validate(_response_dict([mcp_ok, mcp_failed]))
+    # ``McpCall.error`` is a typed error object in current SDKs (openai 3.x) and
+    # a plain string in older ones (2.x): validate with whichever the installed
+    # SDK defines, so the test checks the real types either way.
+    error_shapes = (
+        {"type": "mcp_protocol_error", "code": -32602, "message": "doc not found"},
+        "doc not found",
+    )
+    for error in error_shapes:
+        try:
+            response = responses.Response.model_validate(
+                _response_dict([mcp_ok, {**mcp_failed, "error": error}])
+            )
+            break
+        except pydantic.ValidationError:
+            continue
+    else:
+        pytest.fail("the installed SDK accepts no known McpCall.error shape")
     calls = from_openai_responses(response)
     assert calls[0] == {
         "tool": "search_docs",
