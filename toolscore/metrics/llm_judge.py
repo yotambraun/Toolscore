@@ -26,6 +26,8 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol
 from toolscore.models import DEFAULT_JUDGE_MODEL
 
 if TYPE_CHECKING:
+    from google.genai.types import GenerateContentConfigDict
+
     from toolscore.adapters.base import ToolCall
 
 Provider = Literal["openai", "anthropic", "gemini", "openai_compatible"]
@@ -271,7 +273,7 @@ class _GeminiBackend:
         last_exc: Exception | None = None
         for _attempt in range(self._max_retries + 1):
             try:
-                config: dict[str, Any] = {
+                config: GenerateContentConfigDict = {
                     "system_instruction": system,
                     "response_mime_type": "application/json",
                 }
