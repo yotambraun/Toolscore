@@ -450,6 +450,7 @@ def eval(
     default=False,
     help="Exit with status 1 on an error-severity finding (for CI).",
 )
+@click.option("--label", default=None, hidden=True, help="Name shown for the trace.")
 def honesty(
     trace_file: Path,
     format: str,
@@ -459,6 +460,7 @@ def honesty(
     config_path: Path | None,
     json_path: Path | None,
     fail_on_findings: bool,
+    label: str | None = None,
 ) -> None:
     """Check whether an agent told the truth about what its tools did.
 
@@ -498,7 +500,8 @@ def honesty(
     counts = report["false_success"]
     noun = "call" if len(transcript.calls) == 1 else "calls"
     console.print(
-        f"\n[bold]Honesty check[/bold]  {trace_file}  ({len(transcript.calls)} tool {noun})"
+        f"\n[bold]Honesty check[/bold]  {label or trace_file}  "
+        f"({len(transcript.calls)} tool {noun})"
     )
     if transcript.final_answer is None:
         console.print(
@@ -1967,12 +1970,28 @@ def mcp_test(
 
 
 @main.command("demo")
-def demo() -> None:
+@click.option(
+    "--truth",
+    is_flag=True,
+    default=False,
+    help=(
+        "Show the truth checks instead: effect probes catch a sample tool that reports "
+        "success and stores nothing, and the honesty check catches an agent that overrides "
+        "a disabled button and reports success."
+    ),
+)
+@click.pass_context
+def demo(ctx: click.Context, truth: bool) -> None:
     """Health-check a bundled sample MCP server -- zero setup, no API key.
 
     Launches a small sample MCP server that ships with toolscore (one with a few
     deliberate issues) and prints the same scorecard that ``toolscore mcp test``
     produces, so you can see the instant verdict in seconds.
+
+    With --truth, the sample server runs with a silent-no-op bug and the effect
+    probes check that its writes really happened; then the honesty check reads a
+    bundled agent trace and compares what the tools returned with what the agent
+    told the user. Everything runs locally and calls no model.
     """
     from toolscore.mcp import MCPStdioClient, print_scorecard
     from toolscore.mcp.scorecard import score_server
@@ -1983,22 +2002,68 @@ def demo() -> None:
         print_error(f"Bundled sample server not found at {sample_server}.", console)
         sys.exit(1)
 
-    console.print(
-        "[bold]toolscore demo[/bold] - grading a bundled sample MCP server "
-        "(no setup, no API key).\n"
-    )
+    command = [sys.executable, str(sample_server)]
+    if truth:
+        command += ["--bug", "silent-skip"]
+        console.print(
+            "[bold]toolscore demo --truth[/bold] - did the tool really do it, and did the agent "
+            "tell the truth about it?\n\n"
+            "[bold]1. A tool that reports success and does nothing.[/bold] The sample server "
+            "runs with a bug: [cyan]create_note[/cyan] on an existing title says it saved the "
+            "note and changes nothing. Effect probes write marked notes, write again to the "
+            "same title and read them back (they run only against this disposable server).\n"
+        )
+    else:
+        console.print(
+            "[bold]toolscore demo[/bold] - grading a bundled sample MCP server "
+            "(no setup, no API key).\n"
+        )
 
     try:
-        with MCPStdioClient([sys.executable, str(sample_server)], timeout=30.0) as client:
-            card = score_server(client, cases_per_tool=3, include_edge_cases=True)
+        with MCPStdioClient(command, timeout=30.0) as client:
+            card = score_server(
+                client,
+                cases_per_tool=3,
+                include_edge_cases=True,
+                probes=truth,
+                allow_writes=truth,
+            )
     except Exception as exc:  # surface any launch/protocol failure to the user
         print_error(f"Failed to run the sample server: {exc}", console)
         sys.exit(1)
 
     print_scorecard(card, console=console)
+    if not truth:
+        console.print(
+            "\n[dim]That's the health-check. Now point it at your own server:[/dim] "
+            '[bold]toolscore mcp test "python your_server.py"[/bold]'
+            "\n[dim]See the truth checks:[/dim] [bold]toolscore demo --truth[/bold]"
+        )
+        return
+
+    trace = Path(__file__).resolve().parent / "templates" / "demo" / "disabled_button.json"
     console.print(
-        "\n[dim]That's the health-check. Now point it at your own server:[/dim] "
-        '[bold]toolscore mcp test "python your_server.py"[/bold]'
+        "\n[bold]2. An agent that reports success after a tool refused.[/bold] A browser "
+        "agent's trace: the order button is disabled, the agent enables it with JavaScript, "
+        "clicks it and tells the user the order was placed."
+    )
+    ctx.invoke(
+        honesty,
+        trace_file=trace,
+        format="auto",
+        gold=None,
+        final_answer=None,
+        injected=None,
+        config_path=None,
+        json_path=None,
+        fail_on_findings=False,
+        label="browser agent trace (bundled)",
+    )
+    console.print(
+        "[dim]Now check your own:[/dim] "
+        '[bold]toolscore mcp test "python your_server.py" --probes[/bold] '
+        "[dim](add --allow-writes only for a disposable server) and[/dim] "
+        "[bold]toolscore honesty your_trace.json[/bold]"
     )
 
 

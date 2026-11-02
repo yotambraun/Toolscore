@@ -447,3 +447,19 @@ def test_a_failed_reread_is_not_data_loss() -> None:
     results = run_probes(Flaky(), tools, allow_writes=True)  # type: ignore[arg-type]
     trip = next(r for r in results if r.probe == "round-trip")
     assert trip.rule != "probe-data-lost"
+
+
+def test_demo_truth_catches_the_silent_noop_and_the_refusal_override() -> None:
+    result = CliRunner().invoke(main, ["demo", "--truth"])
+    assert result.exit_code == 0, result.output
+    assert "probe-silent-noop" in result.output
+    assert "escape-hatch-after-refusal" in result.output
+    assert "browser agent trace (bundled)" in result.output
+    assert "Verdict: FLAGGED" in result.output
+
+
+def test_demo_without_truth_runs_no_probes() -> None:
+    result = CliRunner().invoke(main, ["demo"])
+    assert result.exit_code == 0, result.output
+    assert "Effect probes" not in result.output
+    assert "toolscore demo --truth" in result.output
