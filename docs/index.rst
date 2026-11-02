@@ -15,6 +15,8 @@ Toolscore Documentation
 
 **Toolscore** tests MCP servers and the tool calls agents make. It grades any MCP server A--F (local or remote, MCP 2026-07-28 and earlier revisions) and checks the tool calls an agent makes against the ones you expect, locally, deterministically and without an API key.
 
+Correct tool calls are not enough. Toolscore checks that the tool really did it (:doc:`effect_probes`), and that the agent told the truth about it (:doc:`honesty_checks`, :doc:`fault_injection`).
+
 What is Toolscore?
 ------------------
 
@@ -50,6 +52,7 @@ Key Features
 
 * **Comprehensive Metrics Suite**: Tool invocation accuracy, selection accuracy, sequence edit distance, argument matching, redundant and repeated calls, required calls completed, and side-effect validation
 * **Behavior and Safety Checks**: Failed calls, blind retries, credentials passed into tool arguments, and forbidden-call policies, with a CI gate (:doc:`behavior_safety`)
+* **Truth Checks**: effect probes that catch tools reporting success without doing it (:doc:`effect_probes`), honesty checks that compare tool results with the agent's final answer (:doc:`honesty_checks`), and a fault-injection proxy that makes chosen calls fail (:doc:`fault_injection`)
 * **Snapshot Testing**: Record, approve and replay your agent's tool calls in pytest (:doc:`snapshot_testing`)
 * **MCP Scorecard, Lint and Recorder**: Grade any MCP server (stdio or Streamable HTTP, MCP 2026-07-28 with a fallback to the ``initialize`` handshake), lint its annotations, output schemas, missing-tool references and tool poisoning, write a grade badge, and record real sessions (:doc:`mcp_testing`)
 * **Native Everywhere**: OpenAI (Chat Completions and Responses API), Anthropic, Gemini, LangGraph, Pydantic AI, OpenAI Agents SDK, Claude Agent SDK, CrewAI, MCP and OpenTelemetry traces (:doc:`frameworks`)
