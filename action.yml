@@ -89,6 +89,22 @@ inputs:
     description: 'Path to a JSON or YAML file of argument values the server accepts (for servers limited to allowed roots), used by the scenarios and the probes.'
     required: false
     default: ''
+  mcp-pin-file:
+    description: 'Path to a lock file written by `toolscore mcp pin` (e.g. toolscore.lock.json). The scorecard run also checks the server against it and fails on drift: tools added, removed or changed (descriptions, schemas, annotations), new delete/exec capabilities, changed instructions.'
+    required: false
+    default: ''
+  mcp-pin-fail-on:
+    description: 'With mcp-pin-file: what fails the pin check: drift (default), capability (only a new delete/exec capability) or never (report only).'
+    required: false
+    default: 'drift'
+  mcp-diff-against:
+    description: 'Compare mcp-command with this baseline (`toolscore mcp diff`): a snapshot from `toolscore mcp list --json`, a lock file, a launch command or a URL. The diff goes to the job summary.'
+    required: false
+    default: ''
+  mcp-diff-fail-on:
+    description: 'With mcp-diff-against: fail on any difference, only on breaking ones (removed tool or parameter, newly required parameter, changed type, new delete/exec capability, new lint error), or none (default: breaking).'
+    required: false
+    default: 'breaking'
   mcp-probe-grade-cap:
     description: 'Cap the grade at C when a high-confidence effect probe fails (a tool reported success and did not do it). The score is the same either way. Set to false for the uncapped grade.'
     required: false
@@ -135,6 +151,9 @@ outputs:
   mcp-score:
     description: 'MCP scorecard score (0.0-1.0). Only set with mcp-command.'
     value: ${{ steps.mcp-test.outputs.score }}
+  mcp-diff-breaking:
+    description: 'Number of breaking changes found by mcp-diff-against. Only set with mcp-diff-against.'
+    value: ${{ steps.mcp-diff.outputs.breaking }}
 
 runs:
   using: 'composite'
@@ -173,6 +192,8 @@ runs:
         INPUT_MCP_PROBE_CONFIG: ${{ inputs.mcp-probe-config }}
         INPUT_MCP_ARGS_FILE: ${{ inputs.mcp-args-file }}
         INPUT_MCP_PROBE_GRADE_CAP: ${{ inputs.mcp-probe-grade-cap }}
+        INPUT_MCP_PIN_FILE: ${{ inputs.mcp-pin-file }}
+        INPUT_MCP_PIN_FAIL_ON: ${{ inputs.mcp-pin-fail-on }}
       run: |
         echo "Running Toolscore MCP scorecard for: $INPUT_MCP_COMMAND"
         FLAGS=(--fail-under "$INPUT_MCP_FAIL_UNDER" --ci --report json -o toolscore-mcp.json)
@@ -184,10 +205,38 @@ runs:
         if [ -n "$INPUT_MCP_PROBE_CONFIG" ]; then FLAGS+=(--probe-config "$INPUT_MCP_PROBE_CONFIG"); fi
         if [ -n "$INPUT_MCP_ARGS_FILE" ]; then FLAGS+=(--args-file "$INPUT_MCP_ARGS_FILE"); fi
         if [ "$INPUT_MCP_PROBE_GRADE_CAP" = "false" ]; then FLAGS+=(--no-probe-grade-cap); fi
+        if [ -n "$INPUT_MCP_PIN_FILE" ]; then FLAGS+=(--pin "$INPUT_MCP_PIN_FILE" --pin-fail-on "$INPUT_MCP_PIN_FAIL_ON"); fi
         STATUS=0
         toolscore mcp test "$INPUT_MCP_COMMAND" "${FLAGS[@]}" || STATUS=$?
         if [ -f toolscore-mcp.json ]; then
           python3 -c "import json; d = json.load(open('toolscore-mcp.json')); print(f\"grade={d['grade']}\"); print(f\"score={d['score']}\")" >> "$GITHUB_OUTPUT"
+        fi
+        exit $STATUS
+
+    - name: Compare MCP servers
+      id: mcp-diff
+      if: inputs.mcp-command != '' && inputs.mcp-diff-against != '' && always()
+      shell: bash
+      env:
+        INPUT_MCP_COMMAND: ${{ inputs.mcp-command }}
+        INPUT_MCP_DIFF_AGAINST: ${{ inputs.mcp-diff-against }}
+        INPUT_MCP_DIFF_FAIL_ON: ${{ inputs.mcp-diff-fail-on }}
+      run: |
+        STATUS=0
+        toolscore mcp diff "$INPUT_MCP_DIFF_AGAINST" "$INPUT_MCP_COMMAND" \
+          --fail-on "$INPUT_MCP_DIFF_FAIL_ON" --json toolscore-mcp-diff.json || STATUS=$?
+        if [ -f toolscore-mcp-diff.json ]; then
+          python3 - << 'PYTHON_SCRIPT'
+        import json, os
+        d = json.load(open('toolscore-mcp-diff.json'))
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"breaking={len(d['breaking'])}\n")
+        with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+            f.write(f"## Toolscore MCP diff\n\n{d['a']} -> {d['b']}\n\n")
+            f.write(f"- Added: {', '.join(d['added']) or 'none'}\n- Removed: {', '.join(d['removed']) or 'none'}\n")
+            f.write(f"- Changed: {', '.join(c['tool'] for c in d['changed']) or 'none'}\n")
+            f.write("- Breaking: " + ('; '.join(d['breaking']) or 'none') + "\n")
+        PYTHON_SCRIPT
         fi
         exit $STATUS
 
