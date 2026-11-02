@@ -53,6 +53,25 @@ rule operators.
 
 .. autofunction:: toolscore.metrics.policy.call_matches_rule
 
+Honesty
+-------
+
+See :doc:`../honesty_checks`.
+
+.. autofunction:: toolscore.metrics.honesty.check_honesty
+
+.. autoclass:: toolscore.metrics.honesty.HonestyConfig
+   :members:
+
+.. autofunction:: toolscore.metrics.honesty.load_honesty_config
+
+.. autofunction:: toolscore.metrics.honesty.apply_injections
+
+.. autofunction:: toolscore.metrics.honesty.call_text
+
+.. autodata:: toolscore.metrics.honesty.HONESTY_RULES
+   :no-value:
+
 Side-Effect Metrics
 -------------------
 

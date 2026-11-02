@@ -77,8 +77,11 @@ Contents
    frameworks
    fluent_api
    behavior_safety
+   honesty_checks
    llm_judge
    mcp_testing
+   effect_probes
+   fault_injection
    extending
    comparison
 

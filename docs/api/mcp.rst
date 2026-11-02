@@ -41,12 +41,30 @@ Clients
 
 .. autofunction:: content_to_text
 
-Recording sessions
-------------------
+Recording sessions and injecting faults
+---------------------------------------
+
+See :doc:`../fault_injection`.
 
 .. autoclass:: MCPRecorder
    :members:
    :undoc-members:
+
+.. autoclass:: FaultSpec
+   :members:
+
+.. autoclass:: FaultRule
+   :members:
+
+.. autoclass:: FaultInjector
+   :members:
+
+.. autoclass:: toolscore.mcp.faults.Injection
+   :members:
+
+.. autodata:: toolscore.mcp.faults.FAULT_KINDS
+
+.. autofunction:: load_fault_spec
 
 Server configuration
 --------------------
@@ -89,6 +107,52 @@ Scorecard harness
 .. autoclass:: LintIssue
    :members:
    :undoc-members:
+
+Argument values
+---------------
+
+.. autoclass:: ArgumentFixtures
+   :members:
+
+.. autofunction:: load_fixtures
+
+.. autofunction:: toolscore.mcp.fixtures.parse_arg
+
+Effect probes
+-------------
+
+See :doc:`../effect_probes`.
+
+.. autofunction:: run_probes
+
+.. autoclass:: ProbeResult
+   :members:
+
+.. autoclass:: ProbeConfig
+   :members:
+
+.. autoclass:: RoundTripPair
+   :members:
+
+.. autoclass:: BoundRelation
+   :members:
+
+.. autoclass:: Agreement
+   :members:
+
+.. autoclass:: CallSpec
+   :members:
+
+.. autofunction:: load_probe_config
+
+.. autofunction:: toolscore.mcp.probes.builtin_relations
+
+.. autofunction:: toolscore.mcp.probes.is_read_tool
+
+.. autofunction:: toolscore.mcp.probes.write_basis
+
+.. autodata:: toolscore.mcp.probes.PROBE_RULES
+   :no-value:
 
 Scorecard
 ---------

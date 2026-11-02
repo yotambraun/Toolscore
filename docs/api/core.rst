@@ -22,6 +22,23 @@ Main Functions
 
 .. autofunction:: load_trace
 
+.. autofunction:: adapter_for
+
+.. currentmodule:: toolscore.transcript
+
+.. autoclass:: Transcript
+   :members:
+
+.. autofunction:: load_transcript
+
+.. autofunction:: transcript_from_data
+
+.. autofunction:: final_answer_of
+
+.. autofunction:: normalize_tool_name
+
+.. currentmodule:: toolscore.core
+
 .. currentmodule:: toolscore.integrations
 
 .. autofunction:: auto_extract

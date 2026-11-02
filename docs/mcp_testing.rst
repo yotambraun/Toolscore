@@ -72,11 +72,20 @@ The subcommands
 ``toolscore mcp test``
    Run the full scorecard: scenario generation, execution, linting, and an
    A--F grade. Supports machine-readable reports and a ``--fail-under`` gate.
+   ``--probes`` adds the effect probes, which check that tools really did what
+   they reported (:doc:`effect_probes`); ``--arg``/``--args-file`` supply
+   argument values a sandboxed server accepts.
 
 ``toolscore mcp record``
    Sit between a real MCP client and a stdio server, relay every message
    unchanged, and save each tool call with its arguments, result, error and
    duration. See :ref:`recording-sessions`.
+
+``toolscore mcp proxy``
+   The same relay, plus ``--inject faults.json``: chosen calls get an error, a
+   warning, an empty or truncated result, a delay, a timeout, or a "disabled"
+   / "permission denied" answer, and the session records which. See
+   :doc:`fault_injection`.
 
 Every command accepts **either** a launch command (``list``, ``lint`` and
 ``test`` also accept a URL) **or** ``--config PATH [--server NAME]``, an MCP
@@ -242,7 +251,10 @@ Rule                                     Severity  Fires when
 =======================================  ========  ================================================
 
 The ``structured-content-*`` rules need tool results, so only ``mcp test``
-reports them; the others also run in ``mcp lint``.
+reports them; the others also run in ``mcp lint``. The effect probes have their
+own rule IDs (``probe-silent-noop``, ``probe-data-lost``,
+``probe-bound-exceeded``...), listed in :doc:`effect_probes`, and the honesty
+checks on agent traces theirs (:doc:`honesty_checks`).
 
 .. _recording-sessions:
 
@@ -327,6 +339,12 @@ Servers with no scenarios (for example a tool whose schema can't be
 introspected) never divide by zero -- the corresponding term defaults to full
 credit.
 
+With ``--probes``, a tool with a high-confidence effect-probe failure (it
+reported success and did not do it) costs as much as a tool that fails all of
+its happy paths: ``score - 0.6 * tools_failing_probes / num_tools``. Passing
+probes, and medium- or low-confidence findings, leave the score unchanged
+(see :doc:`effect_probes`).
+
 Tuning the run
 --------------
 
@@ -337,6 +355,19 @@ Tuning the run
      --no-edge-cases \    # skip the bad-input scenarios
      --timeout 10         # per-call timeout in seconds (default: 30)
 
+A server that only accepts some values (the filesystem and git servers reject
+paths outside their allowed roots) fails every generated happy path. Give it
+values it accepts; they replace generated ones in the happy paths, while edge
+cases keep their bad values:
+
+.. code-block:: bash
+
+   toolscore mcp test "npx -y @modelcontextprotocol/server-filesystem /tmp/sandbox" \
+     --arg path=/tmp/sandbox/notes.txt \        # every tool with a 'path' parameter
+     --arg list_directory:path=/tmp/sandbox      # one tool
+
+See :ref:`the --arg reference <arg-values>` for files of values.
+
 Using it in CI
 --------------
 
@@ -344,7 +375,8 @@ Gate a pull request on a minimum grade with ``--fail-under`` (a letter grade,
 case-insensitive). The command exits ``1`` when the achieved grade is below the
 threshold. Add ``--ci`` to also write the full scorecard to the GitHub Actions
 job summary (``$GITHUB_STEP_SUMMARY``) and fail the build on *blocking* issues --
-a tool that fails on valid input, an edge-case crash, or a schema error:
+a tool that fails on valid input, an edge-case crash, a schema error, or a
+high-confidence effect-probe failure:
 
 .. code-block:: yaml
 
