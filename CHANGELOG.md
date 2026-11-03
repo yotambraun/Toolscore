@@ -169,6 +169,7 @@ Toolscore 1.11 speaks the current MCP revision (2026-07-28) and tests remote ser
 - The release workflow moves the `v1` tag to each release, so `uses: yotambraun/toolscore@v1` resolves, and is ready for PyPI Trusted Publishing (one line to delete once the publisher is added on PyPI).
 
 ### Fixed
+- Windows: a server command such as `C:\Python312\python.exe -m server` is split with Windows rules (the inverse of `subprocess.list2cmdline`), where POSIX splitting dropped every backslash; `toolscore export` writes `\n` line endings so the manifest's sha256 matches the file; the fault-injection examples quote their command for the platform.
 
 - **Claude Agent SDK messages yielded no calls.** The SDK's `ToolUseBlock` and `ToolResultBlock` dataclasses carry no `type` field, so `from_claude_agent_sdk()` and auto-detection returned nothing for the messages `query()` yields. Blocks are recognized by class, tool results are paired to their calls (`is_error` makes a call failed), and the `ResultMessage` text is the final answer.
 - A `claimed-success` finding said a failed call "was not retried" when a later call to the same tool failed too; it now says "no later call to it succeeded".

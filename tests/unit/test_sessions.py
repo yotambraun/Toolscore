@@ -250,6 +250,7 @@ def test_honesty_and_eval_read_session_files_directly() -> None:
 
 def _home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, Path]:
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))  # Path.home() on Windows
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     monkeypatch.delenv("CODEX_HOME", raising=False)
     claude = _write_jsonl(
@@ -287,6 +288,7 @@ def test_find_and_summarize_sessions(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
 def test_config_dir_overrides(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(tmp_path / "nowhere"))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path / "nowhere"))  # Path.home() on Windows
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "cc"))
     monkeypatch.setenv("CODEX_HOME", str(tmp_path / "cx"))
     a = _write_jsonl(tmp_path / "cc" / "projects" / "p" / "a.jsonl", _claude_session())

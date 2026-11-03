@@ -1,13 +1,13 @@
 """Unit tests for CLI commands."""
 
 import json
-import shlex
 import sys
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
+from toolscore._cmdline import join_command
 from toolscore.cli import main
 
 FIXTURE_SERVER = Path(__file__).resolve().parents[1] / "fixtures" / "fake_mcp_server.py"
@@ -16,7 +16,7 @@ FIXTURE_SERVER = Path(__file__).resolve().parents[1] / "fixtures" / "fake_mcp_se
 def _fake_server_arg(*extra: str) -> str:
     """Return a single shell-quoted command string launching the fake server."""
     parts = [sys.executable, str(FIXTURE_SERVER), *extra]
-    return shlex.join(parts)
+    return join_command(parts)
 
 
 @pytest.fixture

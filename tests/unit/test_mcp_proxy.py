@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import io
 import json
-import shlex
 import sys
 from typing import TYPE_CHECKING
 
 import pytest
 
+from toolscore._cmdline import join_command
 from toolscore.core import load_trace
 from toolscore.mcp import MCPRecorder, MCPStdioClient, MCPTimeoutError
 from toolscore.mcp.faults import (
@@ -36,7 +36,7 @@ def _proxy(output: Path, spec: Path) -> list[str]:
         "from toolscore.cli import main; main()",
         "mcp",
         "proxy",
-        shlex.join(SAMPLE),
+        join_command(SAMPLE),
         "--inject",
         str(spec),
         "-o",
@@ -247,7 +247,7 @@ def test_cli_proxy_without_inject_only_records(tmp_path: Path) -> None:
         "from toolscore.cli import main; main()",
         "mcp",
         "proxy",
-        shlex.join(SAMPLE),
+        join_command(SAMPLE),
         "-o",
         str(out),
     ]

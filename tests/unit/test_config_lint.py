@@ -45,9 +45,9 @@ def test_discovers_instruction_files_and_host_configs(tmp_path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("{}" if name.endswith(".json") else "# x\n", encoding="utf-8")
     instructions, configs = discover_files([tmp_path])
-    rel = sorted(str(p.relative_to(tmp_path)) for p in instructions)
+    rel = sorted(p.relative_to(tmp_path).as_posix() for p in instructions)
     assert rel == sorted(files[:9])
-    assert sorted(str(p.relative_to(tmp_path)) for p in configs) == sorted(files[9:13])
+    assert sorted(p.relative_to(tmp_path).as_posix() for p in configs) == sorted(files[9:13])
     # an explicitly named Markdown file is always read
     assert discover_files([tmp_path / "README.md"])[0] == [tmp_path / "README.md"]
 

@@ -27,11 +27,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shlex
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, TypeVar
 from xml.sax.saxutils import escape, quoteattr
+
+from toolscore._cmdline import split_command
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -188,7 +189,7 @@ def default_location(
     tokens: list[str] = []
     for part in command:
         try:
-            tokens += shlex.split(part)
+            tokens += split_command(part)
         except ValueError:
             tokens += part.split()
     # A file in this repository named as an argument (the script, not the

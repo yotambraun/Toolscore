@@ -51,7 +51,6 @@ import json
 import os
 import random
 import re
-import shlex
 import subprocess
 import sys
 import tempfile
@@ -61,6 +60,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
 
+from toolscore._cmdline import split_command
 from toolscore.mcp.content import content_to_text
 
 if TYPE_CHECKING:
@@ -1057,7 +1057,7 @@ def run_version_command(verify: dict[str, Any], cwd: str | Path = ".") -> dict[s
     command = verify.get("command")
     if not command:
         return None
-    argv = shlex.split(command) if isinstance(command, str) else [str(c) for c in command]
+    argv = split_command(command) if isinstance(command, str) else [str(c) for c in command]
     # The user's own spec names the command, like the server command itself.
     completed = subprocess.run(
         argv, capture_output=True, text=True, timeout=120, cwd=cwd, check=False
@@ -1092,7 +1092,9 @@ def _server_spec(server: dict[str, Any], run_dir: str, base_dir: str) -> Any:
         )
     command = server["command"]
     argv = (
-        shlex.split(fill(command)) if isinstance(command, str) else [fill(str(c)) for c in command]
+        split_command(fill(command))
+        if isinstance(command, str)
+        else [fill(str(c)) for c in command]
     )
     return MCPServerSpec(name=" ".join(argv), command=argv, env=env)
 

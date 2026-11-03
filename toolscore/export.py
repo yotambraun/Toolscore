@@ -395,7 +395,8 @@ def write_export(
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n" for r in records)
-    target.write_text(text, encoding="utf-8")
+    # "\n" on every OS, so the manifest's sha256 is the hash of the file as written
+    target.write_text(text, encoding="utf-8", newline="\n")
     manifest = {
         "schema": SCHEMA_NAME,
         "schema_version": SCHEMA_VERSION,
@@ -406,7 +407,7 @@ def write_export(
         "sources": [file_digest(p) for p in inputs],
     }
     manifest_path = target.with_name(target.name + ".manifest.json")
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     return target, manifest_path
 
 

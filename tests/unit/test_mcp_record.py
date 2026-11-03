@@ -9,12 +9,12 @@ from __future__ import annotations
 import io
 import json
 import os
-import shlex
 import sys
 import threading
 from pathlib import Path
 
 from toolscore import evaluate
+from toolscore._cmdline import join_command
 from toolscore.core import load_trace
 from toolscore.mcp import MCPRecorder, MCPStdioClient
 
@@ -22,7 +22,7 @@ FIXTURE_SERVER = Path(__file__).resolve().parents[1] / "fixtures" / "fake_mcp_se
 
 
 def _recorder(output: Path, *server_flags: str) -> list[str]:
-    server = shlex.join([sys.executable, str(FIXTURE_SERVER), *server_flags])
+    server = join_command([sys.executable, str(FIXTURE_SERVER), *server_flags])
     return [
         sys.executable,
         "-c",

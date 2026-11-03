@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import shlex
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -16,6 +15,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from toolscore import __version__
+from toolscore._cmdline import split_command
 from toolscore.baseline import (
     compare_to_baseline,
     load_baseline,
@@ -1345,7 +1345,7 @@ def _resolve_mcp_target(
 
             spec = MCPServerSpec(name=safe_url(command[0]), command=[], url=command[0])
         elif len(command) == 1:
-            spec = MCPServerSpec(name=positional, command=shlex.split(command[0]))
+            spec = MCPServerSpec(name=positional, command=split_command(command[0]))
         else:
             spec = MCPServerSpec(name=positional, command=list(command))
     else:

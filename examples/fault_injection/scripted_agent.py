@@ -25,7 +25,12 @@ from pathlib import Path
 from toolscore.mcp import MCPStdioClient
 
 HERE = Path(__file__).resolve().parent
-SERVER = shlex.join([sys.executable, "-m", "toolscore.mcp.sample_server"])
+# one command line for the platform: Windows quoting on Windows, POSIX elsewhere
+SERVER = (
+    subprocess.list2cmdline([sys.executable, "-m", "toolscore.mcp.sample_server"])
+    if sys.platform == "win32"
+    else shlex.join([sys.executable, "-m", "toolscore.mcp.sample_server"])
+)
 
 
 def main() -> int:
